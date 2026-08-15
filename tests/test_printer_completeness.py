@@ -12,7 +12,6 @@ import pytest
 
 from infra import parse
 from infra.cli.printer import InfraPrinter, format_file, format_source
-from infra.parser import Parser
 
 
 def fmt(src: str) -> str:
@@ -206,7 +205,7 @@ class TestRoundTrip:
     def test_round_trip_parses(self, src):
         # format then re-parse must not raise
         formatted = fmt(src)
-        Parser().parse(formatted)  # must not raise
+        parse(formatted)  # must not raise (cached parser)
 
 
 class TestIdempotency:

@@ -137,3 +137,58 @@ class TestDiffNodeValues:
             'service s { image: "x:1" replicas: 2 port: 80 }',
         )
         assert r.has_changes
+
+
+class TestDiffSummary:
+    """Diff text/JSON summary contracts (consolidated from test_diff_s10)."""
+
+    def test_json_summary_present(self):
+        r = diff('service api { image: "nginx:1.0" }',
+                 'service api { image: "nginx:2.0" }')
+        data = json.loads(r.format_json())
+        assert "summary" in data
+        assert data["summary"] == {"changed": 1, "added": 0, "removed": 0}
+
+    def test_json_summary_counts(self):
+        r = diff('service api { image: "nginx:1.0" }',
+                 'service api { image: "nginx:2.0" }\n'
+                 'service worker { image: "redis:7" }\n')
+        data = json.loads(r.format_json())
+        assert data["summary"] == {"changed": 1, "added": 1, "removed": 0}
+
+    def test_text_summary_line(self):
+        r = diff('service api { image: "nginx:1.0" }',
+                 'service api { image: "nginx:2.0" }')
+        text = r.format(color=False)
+        assert "SUMMARY:" in text
+        assert "1 changed, 0 added, 0 removed" in text
+
+    def test_no_differences_message(self):
+        r = diff('service api { image: "nginx:1.0" }',
+                 'service api { image: "nginx:1.0" }')
+        assert "No differences found" in r.format(color=False)
+
+    def test_changed_before_after_values(self):
+        r = diff('service api { image: "nginx:1.0" }',
+                 'service api { image: "nginx:2.0" }')
+        c = next(c for c in r.changed if c.name == "api")
+        img = next(ch for ch in c.changes if "image" in ch.field_path)
+        assert img.before == "nginx:1.0"
+        assert img.after == "nginx:2.0"
+
+    def test_format_json_is_valid(self):
+        r = diff('service a { image: "x:1" }', 'service a { image: "x:2" }')
+        assert isinstance(json.loads(r.format_json()), dict)
+
+
+class TestDiffJsonShape:
+    def test_json_changed_shape(self):
+        r = diff('service api { image: "nginx:1.0" }',
+                 'service api { image: "nginx:2.0" }')
+        data = json.loads(r.format_json())
+        changed = data["changed"][0]
+        assert changed["kind"] == "service"
+        assert changed["name"] == "api"
+        assert "field" in changed["changes"][0]
+        assert "before" in changed["changes"][0]
+        assert "after" in changed["changes"][0]

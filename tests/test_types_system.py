@@ -1,4 +1,4 @@
-"""Coverage gap tests for core helper modules."""
+"""Type-system helpers (types.py) and backend base helpers."""
 
 from __future__ import annotations
 
