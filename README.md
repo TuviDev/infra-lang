@@ -275,7 +275,7 @@ service api {
 | `examples/01_hello_world.infra` | The simplest single service |
 | `examples/02_web_app.infra` | API + database + cache + secrets |
 | `examples/03_microservices.infra` | Three services sharing a DB and a queue |
-| `examples/04_cicd_pipeline.infra` | A full CI/CD pipeline |
+| `examples/04_cicd_pipeline.infra` | A full CI/CD pipeline (**GitHub target only**; no K8s output — expected) |
 | `examples/demo/` | A complete commented microservices project (multi-file, validate + compile) |
 
 ```bash

@@ -51,4 +51,14 @@ class _D:
             return f"- **storage** `{stmt.name}` ({stmt.type})"
         if isinstance(stmt, n.PipelineDef):
             return f"- **pipeline** `{stmt.name}`"
+        if isinstance(stmt, n.SecretDef):
+            return f"- **secret** `{stmt.name}`"
+        if isinstance(stmt, n.ConfigDef):
+            return f"- **config** `{stmt.name}`"
+        if isinstance(stmt, n.NetworkDef):
+            return f"- **network** `{stmt.name}`"
+        if isinstance(stmt, n.EnvironmentDef):
+            return f"- **environment** `{stmt.name}`"
+        if isinstance(stmt, n.ClusterDef):
+            return f"- **cluster** `{stmt.name}`"
         return f"- **{type(stmt).__name__.lower()}** `{getattr(stmt, 'name', '?')}`"

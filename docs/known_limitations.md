@@ -33,6 +33,12 @@ know what to expect.
   live `kubectl apply` against a running cluster in CI (requires Docker/kind).
 - No automated deployment smoke tests against a real cluster.
 
+## Output directory behavior
+
+- `infra-out/` accumulates artifacts across compiles; it is never auto-cleared
+  (the compiler only writes files, never deletes them). Use separate output
+  dirs per target or `rm -rf infra-out` for a clean comparison.
+
 ## Telemetry / feedback
 
 - Feedback is **opt-in and off by default**. The collector endpoint is not yet

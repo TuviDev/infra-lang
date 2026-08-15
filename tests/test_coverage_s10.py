@@ -28,11 +28,18 @@ class TestDocsBranches:
             "queue queue1 { type: rabbitmq }\n"
             "storage store1 { type: object }\n"
             "pipeline pipe1 { stages { a: { runsOn: \"x\" } } }\n"
+            'secret sec { key: from env "K" }\n'
+            'config cfg { VAL: "x" }\n'
+            'network net { cidr: "10.0.0.0/16" }\n'
+            'environment env { namespace: "ns" }\n'
+            "cluster cl { provider: aws }\n"
         )
         r = runner.invoke(app, ["docs", str(f)])
         assert r.exit_code == 0, r.output
         for needle in ("**service**", "**database**", "**cache**",
-                       "**queue**", "**storage**", "**pipeline**"):
+                       "**queue**", "**storage**", "**pipeline**",
+                       "**secret**", "**config**", "**network**",
+                       "**environment**", "**cluster**"):
             assert needle in r.output
 
 

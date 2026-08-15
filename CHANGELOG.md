@@ -89,6 +89,19 @@ All notable changes to Infra Lang are documented here.
   language spec, release notes and publishing checklist.
 
 ### Fixed
+- `infra docs` now renders `secret` / `config` / `network` / `environment` /
+  `cluster` as their user-facing names instead of the raw AST class names
+  (`secretdef`, `configdef`, ...).
+- Documented that `infra-out/` accumulates artifacts across compiles and is
+  never auto-cleared; suggested separate output dirs per target.
+- Pinned `pygls` to `<2.0` (the code uses the 1.x API; 2.x moved
+  `LanguageServer` to `pygls.lsp.server` and renamed `publish_diagnostics`).
+- `test_clean_venv_install` now locates venv scripts cross-platform
+  (`Scripts/` on Windows, `bin/` on POSIX) instead of assuming a Unix path.
+- `test_watch_recompiles_on_change` now reads watch output stream-wise so it
+  works even when `rich` buffers non-TTY output and the process is terminated.
+- Property-based tests now set `deadline=5000` so slow CI machines don't hit
+  the default 200ms hypothesis deadline.
 - 5× `'Map' object is not iterable` in the transformer
   (network-policy `selector`, stage `env`, node-pool `labels`, IAM `policy`,
   build `args`).
