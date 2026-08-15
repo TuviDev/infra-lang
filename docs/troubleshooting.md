@@ -25,6 +25,21 @@
   at once (the validator collects multiple errors; the parser stops at the
   first syntax error).
 
+## Output directory (`infra-out/`)
+
+`infra-out/` (or a custom `--output` dir) **accumulates** artifacts from
+previous compiles: compiling to a different backend does not clear the old
+files. This is intentional — the compiler never deletes files it did not write
+to avoid accidentally removing user content (e.g. with `--split`).
+
+If you inspect the output directory and see stale files from an earlier target
+(e.g. an `infra.yaml` left over after compiling to `compose`), that is expected.
+To compare targets cleanly:
+
+- use a separate output dir per backend, e.g. `--output infra-out/k8s` and
+  `--output infra-out/compose`, or
+- `rm -rf infra-out` before recompiling for a fresh comparison.
+
 ## Validation / lint
 
 - `error[E011] replicas must be >= 1` → set `replicas: 1` or higher.

@@ -5,13 +5,12 @@ These run locally before any publish attempt. See MANUAL_PUBLISH_STEPS.md.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
-
-import pytest
 
 
 class TestPublishReadiness:
@@ -98,8 +97,10 @@ class TestPublishReadiness:
             check=True,
             timeout=60,
         )
-        pip = venv / "bin" / "pip"
-        infra = venv / "bin" / "infra"
+        # venv scripts live under bin/ on POSIX and Scripts/ on Windows
+        bindir = venv / ("Scripts" if os.name == "nt" else "bin")
+        pip = bindir / ("pip.exe" if os.name == "nt" else "pip")
+        infra = bindir / ("infra.exe" if os.name == "nt" else "infra")
         wheels = list(Path("dist").glob("*.whl"))
         assert wheels
         subprocess.run(

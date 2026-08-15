@@ -28,11 +28,18 @@ class TestDocsBranches:
             "queue queue1 { type: rabbitmq }\n"
             "storage store1 { type: object }\n"
             "pipeline pipe1 { stages { a: { runsOn: \"x\" } } }\n"
+            'secret sec { key: from env "K" }\n'
+            'config cfg { VAL: "x" }\n'
+            'network net { cidr: "10.0.0.0/16" }\n'
+            'environment env { namespace: "ns" }\n'
+            "cluster cl { provider: aws }\n"
         )
         r = runner.invoke(app, ["docs", str(f)])
         assert r.exit_code == 0, r.output
         for needle in ("**service**", "**database**", "**cache**",
-                       "**queue**", "**storage**", "**pipeline**"):
+                       "**queue**", "**storage**", "**pipeline**",
+                       "**secret**", "**config**", "**network**",
+                       "**environment**", "**cluster**"):
             assert needle in r.output
 
 
@@ -136,3 +143,63 @@ class TestKubernetesExtraBranches:
         docs = [d for d in yaml.safe_load_all(content) if d]
         secret = next(d for d in docs if d["kind"] == "Secret")
         assert secret["data"]["a"] == "from-vault:secret/a"
+
+
+class TestLspCmdCoverage:
+    def test_lsp_stdio_mode(self, monkeypatch):
+        from typer.testing import CliRunner
+
+        import infra.lsp.server as s
+        from infra.cli.main import app
+
+        called = {}
+        monkeypatch.setattr(s.server, "start_io", lambda: called.setdefault("io", True))
+        r = CliRunner().invoke(app, ["lsp"])
+        assert r.exit_code == 0
+        assert called.get("io") is True
+
+    def test_lsp_tcp_mode(self, monkeypatch):
+        from typer.testing import CliRunner
+
+        import infra.lsp.server as s
+        from infra.cli.main import app
+
+        called = {}
+        monkeypatch.setattr(
+            s.server, "start_tcp", lambda h, p: called.update({"tcp": (h, p)})
+        )
+        r = CliRunner().invoke(app, ["lsp", "--tcp", "--port", "2088"])
+        assert r.exit_code == 0
+        assert called.get("tcp") == ("127.0.0.1", 2088)
+
+
+class TestFeedbackCmdCoverage:
+    def test_on_and_off_conflict_errors(self):
+        from typer.testing import CliRunner
+
+        from infra.cli.main import app
+
+        r = CliRunner().invoke(app, ["feedback", "--on", "--off"])
+        assert r.exit_code == 1
+        assert "only one of --on / --off" in r.output
+
+    def test_user_config_path_fallback(self, tmp_path, monkeypatch):
+        import infra.config as cfg
+        from infra.cli.feedback_cmd import _project_config_path
+
+        monkeypatch.setattr(cfg, "USER_CONFIG_PATH", tmp_path / "user.yaml")
+        monkeypatch.chdir(tmp_path)  # no project config present
+        assert _project_config_path() == tmp_path / "user.yaml"
+
+
+class TestFmtCoverage:
+    def test_fmt_diff_flag(self, tmp_path):
+        from typer.testing import CliRunner
+
+        from infra.cli.main import app
+
+        f = tmp_path / "t.infra"
+        f.write_text("service s {\nimage:\"x\"\n}")
+        r = CliRunner().invoke(app, ["fmt", str(f), "--diff"])
+        assert r.exit_code == 0
+        assert "-" in r.output or "+" in r.output or "diff" in r.output.lower()

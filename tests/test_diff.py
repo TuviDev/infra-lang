@@ -99,3 +99,41 @@ class TestDiffCLI:
         result = runner.invoke(app, ["diff", str(f1), str(f2), "--format", "json"])
         assert result.exit_code == 0
         assert json.loads(result.output)["has_changes"] is True
+
+
+class TestDiffNodeValues:
+    """Diff must surface changes across value types (resource, duration, etc.)."""
+
+    def test_resource_value_change_detected(self):
+        r = diff(
+            'service s { image: "x:1" resources { requests { cpu: 100m } } }',
+            'service s { image: "x:1" resources { requests { cpu: 200m } } }',
+        )
+        assert r.has_changes
+        c = next(c for c in r.changed if c.name == "s")
+        assert any("cpu" in ch.field_path for ch in c.changes)
+
+    def test_duration_change_detected(self):
+        r = diff(
+            'service s { image: "x:1" health http("/") { interval: 10s } }',
+            'service s { image: "x:1" health http("/") { interval: 20s } }',
+        )
+        assert r.has_changes
+        c = next(c for c in r.changed if c.name == "s")
+        assert any("interval" in ch.field_path for ch in c.changes)
+
+    def test_nested_resources_change_detected(self):
+        r = diff(
+            'service s { image: "x:1" resources { limits { memory: 128Mi } } }',
+            'service s { image: "x:1" resources { limits { memory: 256Mi } } }',
+        )
+        assert r.has_changes
+        c = next(c for c in r.changed if c.name == "s")
+        assert any("memory" in ch.field_path for ch in c.changes)
+
+    def test_tuple_length_change_detected(self):
+        r = diff(
+            'service s { image: "x:1" replicas: 2 }',
+            'service s { image: "x:1" replicas: 2 port: 80 }',
+        )
+        assert r.has_changes

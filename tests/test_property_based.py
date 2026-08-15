@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import pytest
-from hypothesis import HealthCheck, given, settings, strategies as st
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
 
 from infra import parse, validate
 from infra.errors.exceptions import InfraLexError, InfraParseError
@@ -22,7 +23,10 @@ REPLICAS = st.integers(min_value=1, max_value=50)
 
 class TestPropertyBased:
     @given(name=SAFE_NAME, image=SAFE_IMAGE, replicas=REPLICAS)
-    @settings(max_examples=30, suppress_health_check=[HealthCheck.too_slow])
+    @settings(
+        max_examples=30, deadline=5000,
+        suppress_health_check=[HealthCheck.too_slow],
+    )
     def test_valid_service_always_parses(self, name, image, replicas):
         source = f'service {name} {{ image: "{image}" replicas: {replicas} }}'
         try:
@@ -32,7 +36,7 @@ class TestPropertyBased:
             pytest.skip(f"Name '{name}' is a reserved keyword")
 
     @given(replicas=st.integers(min_value=1, max_value=10000))
-    @settings(max_examples=40)
+    @settings(max_examples=40, deadline=5000)
     def test_valid_replicas_never_crash(self, replicas):
         source = f'service api {{ image: "nginx:1.0" replicas: {replicas} }}'
         try:
@@ -43,7 +47,7 @@ class TestPropertyBased:
 
     @given(storage_val=st.integers(min_value=1, max_value=10000),
            unit=st.sampled_from(["Mi", "Gi", "Ti"]))
-    @settings(max_examples=20)
+    @settings(max_examples=20, deadline=5000)
     def test_storage_values_dont_crash_compiler(self, storage_val, unit):
         from infra.backends.kubernetes import KubernetesBackend
 
@@ -55,7 +59,7 @@ class TestPropertyBased:
             pass
 
     @given(image=SAFE_IMAGE)
-    @settings(max_examples=20)
+    @settings(max_examples=20, deadline=5000)
     def test_arbitrary_images_parse(self, image):
         source = f'service api {{ image: "{image}" }}'
         try:

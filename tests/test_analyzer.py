@@ -186,3 +186,23 @@ class TestValidCode:
         result = validate('service api { image: missing }')
         for e in result.errors:
             assert e.message
+
+
+class TestExpressionTypeInference:
+    """Validating these must accept the correct expression types (no errors)."""
+
+    def test_percentage_expression_accepted(self):
+        src = 'service s { image: "x:1" disruption { min_available: 50% } }'
+        assert validate(src).is_valid
+
+    def test_resource_value_expression_accepted(self):
+        src = 'service s { image: "x:1" resources { requests { cpu: 100m } } }'
+        assert validate(src).is_valid
+
+    def test_duration_expression_accepted(self):
+        src = 'service s { image: "x:1" health http("/") { interval: 10s } }'
+        assert validate(src).is_valid
+
+    def test_map_expression_accepted(self):
+        src = 'service s { image: "x:1" labels: { tier: "web" } }'
+        assert validate(src).is_valid

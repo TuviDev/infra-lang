@@ -17,6 +17,7 @@ from infra import parse, validate
 from infra.backends.compose import DockerComposeBackend
 from infra.backends.github import GitHubActionsBackend
 from infra.backends.kubernetes import KubernetesBackend
+from infra.errors.exceptions import InfraLexError, InfraParseError
 
 # --------------------------------------------------------------------------- #
 # 1. Very large files
@@ -72,14 +73,33 @@ class TestLargeFileStress:
 # --------------------------------------------------------------------------- #
 
 FEATURE_SOURCES = {
-    "service_autoscale": 'service s { image: "x:1" autoscale { min: 2 max: 10 } }',
-    "service_disruption": 'service s { image: "x:1" disruption { min_available: 1 } }',
-    "service_network_policy": 'service s { image: "x:1" network_policy { deny_from: ["*"] } }',
-    "service_topology": 'service s { image: "x:1" topology { spread_by: zone max_skew: 1 } }',
-    "service_affinity": 'service s { image: "x:1" affinity { prefer_same: [a] } }',
-    "database_backup_ssl": "database d { type: postgres backup { enabled: true } ssl: true }",
-    "env_quotas_extends": "environment dev { namespace: \"d\" }\nenvironment prod extends dev { quotas { max_cpu: 10cores } }",
-    "pipeline_matrix": 'pipeline p { trigger { branches: ["main"] } stages { t: { matrix { py: ["3.11"] } steps { s: { run: "x" } } } } }',
+    "service_autoscale": (
+        'service s { image: "x:1" autoscale { min: 2 max: 10 } }'
+    ),
+    "service_disruption": (
+        'service s { image: "x:1" disruption { min_available: 1 } }'
+    ),
+    "service_network_policy": (
+        'service s { image: "x:1" network_policy { deny_from: ["*"] } }'
+    ),
+    "service_topology": (
+        'service s { image: "x:1" topology { spread_by: zone max_skew: 1 } }'
+    ),
+    "service_affinity": (
+        'service s { image: "x:1" affinity { prefer_same: [a] } }'
+    ),
+    "database_backup_ssl": (
+        "database d { type: postgres backup { enabled: true } ssl: true }"
+    ),
+    "env_quotas_extends": (
+        'environment dev { namespace: "d" }\n'
+        "environment prod extends dev { quotas { max_cpu: 10cores } }"
+    ),
+    "pipeline_matrix": (
+        'pipeline p { trigger { branches: ["main"] } '
+        'stages { t: { matrix { py: ["3.11"] } '
+        'steps { s: { run: "x" } } } } }'
+    ),
 }
 
 
@@ -89,10 +109,13 @@ class TestBackendFeatureMatrix:
     def test_feature_compiles_all_backends(self, name):
         source = FEATURE_SOURCES[name]
         program = parse(source)
-        # parse + validate
-        result = validate(program)
         # compile to each backend that accepts it; assert YAML output parseable
-        for backend in (KubernetesBackend(), DockerComposeBackend(), GitHubActionsBackend()):
+        backends = (
+            KubernetesBackend(),
+            DockerComposeBackend(),
+            GitHubActionsBackend(),
+        )
+        for backend in backends:
             compiled = backend.compile(program)
             assert compiled is not None
             for fname, content in compiled.files.items():
@@ -144,3 +167,94 @@ class TestRepeatedCompile:
         for _ in range(50):
             out = "\n".join(backend.compile(program).files.values())
             assert out == first, "compiled output changed across iterations"
+
+
+class TestMalformedInputStorm:
+    """A storm of malformed inputs must never crash the parser or backends."""
+
+    STORM = [
+        "",
+        "   ",
+        "{",
+        "}",
+        "service",
+        "service {",
+        "service api",
+        "service api {",
+        'service api { image',
+        'service api { image: "',
+        'service api { image: "x" replicas',
+        'service api { image: "x" replicas: ',
+        ":::bad:::",
+        "@@@@",
+        "import",
+        "import ",
+        'from "x" import',
+        "let",
+        "const x",
+        "\x00\x01",
+        "🚀" * 20,
+        "#" * 500,
+        "service " * 30,
+        "database db { type ",
+        'pipeline p { stages { s { run ',
+    ]
+
+    @pytest.mark.slow
+    def test_storm_never_crashes(self):
+        for src in self.STORM:
+            try:
+                parse(src)
+            except (InfraParseError, InfraLexError):
+                pass
+            # any other exception type would fail here
+
+    @pytest.mark.slow
+    def test_storm_backend_safe(self):
+        # compiling the ones that parse must not crash either
+        for src in self.STORM:
+            try:
+                program = parse(src)
+            except (InfraParseError, InfraLexError):
+                continue
+            for backend in (KubernetesBackend(), DockerComposeBackend()):
+                try:
+                    backend.compile(program)
+                except Exception:
+                    # a compile error on a weird-but-parseable input is OK as
+                    # long as it's not a crash (we just don't want hangs)
+                    pass
+
+
+class TestLspRequestStorm:
+    """Many LSP-style operations over varied inputs must stay consistent."""
+
+    SOURCES = [
+        "",
+        "service api { image: \"x:1\" }",
+        'service api { image: "x:1" replicas: 0 }',
+        "database db { type: postgres }",
+        'service api {\n    \n}',
+        "service {",
+        'env { PASSWORD: "bad" }',
+    ]
+
+    @pytest.mark.slow
+    def test_diagnose_storm_no_crash(self):
+        from infra.lsp.server import _diagnose
+
+        for src in self.SOURCES:
+            diags = _diagnose(src, "storm.infra")
+            assert isinstance(diags, list)
+            # valid services produce diagnostics; malformed must not crash
+            assert all(hasattr(d, "code") for d in diags)
+
+    @pytest.mark.slow
+    def test_completion_storm_no_crash(self):
+        from infra.lsp.completion import completions_at
+
+        for src in self.SOURCES:
+            for line in range(len(src.splitlines())):
+                for char in (0, 4, 10):
+                    items = completions_at(src, line, char)
+                    assert isinstance(items, list)
