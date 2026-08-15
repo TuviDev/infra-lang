@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 
 import pytest
@@ -13,6 +14,15 @@ from typer.testing import CliRunner
 from infra.cli.main import app
 
 runner = CliRunner()
+
+# Click/Rich may emit ANSI escape codes in --help output depending on the
+# terminal/version (e.g. some CI runners on Python 3.13). Strip them so
+# assertions on help text are robust across environments.
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _strip_ansi(text: str) -> str:
+    return _ANSI_RE.sub("", text)
 
 
 def write_infra(path: Path, content: str) -> Path:
@@ -199,11 +209,12 @@ class TestLspCliCommand:
     def test_lsp_command_registered(self):
         result = runner.invoke(app, ["lsp", "--help"])
         assert result.exit_code == 0
-        assert "--tcp" in result.output
-        assert "--port" in result.output
-        assert "--host" in result.output
+        output = _strip_ansi(result.output)
+        assert "--tcp" in output
+        assert "--port" in output
+        assert "--host" in output
         # --help must not import pygls (callback is lazy)
-        assert "pygls" not in result.output
+        assert "pygls" not in output
 
     def test_lsp_command_listed_in_app(self):
         names = [c.name for c in app.registered_commands]
