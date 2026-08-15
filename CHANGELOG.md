@@ -5,6 +5,12 @@ All notable changes to Infra Lang are documented here.
 ## [0.2.0] - in development
 
 ### Fixed
+- **Watch mode (type safety)**: `on_modified` passed watchdog's `bytes | str`
+  path directly to `Path()`, which mypy flagged; paths are now decoded to `str`
+  first (robust against byte paths on some platforms).
+- **Type safety**: added explicit `Tuple[str, ...]` annotations in
+  `network_policy_block` (previously `tuple[()]` reassigned to `tuple[str, ...]`),
+  so mypy now fully checks these bodies (`--check-untyped-defs` is clean).
 - **LSP robustness**: `find_definition`, `symbol_at`, `symbol_range` and hover
   crashed with `IndexError` when the editor reported a cursor position past
   the end of a short line (common while editing). Positions are now clamped to

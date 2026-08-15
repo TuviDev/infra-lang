@@ -168,6 +168,14 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         )
         return "\n".join(self._to_yaml(m) for m in self._compile_service(node, ctx))
 
+    @staticmethod
+    def _labels(name: str) -> Dict[str, str]:
+        """Standard Kubernetes labels applied to every generated resource."""
+        return {
+            "app.kubernetes.io/name": name,
+            "app.kubernetes.io/managed-by": "infra-lang",
+        }
+
     def _ensure_service_port_names(self, ports: List[Dict[str, Any]]) -> None:
         """Mutate ``ports`` in place, adding stable unique names when >1 port.
 
@@ -777,10 +785,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         image = _DB_IMAGES.get(node.type, "postgres")
         version = node.version or ""
         image_tag = f"{image}:{version}" if version else f"{image}:latest"
-        labels = {
-            "app.kubernetes.io/name": node.name,
-            "app.kubernetes.io/managed-by": "infra-lang",
-        }
+        labels = self._labels(node.name)
         sts = {
             "apiVersion": "apps/v1",
             "kind": "StatefulSet",
@@ -867,10 +872,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
     def _compile_cache(self, node: n.CacheDef, ctx: CompileContext):
         image = _CACHE_IMAGES.get(node.type, "redis")
         version = node.version or ("7" if node.type in ("redis", "valkey") else "1.6")
-        labels = {
-            "app.kubernetes.io/name": node.name,
-            "app.kubernetes.io/managed-by": "infra-lang",
-        }
+        labels = self._labels(node.name)
         cmd = None
         if node.type == "redis" and node.maxmemory:
             cmd = [
@@ -915,10 +917,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
     # -- Queue --------------------------------------------------------- #
     def _compile_queue(self, node: n.QueueDef, ctx: CompileContext):
         image = _QUEUE_IMAGES.get(node.type, "rabbitmq:3-management")
-        labels = {
-            "app.kubernetes.io/name": node.name,
-            "app.kubernetes.io/managed-by": "infra-lang",
-        }
+        labels = self._labels(node.name)
         sts = {
             "apiVersion": "apps/v1",
             "kind": "StatefulSet",
@@ -951,10 +950,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
 
     # -- Storage ------------------------------------------------------- #
     def _compile_storage(self, node: n.StorageDef, ctx: CompileContext):
-        labels = {
-            "app.kubernetes.io/name": node.name,
-            "app.kubernetes.io/managed-by": "infra-lang",
-        }
+        labels = self._labels(node.name)
         if node.type == "s3":
             # object storage handled by a Secret placeholder for credentials
             return [
@@ -988,10 +984,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
 
     # -- Network ------------------------------------------------------- #
     def _compile_network(self, node: n.NetworkDef, ctx: CompileContext):
-        labels = {
-            "app.kubernetes.io/name": node.name,
-            "app.kubernetes.io/managed-by": "infra-lang",
-        }
+        labels = self._labels(node.name)
         rules = []
         if node.policy:
             for rule in node.policy.rules:

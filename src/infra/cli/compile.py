@@ -200,7 +200,10 @@ def run_watch(
     class Handler(FileSystemEventHandler):
         def on_modified(self, event):
             if isinstance(event, FileModifiedEvent):
-                p = Path(event.src_path).resolve()
+                src = event.src_path
+                if isinstance(src, bytes):
+                    src = src.decode("utf-8", errors="replace")
+                p = Path(src).resolve()
                 if p in watched:
                     recompile.set()
 

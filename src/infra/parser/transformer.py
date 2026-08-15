@@ -1024,9 +1024,9 @@ class InfraTransformer(Transformer):
     # Autoscale
     # Network Policy
     def network_policy_block(self, meta, children):
-        allow_from = ()
-        deny_from = ()
-        allow_egress = ()
+        allow_from: Tuple[str, ...] = ()
+        deny_from: Tuple[str, ...] = ()
+        allow_egress: Tuple[str, ...] = ()
         for c in children:
             if isinstance(c, tuple) and len(c) == 2 and isinstance(c[0], str):
                 if c[0] == "allow_from":
