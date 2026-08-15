@@ -73,7 +73,7 @@ include = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-n auto --dist=worksteal"
+addopts = "-n auto --dist=loadfile"
 markers = [
     "unit: isolated, fast, no I/O",
     "integration: multiple modules together",

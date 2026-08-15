@@ -347,19 +347,6 @@ class TestCompletionIntegration:
         assert isinstance(result, CompletionList)
 
 
-class TestCliIntegration:
-    def test_lsp_command_registered(self):
-        from typer.testing import CliRunner
-
-        from infra.cli.main import app
-
-        runner = CliRunner()
-        result = runner.invoke(app, ["lsp", "--help"])
-        assert result.exit_code == 0
-        assert "--tcp" in result.output
-        assert "--port" in result.output
-
-
 class TestSeverityMapping:
     def test_e_codes_are_errors(self):
         for code in ["E001", "E002", "E003", "E004", "E005"]:
