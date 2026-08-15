@@ -145,7 +145,7 @@ def _current_block(lines: List[str], line: int) -> Optional[str]:
             if word in BLOCK_FIELDS or word in TOP_LEVEL_BLOCKS:
                 block_stack.append(word)
         # also handle `service {` (no name)
-        anon = r"\b(?:%s)\s*\{" % "|".join(TOP_LEVEL_BLOCKS)
+        anon = r"\b(%s)\s*\{" % "|".join(TOP_LEVEL_BLOCKS)
         for m in _re.finditer(anon, stripped):
             if not any(b == m.group(1) for b in block_stack):
                 block_stack.append(m.group(1))

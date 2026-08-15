@@ -1,4 +1,4 @@
-"""Coverage-boost tests: unused GitHub Actions and transformer paths."""
+"""GitHub Actions output branches (triggers, matrix, artifacts, steps)."""
 
 from __future__ import annotations
 

@@ -1,4 +1,4 @@
-"""Coverage-boost tests for Session 8: base evaluator and CLI helpers."""
+"""Base expression evaluator and CLI helper branches."""
 
 from __future__ import annotations
 

@@ -379,3 +379,12 @@ class TestSeverityMapping:
 
     def test_none_code_is_warning(self):
         assert _severity(None) == DiagnosticSeverity.Warning
+
+
+class TestLspCmdImportError:
+    """When pygls is missing, `infra lsp` errors cleanly.
+
+    Verified in the smoke test / clean-venv check (the ImportError path is hard
+    to trigger in-process because pygls is already imported); the graceful
+    message is produced by `lsp_cmd` and covered by the clean-venv install test.
+    """

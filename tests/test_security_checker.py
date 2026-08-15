@@ -116,3 +116,31 @@ class TestSecurityIntegration:
     def test_security_warnings_keep_valid(self):
         r = v('service api { image: "nginx:latest" }')
         assert r.is_valid and r.has_warnings
+
+
+class TestSecuritySeverityAndMessages:
+    """Security rules: severity and message contracts (consolidated from audit)."""
+
+    def test_sec001_message_contains_variable_name(self):
+        r = v('service s { image: "nginx:1.25" env { API_KEY: "val" } }')
+        e = next(e for e in r.errors if e.code == "SEC001")
+        assert "API_KEY" in e.message
+
+    def test_sec001_hint_suggests_secret(self):
+        r = v('service s { image: "nginx:1.25" env { PASSWORD: "bad" } }')
+        e = next(e for e in r.errors if e.code == "SEC001")
+        assert e.hint is not None and "secret" in e.hint.lower()
+
+    def test_sec003_is_warning_not_error(self):
+        r = v('service s { image: "nginx:latest" }')
+        assert r.is_valid
+        assert any(w.code == "SEC003" for w in r.warnings)
+
+    def test_sec004_not_trigger_privileged_false(self):
+        r = v('service s { image: "nginx:1.25" security { privileged: false user: 1000 } }')
+        assert not any(e.code == "SEC004" for e in r.errors)
+
+    def test_sec006_is_warning(self):
+        r = v("database db { type: postgres ssl: false }")
+        assert r.is_valid
+        assert any(w.code == "SEC006" for w in r.warnings)

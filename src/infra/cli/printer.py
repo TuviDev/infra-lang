@@ -11,7 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from infra.parser import Parser
+from infra.parser import _parser
 from infra.parser import ast_nodes as n
 
 _Q = '""'
@@ -467,7 +467,7 @@ class InfraPrinter:
 
 def format_source(source: str, indent: int = 4) -> str:
     """Parse *source* and return its formatted representation."""
-    program = Parser().parse(source)
+    program = _parser().parse(source)  # cached parser (avoids rebuilding grammar)
     return InfraPrinter(indent=indent).print(program)
 
 

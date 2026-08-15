@@ -1,4 +1,4 @@
-"""Coverage-boost tests for Session 9: REPL and watch helpers."""
+"""Interactive REPL and watch-mode helper branches."""
 
 from __future__ import annotations
 

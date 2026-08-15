@@ -89,6 +89,9 @@ All notable changes to Infra Lang are documented here.
   language spec, release notes and publishing checklist.
 
 ### Fixed
+- LSP completion crashed with `IndexError: no such group` when given a block
+  without a name (e.g. `service {`); the anonymous-block regex used a
+  non-capturing group. Fixed and covered by a chaos/storm regression test.
 - `infra docs` now renders `secret` / `config` / `network` / `environment` /
   `cluster` as their user-facing names instead of the raw AST class names
   (`secretdef`, `configdef`, ...).

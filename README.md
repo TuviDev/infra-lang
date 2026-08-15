@@ -201,6 +201,8 @@ locations, and actionable hints.
 | `infra graph` | — | Print dependency graph |
 | `infra docs` | `-o` | Generate a Markdown inventory |
 | `infra diff` | `--format`, `--only-changes` | Compare two .infra files |
+| `infra lsp` | `--tcp`, `--host`, `--port` | Start the language server |
+| `infra feedback` | `--on`, `--off`, `--project` | Manage opt-in error reporting |
 
 ## Language Reference
 
