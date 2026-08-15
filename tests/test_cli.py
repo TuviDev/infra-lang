@@ -187,6 +187,29 @@ class TestInitCommand:
             os.chdir(cwd)
 
 
+class TestLspCliCommand:
+    """`infra lsp` is a registered Typer command independent of pygls.
+
+    The ``lsp_cmd`` callback lazily imports pygls only when actually starting
+    the server, so ``--help`` (which never invokes the callback) must work
+    even if pygls is absent. This keeps the CLI-registration contract
+    deterministic across environments (pygls 1.x / 2.x / not installed).
+    """
+
+    def test_lsp_command_registered(self):
+        result = runner.invoke(app, ["lsp", "--help"])
+        assert result.exit_code == 0
+        assert "--tcp" in result.output
+        assert "--port" in result.output
+        assert "--host" in result.output
+        # --help must not import pygls (callback is lazy)
+        assert "pygls" not in result.output
+
+    def test_lsp_command_listed_in_app(self):
+        names = [c.name for c in app.registered_commands]
+        assert "lsp" in names
+
+
 class TestErrorReporter:
     def test_reporter_formats_semantic_errors(self, invalid_service):
         from infra import parse, validate

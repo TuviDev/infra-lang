@@ -22,7 +22,9 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_DOCUMENT_SYMBOL,
     TEXT_DOCUMENT_FORMATTING,
     TEXT_DOCUMENT_HOVER,
+    TEXT_DOCUMENT_PREPARE_RENAME,
     TEXT_DOCUMENT_REFERENCES,
+    TEXT_DOCUMENT_RENAME,
     CodeActionParams,
     CompletionList,
     CompletionParams,
@@ -40,16 +42,28 @@ from lsprotocol.types import (
     MarkupContent,
     MarkupKind,
     Position,
+    PrepareRenameParams,
+    PrepareRenameResult_Type1,
     Range,
     ReferenceParams,
+    RenameParams,
     TextEdit,
+    WorkspaceEdit,
 )
 from pygls.server import LanguageServer
 
 from ..errors.exceptions import InfraLexError, InfraParseError
 from ..lsp.completion import completions_at
 from ..lsp.quickfix import quick_fixes
-from ..lsp.symbols import document_symbols, find_definition, reference_ranges
+from ..lsp.symbols import (
+    document_symbols,
+    find_definition,
+    reference_ranges,
+    rename_edits,
+    symbol_at,
+    symbol_range,
+)
+from ..lsp.workspace_symbols import all_references, build_index, resolve_location
 from ..parser.ast_nodes import SourceLocation
 
 server = LanguageServer(
@@ -160,6 +174,30 @@ def _publish(ls: LanguageServer, uri: str, source: str) -> None:
     ls.publish_diagnostics(uri, diagnostics)
 
 
+def _workspace_documents(ls: LanguageServer) -> dict[str, str]:
+    """Return ``{uri: source}`` for every document known to the workspace.
+
+    Returns an empty dict when the workspace exposes no document store (which
+    keeps the single-document handlers backward compatible in unit tests).
+    """
+    sources: dict[str, str] = {}
+    try:
+        docs = ls.workspace.documents
+    except Exception:  # noqa: BLE001 - defensive, missing attribute
+        docs = {}
+    if not isinstance(docs, dict):
+        return sources
+    for uri, doc in docs.items():
+        src = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+        sources[uri] = src
+    return sources
+
+
+def _doc_source(ls: LanguageServer, uri: str) -> str:
+    doc = ls.workspace.get_text_document(uri)
+    return doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+
+
 @server.feature(TEXT_DOCUMENT_DID_OPEN)
 def did_open(
     ls: LanguageServer,
@@ -220,23 +258,30 @@ def definition(
     ls: LanguageServer,
     params: DefinitionParams,
 ) -> Location | None:
-    """Go-to-definition for block names and references in the same document."""
-    doc = ls.workspace.get_text_document(params.text_document.uri)
-    source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+    """Go-to-definition for block names and references, including cross-file."""
+    uri = params.text_document.uri
+    source = _doc_source(ls, uri)
     line = max(0, params.position.line)
     char = max(0, params.position.character)
     resolved = find_definition(source, line, char)
-    if resolved is None:
+    if resolved is not None:
+        name, def_line = resolved
+        def_line = max(0, def_line)
+        return Location(
+            uri=uri,
+            range=Range(
+                start=Position(line=def_line, character=0),
+                end=Position(line=def_line, character=len(name)),
+            ),
+        )
+    # not resolvable within this document — try across the open workspace
+    cross_name = symbol_at(source, line, char)
+    if not cross_name:
         return None
-    name, def_line = resolved
-    def_line = max(0, def_line)
-    return Location(
-        uri=params.text_document.uri,
-        range=Range(
-            start=Position(line=def_line, character=0),
-            end=Position(line=def_line, character=len(name)),
-        ),
-    )
+    docs = _workspace_documents(ls)
+    if not docs:
+        return None
+    return resolve_location(build_index(docs), docs, uri, cross_name)
 
 
 @server.feature(TEXT_DOCUMENT_REFERENCES)
@@ -244,19 +289,81 @@ def references(
     ls: LanguageServer,
     params: ReferenceParams,
 ) -> list:
-    """Find references to a symbol within the same document."""
-    doc = ls.workspace.get_text_document(params.text_document.uri)
-    source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
-    # resolve the symbol name under the cursor
-    resolved = find_definition(
-        source,
-        max(0, params.position.line),
-        max(0, params.position.character),
-    )
-    if resolved is None:
+    """Find references to a symbol, including across the open workspace."""
+    uri = params.text_document.uri
+    source = _doc_source(ls, uri)
+    line = max(0, params.position.line)
+    char = max(0, params.position.character)
+    resolved = find_definition(source, line, char)
+    name: str | None = resolved[0] if resolved else symbol_at(source, line, char)
+    if not name:
         return []
+    docs = _workspace_documents(ls)
+    if not docs:
+        # single-document fallback preserves the original behaviour
+        return reference_ranges(source, name)
+    return all_references(build_index(docs), docs, name)
+
+
+@server.feature(TEXT_DOCUMENT_PREPARE_RENAME)
+def prepare_rename(
+    ls: LanguageServer,
+    params: PrepareRenameParams,
+) -> PrepareRenameResult_Type1 | None:
+    """Validate that the position is a renameable symbol.
+
+    Returns the range of the symbol under the cursor plus its current name as
+    the pre-filled placeholder, or ``None`` if the position is not renameable
+    (so the editor keeps rename disabled / reports "cannot rename").
+    """
+    uri = params.text_document.uri
+    source = _doc_source(ls, uri)
+    line = max(0, params.position.line)
+    char = max(0, params.position.character)
+    resolved = find_definition(source, line, char)
+    if resolved is None:
+        return None
     name, _ = resolved
-    return reference_ranges(source, name)
+    rng = symbol_range(source, line, char)
+    if rng is None:
+        return None
+    return PrepareRenameResult_Type1(range=rng, placeholder=name)
+
+
+@server.feature(TEXT_DOCUMENT_RENAME)
+def rename(
+    ls: LanguageServer,
+    params: RenameParams,
+) -> WorkspaceEdit | None:
+    """Rename a block (and its references) across the open workspace."""
+    uri = params.text_document.uri
+    source = _doc_source(ls, uri)
+    line = max(0, params.position.line)
+    char = max(0, params.position.character)
+    resolved = find_definition(source, line, char)
+    if resolved is None:
+        return None
+    old_name, _ = resolved
+    new_name = params.new_name
+    if new_name == old_name:
+        return WorkspaceEdit(changes={})
+    changes: dict[str, list] = {}
+    current_edits = [
+        TextEdit(range=rng, new_text=text)
+        for rng, text in rename_edits(source, old_name, new_name)
+    ]
+    if current_edits:
+        changes[uri] = current_edits
+    for other_uri, other_source in _workspace_documents(ls).items():
+        if other_uri == uri:
+            continue
+        edits = [
+            TextEdit(range=rng, new_text=text)
+            for rng, text in rename_edits(other_source, old_name, new_name)
+        ]
+        if edits:
+            changes[other_uri] = edits
+    return WorkspaceEdit(changes=changes)
 
 
 @server.feature(TEXT_DOCUMENT_FORMATTING)

@@ -110,6 +110,20 @@ python scripts/benchmark.py [--save | --compare]
 - **No session-artifact files** (`SESSION_*`, coverage-session leftovers) belong
   in this directory.
 
+### LSP tests and the pygls version
+
+The LSP server targets **pygls 1.x** / `lsprotocol==2023.0.1`. The LSP test
+modules skip when pygls is not importable (a pygls 2.x install also fails the
+import). Always pin before running the suite:
+
+```bash
+pip install "pygls==1.3.1" "lsprotocol==2023.0.1"
+```
+
+The **CLI registration contract** (`infra lsp --help`) deliberately lives in
+`test_cli.py`, not an LSP module, so it runs deterministically even when pygls
+is missing or a version mismatch skips the LSP modules.
+
 ## Adding a new test
 
 1. Put it in the file matching its area (see layout).

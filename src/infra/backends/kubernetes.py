@@ -258,6 +258,25 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         manifests = [self._clean_none(deployment)]
 
         service_type = "LoadBalancer" if node.expose else "ClusterIP"
+        ports = [
+            {
+                "port": p.host or p.target or 80,
+                "targetPort": p.target or p.host or 80,
+            }
+            for p in node.ports
+        ] or [{"port": 80, "targetPort": 80}]
+        if len(ports) > 1:
+            # Kubernetes requires a name on every port when a Service exposes
+            # more than one port. Derive a stable, readable name (tcp-5672);
+            # if two ports collide, disambiguate with the index suffix.
+            used: set[str] = set()
+            for i, p in enumerate(node.ports):
+                proto = (p.protocol or "tcp").lower()
+                eff = p.host or p.target or 80
+                base = f"{proto}-{eff}"
+                name = base if base not in used else f"{base}-{i}"
+                used.add(name)
+                ports[i]["name"] = name
         svc = {
             "apiVersion": "v1",
             "kind": "Service",
@@ -265,14 +284,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
             "spec": {
                 "type": service_type,
                 "selector": {"app.kubernetes.io/name": node.name},
-                "ports": [
-                    {
-                        "port": p.host or p.target or 80,
-                        "targetPort": p.target or p.host or 80,
-                    }
-                    for p in node.ports
-                ]
-                or [{"port": 80, "targetPort": 80}],
+                "ports": ports,
             },
         }
         manifests.append(self._clean_none(svc))
@@ -988,16 +1000,23 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
 
     # -- Secret / Config ---------------------------------------------- #
     def _compile_secret(self, node: n.SecretDef) -> Dict[str, Any]:
+        import base64
+
         data = {}
         for e in node.entries:
+            # Kubernetes requires every value in `data:` to be base64. Plain
+            # placeholders (from-env/from-vault) and empty values are encoded
+            # too so `kubectl apply` always accepts the manifest.
             if e.value is not None:
-                import base64
-
                 data[e.name] = base64.b64encode(e.value.encode()).decode()
             elif e.from_vault:
-                data[e.name] = f"from-vault:{e.from_vault}"
+                data[e.name] = base64.b64encode(
+                    f"from-vault:{e.from_vault}".encode()
+                ).decode()
             elif e.from_env:
-                data[e.name] = f"from-env:{e.from_env}"
+                data[e.name] = base64.b64encode(
+                    f"from-env:{e.from_env}".encode()
+                ).decode()
             else:
                 data[e.name] = ""
         return {

@@ -4,17 +4,31 @@ on:
   push:
     tags: ["v*"]
 
+permissions:
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install build twine
-      - run: python -m build
-      - run: twine upload dist/*
+          cache: pip
+
+      - name: Install packaging tools
+        run: pip install --upgrade pip build twine
+
+      - name: Build wheel + sdist
+        run: python -m build
+
+      - name: Verify package
+        run: twine check dist/*
+
+      - name: Upload to PyPI
+        run: twine upload dist/*
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}

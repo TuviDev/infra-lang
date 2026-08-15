@@ -124,6 +124,68 @@ class TestServiceOutput:
         assert any(p.get("port") == 8080 or p.get("targetPort") == 8080 for p in ports)
 
 
+class TestServicePortNames:
+    """Regression: multi-port Services must have unique port names (kubectl)."""
+
+    def test_single_port_needs_no_name(self):
+        # A Service exposing a single port is valid without a name; it must not
+        # crash and may leave the name absent.
+        svc = get_kind(compile_docs('service api { image: "nginx:1.25" port: 8080 }'), "Service")
+        ports = svc["spec"]["ports"]
+        assert len(ports) == 1
+
+    def test_multi_port_has_unique_names(self):
+        src = 'service events { image: "rabbitmq:3.12" port 5672:5672 port 15672:15672 }'
+        svc = get_kind(compile_docs(src), "Service")
+        ports = svc["spec"]["ports"]
+        assert len(ports) == 2
+        names = [p.get("name") for p in ports]
+        assert all(names), f"every multi-port Service port needs a name: {ports}"
+        assert len(set(names)) == len(names), f"port names must be unique: {names}"
+
+    def test_multi_port_names_reflect_protocol_and_port(self):
+        src = 'service events { image: "rabbitmq:3.12" port 5672:5672 port 15672:15672 }'
+        svc = get_kind(compile_docs(src), "Service")
+        names = {p.get("name") for p in svc["spec"]["ports"]}
+        assert "tcp-5672" in names
+        assert "tcp-15672" in names
+
+    def test_colliding_ports_get_unique_suffixed_names(self):
+        # Two ports on the same number would otherwise share a base name; the
+        # index suffix must disambiguate them.
+        src = 'service api { image: "x" port 80:80 port 80:8080 }'
+        svc = get_kind(compile_docs(src), "Service")
+        names = [p.get("name") for p in svc["spec"]["ports"]]
+        assert all(names)
+        assert len(set(names)) == len(names), f"colliding ports need unique names: {names}"
+
+
+class TestSecretBase64:
+    """Regression: every value in a Secret's data: must be valid base64."""
+
+    def test_data_values_are_valid_base64(self):
+        src = 'secret creds { api_key: from env "API_KEY" token: "plain" }'
+        sec = get_kind(compile_docs(src), "Secret")
+        import base64
+
+        for key, value in sec["data"].items():
+            base64.b64decode(value, validate=True)  # raises on invalid base64
+
+    def test_plain_value_decodes_back(self):
+        src = 'secret creds { password: "supersecret" }'
+        sec = get_kind(compile_docs(src), "Secret")
+        import base64
+
+        assert base64.b64decode(sec["data"]["password"]).decode() == "supersecret"
+
+    def test_env_placeholder_round_trips(self):
+        src = 'secret creds { api_key: from env "API_KEY" }'
+        sec = get_kind(compile_docs(src), "Secret")
+        import base64
+
+        assert base64.b64decode(sec["data"]["api_key"]).decode() == "from-env:API_KEY"
+
+
 class TestStatefulSetOutput:
     def test_statefulset_for_database(self):
         sts = get_kind(compile_docs("database db { type: postgres }"), "StatefulSet")
