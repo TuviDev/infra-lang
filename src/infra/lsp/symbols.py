@@ -124,3 +124,68 @@ def reference_ranges(source: str, target_name: str) -> List[Range]:
                 )
             )
     return ranges
+
+
+def symbol_at(source: str, line: int, char: int) -> Optional[str]:
+    """Return the identifier under the cursor, if any."""
+    lines = source.splitlines()
+    if line < 0 or line >= len(lines):
+        return None
+    return _word_at(lines[line], char) or None
+
+
+def rename_edits(
+    source: str, target_name: str, new_name: str
+) -> List[Tuple[Range, str]]:
+    """Single-line edits to rename ``target_name`` (definition + references).
+
+    Returns a list of ``(Range, replacement_text)`` pairs that, applied to the
+    document, replace every occurrence of ``target_name`` with ``new_name``.
+    Comments are ignored (a comment mentioning the name is left untouched).
+    """
+    edits: List[Tuple[Range, str]] = []
+    for i, line in enumerate(source.splitlines()):
+        stripped = line.split("#", 1)[0]
+        m = _BLOCK_RE.match(stripped)
+        if m and m.group(2) == target_name:
+            start = stripped.find(target_name)
+            edits.append(
+                (
+                    Range(
+                        start=Position(line=i, character=start),
+                        end=Position(line=i, character=start + len(target_name)),
+                    ),
+                    new_name,
+                )
+            )
+            continue
+        for mm in re.finditer(rf"\b{re.escape(target_name)}\b", stripped):
+            edits.append(
+                (
+                    Range(
+                        start=Position(line=i, character=mm.start()),
+                        end=Position(line=i, character=mm.end()),
+                    ),
+                    new_name,
+                )
+            )
+    return edits
+
+
+def rename_symbol(source: str, target_name: str, new_name: str) -> str:
+    """Apply ``rename_edits`` and return the renamed document text."""
+    edits = rename_edits(source, target_name, new_name)
+    by_line: dict[int, List[Tuple[int, int, str]]] = {}
+    for rng, text in edits:
+        by_line.setdefault(rng.start.line, []).append(
+            (rng.start.character, rng.end.character, text)
+        )
+    lines = source.splitlines()
+    out: List[str] = []
+    for i, line in enumerate(lines):
+        pending = sorted(by_line.get(i, []), key=lambda e: e[0], reverse=True)
+        new = line
+        for start, end, text in pending:
+            new = new[:start] + text + new[end:]
+        out.append(new)
+    return "\n".join(out)

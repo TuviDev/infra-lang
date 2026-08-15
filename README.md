@@ -80,7 +80,8 @@ infra --help
 Install the [VS Code extension](vscode-infra-lang/README.md) for syntax
 highlighting, snippets, and a language server that provides live diagnostics,
 hover docs, context-aware completion, document outline, go-to-definition,
-find-references, and formatting. See [docs/lsp.md](docs/lsp.md).
+find-references (cross-file), symbol rename (cross-file), and formatting.
+See [docs/lsp.md](docs/lsp.md).
 
 ### Opt-in error reporting
 

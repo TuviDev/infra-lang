@@ -15,8 +15,14 @@
   while you type.
 - **Document symbols**: an outline of all top-level blocks (Ctrl+Shift+O).
 - **Go to definition**: jump from a reference (`depends: [db]`) to the block
-  definition, or from a block name to its definition line.
-- **Find references**: locate all references to a symbol in the file.
+  definition, or from a block name to its definition line. **Cross-file**: if
+  the referenced block is defined in another open `.infra` document (e.g. via
+  `import`), it resolves to that file.
+- **Find references**: locate all references to a symbol across the open
+  workspace, not just the current file.
+- **Rename symbol**: rename a block and all of its references in one action
+  (F2 in VS Code). Rename applies to the current document and any other open
+  document that references the symbol. Comments are left untouched.
 - **Formatting**: `infra fmt` formatting available as document formatting
   (format-on-save via the extension).
 - **Code actions (quick fixes)**: safe, automatic fixes for common findings —
@@ -24,8 +30,8 @@
   port. Only deterministic, safe rewrites are offered.
 
 ## Not yet supported
-- Rename symbol
-- Cross-file go-to-definition / references (single-file only)
+- Cross-file rename across files on disk that are not open in the editor
+  (rename applies to documents currently open in the workspace).
 
 ## Installation
 
