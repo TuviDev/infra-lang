@@ -35,3 +35,6 @@ infra-out/
 # VS Code extension build artifacts
 vscode-infra-lang/node_modules/
 vscode-infra-lang/out/
+
+# Local E2E tools
+.tools/
