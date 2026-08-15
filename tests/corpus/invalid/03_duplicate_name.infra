@@ -1,0 +1,4 @@
+# Purpose: two definitions with the same name.
+# Expected: E002
+service api { image: "x:1" }
+service api { image: "y:1" }

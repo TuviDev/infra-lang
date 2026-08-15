@@ -1,0 +1,408 @@
+"""
+Infra Lang LSP Server.
+
+Implements the Language Server Protocol for .infra files.
+Provides: diagnostics (errors and warnings on-the-fly) and keyword hover docs.
+
+Start with: python -m infra.lsp.server
+Or via CLI: infra lsp
+
+Protocol: JSON-RPC over stdio (standard LSP transport).
+"""
+
+from __future__ import annotations
+
+from lsprotocol.types import (
+    TEXT_DOCUMENT_CODE_ACTION,
+    TEXT_DOCUMENT_COMPLETION,
+    TEXT_DOCUMENT_DEFINITION,
+    TEXT_DOCUMENT_DID_CHANGE,
+    TEXT_DOCUMENT_DID_OPEN,
+    TEXT_DOCUMENT_DID_SAVE,
+    TEXT_DOCUMENT_DOCUMENT_SYMBOL,
+    TEXT_DOCUMENT_FORMATTING,
+    TEXT_DOCUMENT_HOVER,
+    TEXT_DOCUMENT_REFERENCES,
+    CodeActionParams,
+    CompletionList,
+    CompletionParams,
+    DefinitionParams,
+    Diagnostic,
+    DiagnosticSeverity,
+    DidChangeTextDocumentParams,
+    DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams,
+    DocumentFormattingParams,
+    DocumentSymbolParams,
+    Hover,
+    HoverParams,
+    Location,
+    MarkupContent,
+    MarkupKind,
+    Position,
+    Range,
+    ReferenceParams,
+    TextEdit,
+)
+from pygls.server import LanguageServer
+
+from ..errors.exceptions import InfraLexError, InfraParseError
+from ..lsp.completion import completions_at
+from ..lsp.quickfix import quick_fixes
+from ..lsp.symbols import document_symbols, find_definition, reference_ranges
+from ..parser.ast_nodes import SourceLocation
+
+server = LanguageServer(
+    name="infra-lang",
+    version="0.1.0",
+)
+
+_ERR_SEC = {"SEC001", "SEC002", "SEC004", "SEC007"}
+
+
+def _severity(code: str | None) -> DiagnosticSeverity:
+    """Map an Infra error/warning code to an LSP severity."""
+    if code is None:
+        return DiagnosticSeverity.Warning
+    if code.startswith("E"):
+        return DiagnosticSeverity.Error
+    if code.startswith("SEC") and code in _ERR_SEC:
+        return DiagnosticSeverity.Error
+    return DiagnosticSeverity.Warning
+
+
+def _location_to_range(location: SourceLocation | None, source: str) -> Range:
+    if location is None:
+        return Range(
+            start=Position(line=0, character=0),
+            end=Position(line=0, character=1),
+        )
+    line = max(0, location.line - 1)
+    col = max(0, location.column)
+    end_col = col + 10
+    lines = source.splitlines()
+    if line < len(lines):
+        end_col = max(col + 1, len(lines[line]))
+    return Range(
+        start=Position(line=line, character=col),
+        end=Position(line=line, character=end_col),
+    )
+
+
+def _diagnose(source: str, uri: str) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    try:
+        from ..analyzer.validator import SemanticValidator
+        from ..parser import parse
+
+        program = parse(source, filename=uri)
+        result = SemanticValidator().validate(program)
+
+        for error in result.errors:
+            rng = _location_to_range(error.location, source)
+            diagnostics.append(
+                Diagnostic(
+                    range=rng,
+                    message=error.message,
+                    severity=DiagnosticSeverity.Error,
+                    code=error.code or "E000",
+                    source="infra-lang",
+                )
+            )
+
+        for warning in result.warnings:
+            rng = _location_to_range(warning.location, source)
+            diagnostics.append(
+                Diagnostic(
+                    range=rng,
+                    message=warning.message,
+                    severity=DiagnosticSeverity.Warning,
+                    code=warning.code or "W000",
+                    source="infra-lang",
+                )
+            )
+
+    except (InfraParseError, InfraLexError) as e:
+        line = max(0, (getattr(e, "line", 1) or 1) - 1)
+        col = max(0, getattr(e, "column", 0) or 0)
+        diagnostics.append(
+            Diagnostic(
+                range=Range(
+                    start=Position(line=line, character=col),
+                    end=Position(line=line, character=col + 5),
+                ),
+                message=f"Parse error: {e}",
+                severity=DiagnosticSeverity.Error,
+                code="PARSE",
+                source="infra-lang",
+            )
+        )
+
+    except Exception as e:  # pragma: no cover - defensive
+        diagnostics.append(
+            Diagnostic(
+                range=Range(
+                    start=Position(line=0, character=0),
+                    end=Position(line=0, character=1),
+                ),
+                message=f"Internal error: {e}",
+                severity=DiagnosticSeverity.Error,
+                code="INTERNAL",
+                source="infra-lang",
+            )
+        )
+
+    return diagnostics
+
+
+def _publish(ls: LanguageServer, uri: str, source: str) -> None:
+    diagnostics = _diagnose(source, uri)
+    ls.publish_diagnostics(uri, diagnostics)
+
+
+@server.feature(TEXT_DOCUMENT_DID_OPEN)
+def did_open(
+    ls: LanguageServer,
+    params: DidOpenTextDocumentParams,
+) -> None:
+    _publish(ls, params.text_document.uri, params.text_document.text)
+
+
+@server.feature(TEXT_DOCUMENT_DID_CHANGE)
+def did_change(
+    ls: LanguageServer,
+    params: DidChangeTextDocumentParams,
+) -> None:
+    source = params.content_changes[-1].text
+    _publish(ls, params.text_document.uri, source)
+
+
+@server.feature(TEXT_DOCUMENT_DID_SAVE)
+def did_save(
+    ls: LanguageServer,
+    params: DidSaveTextDocumentParams,
+) -> None:
+    source = params.text or ""
+    _publish(ls, params.text_document.uri, source)
+
+
+@server.feature(TEXT_DOCUMENT_COMPLETION)
+def completion(
+    ls: LanguageServer,
+    params: CompletionParams,
+) -> CompletionList:
+    """Provide context-aware completion suggestions.
+
+    Heuristic, tolerant of incomplete input (the user is mid-edit). Uses the
+    text around the cursor; never relies on a full parse succeeding.
+    """
+    doc = ls.workspace.get_text_document(params.text_document.uri)
+    source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+    line = max(0, params.position.line)
+    char = max(0, params.position.character)
+    items = completions_at(source, line, char)
+    return CompletionList(is_incomplete=False, items=items)
+
+
+@server.feature(TEXT_DOCUMENT_DOCUMENT_SYMBOL)
+def document_symbol(
+    ls: LanguageServer,
+    params: DocumentSymbolParams,
+) -> list:
+    """Provide a document outline (top-level blocks)."""
+    doc = ls.workspace.get_text_document(params.text_document.uri)
+    source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+    return document_symbols(source)
+
+
+@server.feature(TEXT_DOCUMENT_DEFINITION)
+def definition(
+    ls: LanguageServer,
+    params: DefinitionParams,
+) -> Location | None:
+    """Go-to-definition for block names and references in the same document."""
+    doc = ls.workspace.get_text_document(params.text_document.uri)
+    source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+    line = max(0, params.position.line)
+    char = max(0, params.position.character)
+    resolved = find_definition(source, line, char)
+    if resolved is None:
+        return None
+    name, def_line = resolved
+    def_line = max(0, def_line)
+    return Location(
+        uri=params.text_document.uri,
+        range=Range(
+            start=Position(line=def_line, character=0),
+            end=Position(line=def_line, character=len(name)),
+        ),
+    )
+
+
+@server.feature(TEXT_DOCUMENT_REFERENCES)
+def references(
+    ls: LanguageServer,
+    params: ReferenceParams,
+) -> list:
+    """Find references to a symbol within the same document."""
+    doc = ls.workspace.get_text_document(params.text_document.uri)
+    source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+    # resolve the symbol name under the cursor
+    resolved = find_definition(
+        source,
+        max(0, params.position.line),
+        max(0, params.position.character),
+    )
+    if resolved is None:
+        return []
+    name, _ = resolved
+    return reference_ranges(source, name)
+
+
+@server.feature(TEXT_DOCUMENT_FORMATTING)
+def formatting(
+    ls: LanguageServer,
+    params: DocumentFormattingParams,
+) -> list:
+    """Format the whole document via the existing AST pretty-printer."""
+    from infra.cli.printer import format_source
+
+    doc = ls.workspace.get_text_document(params.text_document.uri)
+    source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+    try:
+        formatted = format_source(source)
+    except Exception:  # noqa: BLE001 - don't break the editor on bad input
+        return []
+    if formatted == source:
+        return []
+    lines = formatted.splitlines()
+    return [
+        TextEdit(
+            range=Range(
+                start=Position(line=0, character=0),
+                end=Position(line=max(0, len(lines) - 1), character=10**6),
+            ),
+            new_text=formatted,
+        )
+    ]
+
+
+@server.feature(TEXT_DOCUMENT_CODE_ACTION)
+def code_action(
+    ls: LanguageServer,
+    params: CodeActionParams,
+) -> list:
+    """Provide quick fixes for diagnostics in the requested range."""
+    doc = ls.workspace.get_text_document(params.text_document.uri)
+    source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+    return quick_fixes(
+        params.text_document.uri,
+        source,
+        params.context.diagnostics,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Hover documentation
+# --------------------------------------------------------------------------- #
+
+FIELD_DOCS = {
+    "image": "Docker image to use.\nExample: `nginx:1.25.3`",
+    "replicas": "Number of pod replicas.\nMust be >= 1.",
+    "port": "Port the container listens on (1-65535).",
+    "health": "Health check configuration.\nExample: `http(\"/health\")`",
+    "resources": "CPU and memory requests/limits.",
+    "autoscale": (
+        "Horizontal Pod Autoscaler config.\n"
+        "Example: `{ min: 2, max: 10, target_cpu: 70 }`"
+    ),
+    "disruption": "Pod Disruption Budget.\nExample: `{ min_available: 1 }`",
+    "network_policy": "NetworkPolicy for this service.",
+    "schedule": "Time-based scaling schedule.",
+    "affinity": "Pod affinity/anti-affinity rules.",
+    "topology": "TopologySpreadConstraints.",
+    "type": (
+        "Database/cache/queue type.\n"
+        "For database: postgres, mysql, mariadb, mongodb, redis"
+    ),
+    "storage": "Storage size. Example: `20Gi`",
+    "ssl": "Enable SSL/TLS. Recommended: `true`",
+    "backup": "Backup configuration for databases.",
+    "service": "Service definition block.",
+    "database": "Database definition block.",
+    "cache": "Cache definition block.",
+    "queue": "Message queue definition block.",
+    "pipeline": "CI/CD pipeline definition.",
+    "environment": "Environment/namespace definition.",
+    "cluster": "Kubernetes cluster definition.",
+    "secret": "Secret definition. Values loaded from external sources.",
+    "config": "ConfigMap definition.",
+    "build": "Container image build config.",
+    "ports": "List of ports.\nExample: `[8080, 9090]`",
+    "env": "Environment variables for the container.",
+    "envFrom": "Bulk env source (ConfigMap/Secret).",
+    "command": "Override the container entrypoint command.",
+    "args": "Arguments passed to the container command.",
+    "probes": "Liveness/readiness/startup probe config.",
+    "volumes": "Storage volumes mounted into the container.",
+    "depends": "Other services this one depends on.\nExample: `[db, cache]`",
+    "labels": "Kubernetes labels for the resource.\nExample: `{ tier: \"web\" }`",
+    "annotations": "Kubernetes annotations.\nExample: `{ team: \"platform\" }`",
+    "strategy": "Deployment strategy.\nValues: rolling, recreate, blue_green, canary",
+    "security": "Security context: user, group, capabilities, seccomp, selinux.",
+    "lifecycle": "Pod lifecycle hooks (postStart/preStop).",
+    "ingress": "Ingress/exposure config.\nExample: `{ host: \"api.example.com\" }`",
+    "expose": "Expose the service externally (LoadBalancer).\nValue: true/false",
+    "version": "Version of the software / engine.",
+    "size": "Storage/volume size. Example: `20Gi`",
+    "ha": "High-availability mode.\nValue: true/false",
+    "users": "Database/queue users.\nExample: `{ admin: \"secret\" }`",
+    "quotas": "Namespace resource quotas.\nExample: `{ max_cpu: 10cores }`",
+    "namespace": "Kubernetes namespace for this environment.",
+}
+
+
+
+@server.feature(TEXT_DOCUMENT_HOVER)
+def hover(
+    ls: LanguageServer,
+    params: HoverParams,
+) -> Hover | None:
+    doc = ls.workspace.get_text_document(params.text_document.uri)
+    line_text = (
+        doc.lines[params.position.line]
+        if params.position.line < len(doc.lines)
+        else ""
+    )
+
+    word = _get_word_at(line_text, params.position.character)
+
+    if word and word in FIELD_DOCS:
+        return Hover(
+            contents=MarkupContent(
+                kind=MarkupKind.Markdown,
+                value=f"**{word}**\n\n{FIELD_DOCS[word]}",
+            )
+        )
+    return None
+
+
+def _get_word_at(line: str, char: int) -> str | None:
+    if not line:
+        return None
+    start = char
+    while start > 0 and (line[start - 1].isalnum() or line[start - 1] == "_"):
+        start -= 1
+    end = char
+    while end < len(line) and (line[end].isalnum() or line[end] == "_"):
+        end += 1
+    word = line[start:end]
+    return word if word else None
+
+
+def main() -> None:
+    server.start_io()
+
+
+if __name__ == "__main__":
+    main()

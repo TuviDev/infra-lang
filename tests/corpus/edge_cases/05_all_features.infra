@@ -1,0 +1,18 @@
+# Purpose: one file exercising many features at once.
+# Expected: parse + validate pass
+service api {
+    image: "app/api:1.0.0"
+    port: 8080
+    replicas: 3
+    health http("/health")
+    resources { requests { cpu: 100m, memory: 128Mi } }
+    schedule { default { replicas: 1 } "night" { replicas: 1 } }
+    autoscale { min: 1 max: 5 target_cpu: 70 }
+    disruption { min_available: 1 }
+    network_policy { deny_from: ["*"] allow_egress: [db] }
+    topology { spread_by: zone max_skew: 1 }
+    affinity { prefer_same: [frontend] }
+    security { user: 1000 }
+}
+database db { type: postgres storage: 20Gi ssl: true backup { enabled: true } }
+cache cache { type: redis maxmemory: 256Mi persistence: true }

@@ -1,0 +1,8 @@
+# cache.infra — a Redis cache with persistence so data survives restarts.
+
+cache session {
+    type:        redis
+    version:     "7"
+    maxmemory:   512Mi
+    persistence: true
+}

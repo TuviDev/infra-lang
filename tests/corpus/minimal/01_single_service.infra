@@ -1,0 +1,6 @@
+# Purpose: the smallest valid service definition.
+# Expected: parse + validate pass
+service api {
+    image: "nginx:1.25"
+    port: 80
+}

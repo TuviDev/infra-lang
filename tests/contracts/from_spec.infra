@@ -1,0 +1,70 @@
+# Contract: docs/language_spec.md code blocks
+
+// Block 1
+service hello {
+    image: "nginx:1.25.3"
+    port: 80
+}
+
+// Block 2
+let scale = if env("ENV") == "prod" then 10 else 2
+let m = match status { 200 -> "ok" _ -> "other" }
+
+// Block 3
+let port = 8080
+const VERSION = "1.2.3"      # immutable
+
+// Block 4
+import "./base.infra"
+import "./lib.infra" as lib
+from "./types.infra" import SMALL_CPU, MEDIUM_CPU
+
+// Block 5
+@prod
+@replicas(3)
+service api {
+    image: "myapp:1.0"
+}
+
+// Block 6
+service api {
+    image: "myapp:1.0"
+    replicas: 3
+    port 8080
+    env { DB_URL: from secret "db".url }
+    resources { requests { cpu: 100m, memory: 128Mi } }
+    health http("/health")
+}
+
+// Block 7
+database db { type: postgres version: "15" storage: 20Gi backup { enabled: true } }
+
+// Block 8
+cache session { type: redis maxmemory: 512Mi persistence: true }
+
+// Block 9
+queue events { type: rabbitmq topics { tasks: { partitions: 3 } } }
+
+// Block 10
+storage assets { type: s3 bucket: "my-assets" region: "eu-west-1" }
+
+// Block 11
+network main { cidr: "10.0.0.0/16" subnets { a: { cidr: "10.0.1.0/24" } } }
+
+// Block 12
+secret db-creds { password: from env "DB_PASSWORD" }
+
+// Block 13
+config app { log_level: "info" }
+
+// Block 14
+pipeline ci {
+    trigger { branches: ["main"] }
+    stages { test: { runsOn: "ubuntu-latest" steps { t: { run: "pytest" } } } }
+}
+
+// Block 15
+environment dev { namespace: "myapp-dev" labels: { env: "dev" } }
+
+// Block 16
+cluster main { provider: aws nodes { w: { machine type: "t3.medium" min: 1 max: 5 } } }

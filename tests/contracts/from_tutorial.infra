@@ -1,0 +1,78 @@
+# Contract: docs/tutorial.md code blocks
+
+// Block 1
+service hello {
+    image: "nginx:1.25.3"
+    port: 80
+    health http("/")
+    resources { requests { cpu: 100m, memory: 64Mi } limits { cpu: 200m, memory: 128Mi } }
+}
+
+// Block 2
+secret db-creds {
+    url: from env "DATABASE_URL"
+}
+
+database main-db {
+    type:    postgres
+    version: "15.4"
+    storage: 20Gi
+    ssl:     true
+    backup { enabled: true schedule: "0 2 * * *" retention: 30d }
+}
+
+service api {
+    image: "myapp/api:1.0.0"
+    replicas: 2
+    port: 8080
+    health http("/health")
+    resources { requests { cpu: 200m, memory: 256Mi } limits { cpu: 1000m, memory: 512Mi } }
+    env { DATABASE_URL: from secret "db-creds".url }
+    depends: [main-db]
+}
+
+// Block 3
+service api {
+    image: "nginx:latest"
+    env { PASSWORD: "supersecret" }
+}
+
+// Block 4
+service api {
+    image: "myapp/api:1.0.0"
+    env { PASSWORD: from secret "db-creds".password }
+}
+
+// Block 5
+service api {
+    image: "myapp/api:1.0.0"
+    replicas: 5
+    resources { requests { cpu: 200m } }
+}
+
+// Block 6
+database main-db {
+    type: postgres
+    storage: 20Gi
+}
+
+// Block 7
+environment dev {
+    namespace: "myapp-dev"
+    labels: { env: "dev" }
+}
+
+environment prod extends dev {
+    namespace: "myapp-prod"
+    quotas { max_cpu: 10cores max_memory: 20Gi max_pods: 100 }
+}
+
+// Block 8
+pipeline build {
+    trigger { branches: ["main"] }
+    stages {
+        test: { runsOn: "ubuntu-latest" steps { run: "pytest -q" } }
+        build: { needs: [test] runsOn: "ubuntu-latest" steps { run: "docker build -t app ." } }
+        deploy: { needs: [build] runsOn: "ubuntu-latest" steps { run: "kubectl apply -f deploy/" } }
+    }
+}

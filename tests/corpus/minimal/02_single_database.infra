@@ -1,0 +1,6 @@
+# Purpose: the smallest valid database definition.
+# Expected: parse + validate pass
+database db {
+    type: postgres
+    storage: 10Gi
+}

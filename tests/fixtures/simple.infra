@@ -1,0 +1,6 @@
+# Minimal service — tests the basic structure of a single service.
+service web {
+    image: "nginx:1.27"
+    replicas: 2
+    port 80
+}

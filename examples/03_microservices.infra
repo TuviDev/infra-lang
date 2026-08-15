@@ -1,0 +1,54 @@
+secret shared-creds {
+    db_url: from env "DATABASE_URL"
+}
+
+database users-db {
+    type: postgres
+}
+
+queue events {
+    type: rabbitmq
+}
+
+service auth-svc {
+    image: "myapp/auth:v2.1.0"
+    port 3001
+    replicas: 2
+    env {
+      DB_URL: from secret "shared-creds".db_url
+    }
+    depends: [users-db]
+    resources {
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    }
+    health http("/health")
+}
+
+service api-svc {
+    image: "myapp/api:v2.1.0"
+    replicas: 3
+    env {
+      AUTH_URL: "http://auth-svc:3001"
+    }
+    depends: [auth-svc, events]
+    resources {
+      requests: {cpu: 200m, memory: 256Mi}
+      limits: {cpu: 1000m, memory: 512Mi}
+    }
+    health http("/health")
+}
+
+service worker-svc {
+    image: "myapp/worker:v2.1.0"
+    replicas: 2
+    env {
+      QUEUE_URL: "amqp://events:5672"
+    }
+    depends: [events]
+    resources {
+      requests: {cpu: 100m, memory: 128Mi}
+      limits: {cpu: 500m, memory: 256Mi}
+    }
+    health http("/health")
+}

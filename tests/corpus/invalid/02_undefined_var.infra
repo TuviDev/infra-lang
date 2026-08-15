@@ -1,0 +1,3 @@
+# Purpose: reference to an undefined variable.
+# Expected: E001
+service api { image: MISSING_CONST }

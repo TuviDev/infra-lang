@@ -1,0 +1,102 @@
+"""`infra validate` command."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from typing import List
+
+import typer
+
+from infra.analyzer.validator import SemanticValidator
+from infra.parser import Parser
+
+
+def _error_dict(e, file: str = "?") -> dict:
+    """Normalize a ValidationError or a raw parse exception into a dict."""
+    loc = getattr(e, "location", None)
+    return {
+        "code": getattr(e, "code", "PARSE"),
+        "message": getattr(e, "message", str(e)),
+        "hint": getattr(e, "hint", None),
+        "file": (loc.file if loc else None) or file,
+        "line": loc.line if loc else None,
+        "column": loc.column if loc else None,
+    }
+
+
+def validate(
+    files: List[Path] = typer.Argument(..., help=".infra file(s) to validate"),
+    strict: bool = typer.Option(False, "--strict", help="Treat warnings as errors"),
+    format: str = typer.Option(
+        "text", "--format", help="Output format: text, json, github"
+    ),
+    var: List[str] = typer.Option([], "--var", help="Variable: --var key=value"),
+) -> None:
+    """Validate .infra files semantically (no compilation)."""
+    parser = Parser()
+    all_errors = []
+    all_warnings = []
+    any_invalid = False
+    expanded: list[Path] = []
+    for f in files:
+        if f.is_dir():
+            expanded.extend(sorted(f.rglob("*.infra")))
+        else:
+            expanded.append(f)
+
+    for f in expanded:
+        try:
+            program = parser.parse_file(f)
+        except Exception as exc:
+            all_errors.append(_error_dict(exc, file=str(f)))
+            any_invalid = True
+            continue
+        result = SemanticValidator().validate(program)
+        all_errors.extend(_error_dict(e, file=str(f)) for e in result.errors)
+        all_warnings.extend(result.warnings)
+        if not result.is_valid or (strict and result.has_warnings):
+            any_invalid = True
+
+    if format == "json":
+        payload = {
+            "valid": not any_invalid,
+            "errors": all_errors,
+            "warnings": [w.to_dict() for w in all_warnings],
+        }
+        typer.echo(json.dumps(payload, indent=2))
+    elif format == "github":
+        for e in all_errors:
+            file = e.get("file") or "?"
+            line = e.get("line") or 1
+            col = e.get("column") or 1
+            typer.echo(f"::error file={file},line={line},col={col}::{e['message']}")
+        for w in all_warnings:
+            loc = w.location
+            line = loc.line if loc else 1
+            col = loc.column if loc else 1
+            file = loc.file if loc else "?"
+            typer.echo(f"::warning file={file},line={line},col={col}::{w.message}")
+    else:
+        if all_errors or (strict and all_warnings):
+            for e in all_errors:
+                file = e.get("file") or "?"
+                line = e.get("line")
+                col = e.get("column")
+                pos = f"{file}:{line}:{col}" if line else file
+                typer.echo(f"error[{e['code']}] {pos}: {e['message']}")
+            for w in all_warnings:
+                if strict:
+                    loc = w.location
+                    pos = f"{loc.file}:{loc.line}:{loc.column}" if loc else "?"
+                    typer.echo(f"warning[{w.code}] {pos}: {w.message}")
+            typer.echo(
+                f"Found {len(all_errors)} errors and {len(all_warnings)} warnings"
+            )
+        elif all_warnings:
+            typer.echo(f"Found {len(all_warnings)} warnings")
+        else:
+            typer.echo("✅ No errors found")
+
+    if any_invalid:
+        raise typer.Exit(code=1)

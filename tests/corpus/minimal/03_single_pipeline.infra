@@ -1,0 +1,7 @@
+# Purpose: the smallest valid pipeline.
+# Expected: parse + validate pass
+pipeline ci {
+    stages {
+        test: { runsOn: "ubuntu-latest" steps { run: "pytest" } }
+    }
+}

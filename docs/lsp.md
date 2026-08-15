@@ -1,0 +1,124 @@
+# Infra Lang Language Server (LSP)
+
+## What it provides
+- **Diagnostics**: errors and warnings shown inline as you type. No need to
+  run `infra validate`.
+- **Hover**: documentation for block keywords and fields.
+- **Completion**: context-aware autocompletion —
+  - top-level block keywords (with snippet expansion),
+  - per-block fields (`service`, `database`, `cache`, `queue`, ...),
+  - enum / bool / quantity value hints after `:`,
+  - sub-block suggestions (`resources`, `ingress`, `backup`, ...),
+  - **symbol-aware**: `depends`, `allow_from`, `allow_egress` suggest the
+    names of blocks already defined in the document.
+  Completion is heuristic and works even on incomplete / malformed input
+  while you type.
+- **Document symbols**: an outline of all top-level blocks (Ctrl+Shift+O).
+- **Go to definition**: jump from a reference (`depends: [db]`) to the block
+  definition, or from a block name to its definition line.
+- **Find references**: locate all references to a symbol in the file.
+- **Formatting**: `infra fmt` formatting available as document formatting
+  (format-on-save via the extension).
+- **Code actions (quick fixes)**: safe, automatic fixes for common findings —
+  e.g. E011 `replicas: 0` → `replicas: 1`, E012 port out of range → a valid
+  port. Only deterministic, safe rewrites are offered.
+
+## Not yet supported
+- Rename symbol
+- Cross-file go-to-definition / references (single-file only)
+
+## Installation
+
+### 1. Install infra-lang with LSP support
+
+```bash
+pip install 'infra-lang[lsp]'
+```
+
+### 2. Install the VS Code extension
+(see `vscode-infra-lang/README.md`)
+
+### 3. Configure Python path (if needed)
+VS Code setting:
+
+```json
+{
+  "python.defaultInterpreterPath": "/path/to/python"
+}
+```
+
+## Running the server manually (for debugging)
+
+### stdio mode (used by editors)
+
+```bash
+python -m infra.lsp.server
+```
+
+### TCP mode
+
+```bash
+infra lsp --tcp --port 2087
+```
+
+## Error codes in diagnostics
+
+| Code | Severity | Description |
+|------|----------|-------------|
+| E001 | Error | Undefined variable |
+| E002 | Error | Duplicate definition |
+| E003 | Error | Invalid replicas |
+| E004 | Error | Port out of range |
+| E011 | Error | Replicas must be >= 1 |
+| E012 | Error | Port out of range (1-65535) |
+| SEC001 | Error | Hardcoded secret |
+| SEC002 | Error | Credential pattern |
+| SEC003 | Warning | Mutable image tag |
+| SEC004 | Error | Privileged container |
+| SEC006 | Warning | SSL disabled |
+| REL001 | Warning | Thundering herd risk |
+| REL003 | Warning | No memory limit |
+| REL006 | Warning | No backup |
+
+(All 28 SEC/REL rules are covered; severity follows the same ERROR/WARNING
+split as `infra validate`.)
+
+## Architecture
+
+```
+Editor (VS Code)
+    ↕ JSON-RPC over stdio
+infra lsp (Python process)
+    ↓ calls
+infra.parser.parse()
+    ↓ calls
+infra.analyzer.SemanticValidator.validate()
+    ↓ returns
+errors + warnings
+    ↓ converted to
+LSP Diagnostics
+    ↑ sent to editor
+publishDiagnostics notification
+```
+
+## Optional anonymous error reporting (feedback)
+
+Error reporting is **disabled by default**. When enabled, a minimal,
+non-identifying error summary (product, version, error type, sanitized
+message) may be sent to a collector.
+
+It never sends:
+- source code,
+- file paths,
+- PII (user name, hostname, environment variables).
+
+Enable it locally by adding to `<project>/.infra-config.yaml`:
+
+```yaml
+feedback:
+  enabled: true
+```
+
+or `~/.config/infra/config.yaml`, or with the env var `INFRA_FEEDBACK=1`.
+Set `INFRA_FEEDBACK_OFF=1` to force-disable. A collector or network failure
+never affects the CLI or LSP.

@@ -1,0 +1,58 @@
+{
+  "name": "infra-lang",
+  "displayName": "Infra Lang",
+  "description": "Syntax highlighting and language server for .infra files",
+  "version": "0.1.0",
+  "publisher": "infra-lang",
+  "main": "./out/extension.js",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onLanguage:infra"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "infra",
+        "aliases": [
+          "Infra",
+          "infra-lang"
+        ],
+        "extensions": [
+          ".infra"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "infra",
+        "scopeName": "source.infra",
+        "path": "./syntaxes/infra.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "infra",
+        "path": "./snippets/infra.json"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/vscode": "^1.125.0",
+    "typescript": "^5.0.0"
+  }
+}

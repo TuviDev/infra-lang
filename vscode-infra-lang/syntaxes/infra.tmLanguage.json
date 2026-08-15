@@ -1,0 +1,104 @@
+{
+  "name": "Infra Lang",
+  "scopeName": "source.infra",
+  "fileTypes": ["infra"],
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#keywords" },
+    { "include": "#decorators" },
+    { "include": "#builtin-types" },
+    { "include": "#template-strings" },
+    { "include": "#strings" },
+    { "include": "#booleans-null" },
+    { "include": "#numbers-units" },
+    { "include": "#field-names" },
+    { "include": "#identifiers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.block.infra",
+          "begin": "/\\*",
+          "end": "\\*/"
+        },
+        {
+          "name": "comment.line.infra",
+          "begin": "#",
+          "end": "$"
+        }
+      ]
+    },
+    "keywords": {
+      "match": "\\b(service|database|cache|queue|storage|network|secret|config|pipeline|environment|cluster|let|const|import|from|extends|if|then|else|match|in)\\b",
+      "name": "keyword.control.infra"
+    },
+    "builtin-types": {
+      "match": "\\b(postgres|mysql|mariadb|mongodb|redis|elasticsearch|rabbitmq|kafka|nats|sqs|s3|gcs|azure_blob|minio|aws|gcp|azure|kubernetes|rolling|recreate|blue_green|canary)\\b",
+      "name": "support.type.infra"
+    },
+    "decorators": {
+      "match": "@[a-zA-Z_][a-zA-Z0-9_-]*",
+      "name": "entity.name.tag.infra"
+    },
+    "template-strings": {
+      "patterns": [
+        {
+          "name": "string.template.infra",
+          "begin": "`",
+          "end": "`",
+          "patterns": [
+            {
+              "name": "constant.character.escape.infra",
+              "match": "\\\\."
+            },
+            {
+              "name": "variable.parameter.infra",
+              "begin": "\\{",
+              "end": "\\}",
+              "patterns": [
+                { "include": "#identifiers" }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.infra",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            { "name": "constant.character.escape.infra", "match": "\\\\." }
+          ]
+        },
+        {
+          "name": "string.quoted.single.infra",
+          "begin": "'",
+          "end": "'",
+          "patterns": [
+            { "name": "constant.character.escape.infra", "match": "\\\\." }
+          ]
+        }
+      ]
+    },
+    "booleans-null": {
+      "match": "\\b(true|false|null)\\b",
+      "name": "constant.language.infra"
+    },
+    "numbers-units": {
+      "match": "\\b\\d+(\\.\\d+)?(ms|min|s|m|h|d|w|KiB|MiB|GiB|Ki|Mi|Gi|Ti|MB|GB|TB|cores|%|n)?\\b",
+      "name": "constant.numeric.infra"
+    },
+    "field-names": {
+      "match": "\\b[a-zA-Z_][a-zA-Z0-9_-]*(?=\\s*:)",
+      "name": "variable.other.infra"
+    },
+    "identifiers": {
+      "match": "\\b[a-zA-Z_][a-zA-Z0-9_-]*\\b",
+      "name": "variable.infra"
+    }
+  }
+}

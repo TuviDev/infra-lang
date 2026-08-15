@@ -1,0 +1,36 @@
+secret db-creds {
+    password: from env "DB_PASSWORD"
+    url: from env "DATABASE_URL"
+}
+
+database main-db {
+    type: postgres
+    version: 15.4
+    backup {
+      enabled: true
+      schedule: "0 2 * * *"
+    }
+}
+
+cache session {
+    type: redis
+    maxmemory: 512Mi
+    policy: allkeys-lru
+    persistence: true
+}
+
+service api {
+    image: "myapp/api:v1.0.0"
+    replicas: 2
+    env {
+      DB_URL: from secret "db-creds".url
+      DB_PASS: from secret "db-creds".password
+      NODE_ENV: "production"
+    }
+    depends: [main-db, session]
+    resources {
+      requests: {cpu: 200m, memory: 256Mi}
+      limits: {cpu: 1000m, memory: 512Mi}
+    }
+    health http("/health")
+}

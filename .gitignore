@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.node_modules/
+
+# Project output
+infra-out/
+*.pyc
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+*.swp
+
+# Env files
+.env
+.env.*
+!.env.example
+
+# VS Code extension build artifacts
+vscode-infra-lang/node_modules/
+vscode-infra-lang/out/

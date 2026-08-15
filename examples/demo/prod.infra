@@ -1,0 +1,7 @@
+# prod.infra — production environment with namespace and resource quotas.
+
+environment prod {
+    namespace: "myorg-prod"
+    labels: { env: "prod" }
+    quotas { max_cpu: 20cores max_memory: 40Gi max_pods: 50 }
+}

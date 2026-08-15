@@ -1,0 +1,10 @@
+# Purpose: a batch-style pipeline with a queue.
+# Expected: parse, validate, compile to K8s
+queue jobs { type: rabbitmq replicas: 3 }
+storage data { type: object size: 100Gi }
+service batch {
+    image: "myorg/batch:1.0.0"
+    replicas: 1
+    resources { requests { cpu: 500m, memory: 512Mi } limits { cpu: 2000m, memory: 1Gi } }
+    depends: [jobs, data]
+}

@@ -1,0 +1,21 @@
+# Purpose: three services sharing a database and a queue.
+# Expected: parse, validate, compile to K8s
+service api {
+    image: "myorg/api:1.0.0"
+    port: 8080
+    depends: [db, events]
+    network_policy { deny_from: ["*"] allow_egress: [db, events] }
+}
+service worker {
+    image: "myorg/worker:1.0.0"
+    depends: [db, events]
+    network_policy { deny_from: ["*"] allow_egress: [db, events] }
+}
+service frontend {
+    image: "myorg/frontend:1.0.0"
+    port: 3000
+    expose: true
+    depends: [api]
+}
+database db { type: postgres storage: 20Gi ssl: true }
+queue events { type: rabbitmq replicas: 3 }

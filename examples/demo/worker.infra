@@ -1,0 +1,20 @@
+# worker.infra — a background worker that consumes jobs and talks to the
+# database. It is isolated from the internet.
+
+service worker {
+    image:   "myorg/worker:1.0.0"
+    replicas: 2
+
+    resources {
+        requests { cpu: 100m, memory: 128Mi }
+        limits   { cpu: 500m, memory: 256Mi }
+    }
+
+# Deny inbound traffic from everywhere; only allow egress to db/cache.
+    network_policy {
+        deny_from: ["*"]
+        allow_egress: [db, cache]
+    }
+
+    depends: [db, cache]
+}

@@ -1,0 +1,25 @@
+# Purpose: service + database + cache, a typical web app.
+# Expected: parse, validate, compile to K8s
+service api {
+    image: "myapp/api:1.0.0"
+    port: 8080
+    replicas: 2
+    health http("/health")
+    resources { requests { cpu: 200m, memory: 256Mi } limits { cpu: 1000m, memory: 512Mi } }
+    env { DATABASE_URL: from secret "db-creds".url }
+    depends: [db, cache]
+}
+database db {
+    type: postgres
+    storage: 20Gi
+    ssl: true
+    backup { enabled: true schedule: "0 2 * * *" }
+}
+cache cache {
+    type: redis
+    maxmemory: 512Mi
+    persistence: true
+}
+secret db-creds {
+    url: from env "DATABASE_URL"
+}

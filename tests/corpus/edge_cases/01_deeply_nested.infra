@@ -1,0 +1,15 @@
+# Purpose: deeply nested blocks should not crash the parser.
+# Expected: parse (or InfraParseError), never a hard crash
+service api {
+    ingress {
+        rate_limit { rps: 100 burst: 20 }
+        cors { origins: ["*"] methods: ["GET", "POST"] }
+    }
+    security {
+        selinux { level: "s0" role: "system_r" }
+    }
+    resources {
+        requests { cpu: 100m, memory: 128Mi }
+        limits { cpu: 200m, memory: 256Mi }
+    }
+}

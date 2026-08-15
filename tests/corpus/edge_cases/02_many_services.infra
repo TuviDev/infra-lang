@@ -1,0 +1,22 @@
+# Purpose: many services in one file should parse without crashing.
+# Expected: parse + validate pass
+service s0 { image: "app:0" }
+service s1 { image: "app:1" }
+service s2 { image: "app:2" }
+service s3 { image: "app:3" }
+service s4 { image: "app:4" }
+service s5 { image: "app:5" }
+service s6 { image: "app:6" }
+service s7 { image: "app:7" }
+service s8 { image: "app:8" }
+service s9 { image: "app:9" }
+service s10 { image: "app:10" }
+service s11 { image: "app:11" }
+service s12 { image: "app:12" }
+service s13 { image: "app:13" }
+service s14 { image: "app:14" }
+service s15 { image: "app:15" }
+service s16 { image: "app:16" }
+service s17 { image: "app:17" }
+service s18 { image: "app:18" }
+service s19 { image: "app:19" }

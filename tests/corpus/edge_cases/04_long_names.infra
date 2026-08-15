@@ -1,0 +1,6 @@
+# Purpose: long identifiers should parse.
+# Expected: parse + validate pass
+service this-is-a-very-long-service-name-that-tests-identifier-handling-12345 {
+    image: "x:1"
+    labels: { a-very-long-label-key: "a-very-long-label-value" }
+}

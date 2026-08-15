@@ -1,0 +1,3 @@
+# Purpose: malformed syntax.
+# Expected: parse fails (InfraParseError)
+service api { image: "x"

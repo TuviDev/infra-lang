@@ -1,0 +1,10 @@
+# Purpose: unicode in strings should parse.
+# Expected: parse + validate pass
+config app {
+    greeting: "héllo wörld 你好"
+    tagline: "Infra Lang — IaC made simple"
+}
+service api {
+    image: "registry.example.com/app:1.0"
+    annotations: { note: "über-cache" }
+}

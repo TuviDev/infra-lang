@@ -1,0 +1,37 @@
+# Suggested labels (e.g. for github-label-sync or manual setup)
+- name: bug
+  color: d73a4a
+  description: Something isn't working
+- name: parser
+  color: 5319e7
+  description: Related to the Infra grammar / parser
+- name: compiler
+  color: b60205
+  description: Related to compilation / backends
+- name: "backend:kubernetes"
+  color: 0e8a16
+  description: Kubernetes backend
+- name: "backend:compose"
+  color: 0e8a16
+  description: Docker Compose backend
+- name: "backend:terraform"
+  color: 0e8a16
+  description: Terraform backend
+- name: "backend:github"
+  color: 0e8a16
+  description: GitHub Actions backend
+- name: lsp
+  color: 1d76db
+  description: Language Server / VS Code
+- name: telemetry
+  color: c5def5
+  description: Feedback / telemetry infrastructure
+- name: docs
+  color: 7057ff
+  description: Documentation
+- name: "good first issue"
+  color: 7057ff
+  description: Good for newcomers
+- name: enhancement
+  color: a2eeef
+  description: New feature or improvement

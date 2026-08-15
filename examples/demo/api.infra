@@ -1,0 +1,28 @@
+# api.infra — the public API service, scaled with HPA and secured with a
+# network policy that only lets the frontend/worker reach it.
+
+service api {
+    image:   "myorg/api:1.0.0"
+    port:    8080
+    replicas: 2
+
+# Health endpoint used by Kubernetes probes.
+    health http("/health")
+
+# Explicit resource requests and limits avoid OOM on the node.
+    resources {
+        requests { cpu: 200m, memory: 256Mi }
+        limits   { cpu: 1000m, memory: 512Mi }
+    }
+
+# Auto-scale between 2 and 10 pods based on CPU.
+    autoscale { min: 2 max: 10 target_cpu: 70 }
+
+# Only the database and cache are reachable.
+    network_policy {
+        deny_from: ["*"]
+        allow_egress: [db, cache]
+    }
+
+    depends: [db, cache]
+}

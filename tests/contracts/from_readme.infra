@@ -1,0 +1,56 @@
+# Contract: README.md code blocks
+
+// Block 1
+service api {
+    image: "myapp/api:v1.0.0"
+    replicas: 3
+    port 8080
+    health http("/health")
+    resources {
+        requests { cpu: 200m, memory: 256Mi }
+        limits   { cpu: 1000m, memory: 512Mi }
+    }
+    ingress { host: "api.example.com", tls: true }
+}
+
+// Block 2
+# app.infra
+service api {
+    image: "nginx:1.25.3"
+    port: 80
+    health http("/")
+}
+
+// Block 3
+service api {
+    image: "myapp:1.0"
+    replicas: 3
+    port 8080
+    env { MODE: "prod" }
+    resources { requests { cpu: 100m, memory: 128Mi } }
+    health http("/health")
+}
+
+// Block 4
+database db {
+    type: postgres
+    version: "15"
+    storage: 20Gi
+    backup { enabled: true, schedule: "0 2 * * *" }
+}
+
+// Block 5
+pipeline ci {
+    trigger { branches: ["main"] }
+    stages {
+        test: { runsOn: "ubuntu-latest" steps { t: { run: "pytest" } } }
+    }
+}
+
+// Block 6
+const VERSION = "1.2.3"
+import "./base.infra"
+
+service api {
+    image: `myapp:{VERSION}`
+}

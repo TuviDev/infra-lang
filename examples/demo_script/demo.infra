@@ -1,0 +1,25 @@
+# Purpose: the demo video's main example.
+# Expected: parse, validate, compile to all backends
+service api {
+    image: "myapp:v1.0.0"
+    port 8080
+    ingress { host: "api.example.com" tls: true }
+    health http("/health")
+    resources {
+        requests { cpu: 200m, memory: 256Mi }
+        limits   { cpu: 1000m, memory: 512Mi }
+    }
+    autoscale { min: 2, max: 10, target_cpu: 70 }
+}
+
+database db {
+    type: postgres
+    version: "15"
+    storage: 20Gi
+    ssl: true
+    backup { enabled: true, schedule: "0 2 * * *" }
+}
+
+secret db-creds {
+    url: from env "DATABASE_URL"
+}

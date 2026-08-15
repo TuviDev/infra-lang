@@ -1,0 +1,33 @@
+pipeline main-ci {
+    trigger {
+      branches: [main, develop]
+    }
+    stages {
+      test: {
+        runsOn: ubuntu-latest
+        steps {
+          checkout: { uses: "checkout" }
+          install: { run: "pip install -e .[test]" }
+          test: { run: "pytest --cov" }
+          lint: { run: "ruff check src/" }
+        }
+      }
+      build: {
+        runsOn: ubuntu-latest
+        needs: [test]
+        steps {
+          checkout: { uses: "checkout" }
+          build: { run: "docker build -t myapp:latest ." }
+          push: { run: "docker push myapp:latest" }
+        }
+      }
+      deploy: {
+        runsOn: ubuntu-latest
+        needs: [build]
+        steps {
+          checkout: { uses: "checkout" }
+          deploy: { run: "kubectl apply -f k8s/" }
+        }
+      }
+    }
+}

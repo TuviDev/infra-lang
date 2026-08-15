@@ -1,0 +1,861 @@
+// ============================================================================
+// Infra Language — Lark grammar
+// ----------------------------------------------------------------------------
+// Target: LALR(1). Blocks are brace-delimited ({ ... }) so that whitespace /
+// indentation is free-form (tab or spaces). Statements are separated by the
+// structure of the grammar rather than by newlines.
+// ============================================================================
+
+// ---------------------------------------------------------------------------
+// Terminals
+// ---------------------------------------------------------------------------
+
+// Whitespace (including newlines) is ignored everywhere.
+_WS: /[ \t\r\n\f]+/
+%ignore _WS
+
+// Comments:  # line  and  /* block */
+_CMT_LINE: "#" /[^\n]*/
+_CMT_BLOCK: /\/\*[\s\S]*?\*\//
+%ignore _CMT_LINE
+%ignore _CMT_BLOCK
+
+// Identifiers. Hyphens are allowed *inside* an identifier (e.g. my-service),
+// so binary minus must be written with surrounding spaces (a - b).
+IDENTIFIER.3: /[a-zA-Z_][a-zA-Z0-9_-]*/
+
+// Keywords (reserved terminals, priority above IDENTIFIER).
+SERVICE.4: "service"
+DATABASE.4: "database"
+CACHE.4: "cache"
+QUEUE.4: "queue"
+STORAGE.4: "storage"
+NETWORK.4: "network"
+SECRET.4: "secret"
+CONFIG.4: "config"
+PIPELINE.4: "pipeline"
+ENVIRONMENT.4: "environment"
+CLUSTER.4: "cluster"
+LET.4: "let"
+CONST.4: "const"
+EXTENDS.4: "extends"
+IMPORT.4: "import"
+FROM.4: "from"
+AS.4: "as"
+MATCH.4: "match"
+IF.4: "if"
+THEN.4: "then"
+ELSE.4: "else"
+TRUE.4: "true"
+FALSE.4: "false"
+NULL.4: "null"
+IN.4: "in"
+
+// Numbers: decimal, hex and binary integers, plus floats.
+NUMBER.4: /-?0[xX][0-9a-fA-F]+/
+        | /-?0[bB][01]+/
+        | /-?\d+\.\d+([eE][+-]?\d+)?/
+        | /-?\d+/
+
+// Number-with-unit: used for BOTH durations (30s, 5m, 2h, 7d) and resource
+// values (128Mi, 500m, 2Gi). The transformer interprets it according to the
+// grammar context in which it appears.
+UNIT_NUMBER.5: /(\d+(\.\d+)?)(ms|min|s|m|h|d|w|KiB|MiB|GiB|Ki|Mi|Gi|Ti|MB|GB|TB|cores|n)/
+
+// Strings. Single line with escapes, plus a dedicated multi-line variant.
+STRING.3: /"(?:[^"\\]|\\.)*"/
+        | /'(?:[^'\\]|\\.)*'/
+
+// Operators / punctuation
+OP_PLUS: "+"
+OP_MINUS: "-"
+OP_STAR: "*"
+OP_SLASH: "/"
+OP_PERCENT: "%"
+OP_POW: "**"
+OP_EQ: "=="
+OP_NEQ: "!="
+OP_LT: "<"
+OP_LE: "<="
+OP_GT: ">"
+OP_GE: ">="
+OP_AND: "&&"
+OP_OR: "||"
+OP_NOT: "!"
+OP_ASSIGN: "="
+ARROW: "->"
+LPAR: "("
+RPAR: ")"
+LBRACE: "{"
+RBRACE: "}"
+LBRACKET: "["
+RBRACKET: "]"
+COMMA: ","
+COLON: ":"
+DOT: "."
+AT: "@"
+
+// ---------------------------------------------------------------------------
+// Top level
+// ---------------------------------------------------------------------------
+
+start: item*
+
+item: decorator* definition
+    | import_stmt
+    | variable_decl
+
+decorator: AT IDENTIFIER (LPAR call_args RPAR)?
+
+// ---------------------------------------------------------------------------
+// Imports and variable declarations
+// ---------------------------------------------------------------------------
+
+import_stmt: IMPORT STRING (AS IDENTIFIER)?
+           | FROM STRING IMPORT import_names
+
+import_names: IDENTIFIER (COMMA IDENTIFIER)* (AS IDENTIFIER)?
+
+variable_decl: decl_kind IDENTIFIER OP_ASSIGN expression
+decl_kind: LET | CONST
+
+// ---------------------------------------------------------------------------
+// Definitions
+// ---------------------------------------------------------------------------
+
+definition: service_def
+    | database_def
+    | cache_def
+    | queue_def
+    | storage_def
+    | network_def
+    | secret_def
+    | config_def
+    | pipeline_def
+    | environment_def
+    | cluster_def
+
+// ---------------------------------------------------------------------------
+// Service
+// ---------------------------------------------------------------------------
+
+service_def: SERVICE IDENTIFIER (EXTENDS IDENTIFIER)? LBRACE service_body RBRACE
+
+service_body: (service_item (COMMA? service_item)*)?
+service_item: IMAGE COLON expression
+    | BUILD COLON build_block
+    | BUILD build_block
+    | port_spec
+    | PORT COLON port_value
+    | PORTS COLON list_literal
+    | ENV COLON env_block
+    | ENV env_block
+    | ENV_FROM COLON env_from_block
+    | COMMAND COLON expression
+    | ARGS COLON list_literal
+    | REPLICAS COLON expression
+    | RESOURCES COLON resources_block
+    | RESOURCES resources_block
+    | HEALTH health_spec
+    | HEALTH COLON health_spec
+    | PROBES COLON probes_block
+    | PROBES probes_block
+    | VOLUMES COLON volume_list
+    | VOLUMES volume_list
+    | VOLUMES COLON volume_block
+    | VOLUMES volume_block
+    | VOLUME volume_spec
+    | DEPENDS COLON list_literal
+    | LABELS COLON map_literal
+    | ANNOTATIONS COLON map_literal
+    | STRATEGY COLON strategy_block
+    | STRATEGY strategy_block
+    | SECURITY COLON security_block
+    | SECURITY security_block
+    | LIFECYCLE COLON lifecycle_block
+    | LIFECYCLE lifecycle_block
+    | INGRESS COLON ingress_block
+    | INGRESS ingress_block
+    | SCHEDULE COLON schedule_block
+    | SCHEDULE schedule_block
+    | AUTOSCALE autoscale_block
+    | AUTOSCALE COLON autoscale_block
+    | DISRUPTION disruption_block
+    | DISRUPTION COLON disruption_block
+    | NETWORK_POLICY network_policy_block
+    | NETWORK_POLICY COLON network_policy_block
+    | TOPOLOGY topology_block
+    | TOPOLOGY COLON topology_block
+    | AFFINITY affinity_block
+    | AFFINITY COLON affinity_block
+    | EXPOSE COLON expression
+    | NETWORK COLON expression
+    | scalar_field
+
+// Network Policy (per-service)
+network_policy_block: LBRACE (network_policy_item (COMMA? network_policy_item)*)? RBRACE
+network_policy_item: ALLOW_FROM COLON? list_literal
+                   | DENY_FROM COLON? list_literal
+                   | ALLOW_EGRESS COLON? list_literal
+
+// Topology spread
+topology_block: LBRACE (topology_item (COMMA? topology_item)*)? RBRACE
+topology_item: SPREAD_BY COLON? (IDENTIFIER | STRING)
+             | MAX_SKEW COLON? NUMBER
+
+// Pod affinity / anti-affinity
+affinity_block: LBRACE (affinity_item (COMMA? affinity_item)*)? RBRACE
+affinity_item: PREFER_SAME COLON? list_literal
+             | AVOID_SAME COLON? list_literal
+
+NETWORK_POLICY.4: "network_policy"
+ALLOW_FROM.4: "allow_from"
+DENY_FROM.4: "deny_from"
+ALLOW_EGRESS.4: "allow_egress"
+TOPOLOGY.4: "topology"
+SPREAD_BY.4: "spread_by"
+MAX_SKEW.4: "max_skew"
+AFFINITY.4: "affinity"
+PREFER_SAME.4: "prefer_same"
+AVOID_SAME.4: "avoid_same"
+// Autoscale (HPA)
+autoscale_block: LBRACE (autoscale_item (COMMA? autoscale_item)*)? RBRACE
+autoscale_item: MIN COLON? NUMBER
+              | MAX COLON? NUMBER
+              | TARGET_CPU COLON? NUMBER
+              | TARGET_MEMORY COLON? NUMBER
+              | SCALE_UP_DELAY COLON? unit_value
+              | SCALE_DOWN_DELAY COLON? unit_value
+
+// Disruption (PodDisruptionBudget)
+disruption_block: LBRACE (disruption_item (COMMA? disruption_item)*)? RBRACE
+disruption_item: MIN_AVAILABLE COLON? (NUMBER | percentage)
+               | MAX_UNAVAILABLE COLON? (NUMBER | percentage)
+
+AUTOSCALE.4: "autoscale"
+DISRUPTION.4: "disruption"
+TARGET_CPU.4: "target_cpu"
+TARGET_MEMORY.4: "target_memory"
+SCALE_UP_DELAY.4: "scale_up_delay"
+SCALE_DOWN_DELAY.4: "scale_down_delay"
+MIN_AVAILABLE.4: "min_available"
+MAX_UNAVAILABLE.4: "max_unavailable"
+
+// Schedule (time-based scaling)
+schedule_block: LBRACE (schedule_item (COMMA? schedule_item)*)? RBRACE
+schedule_item: schedule_key COLON? schedule_config
+?schedule_key: "default" | STRING
+schedule_config: REPLICAS NUMBER
+               | LBRACE (schedule_field (COMMA? schedule_field)*)? RBRACE
+schedule_field: REPLICAS COLON? NUMBER
+              | CPU COLON? resource_value
+              | MEMORY COLON? resource_value
+
+// Generic `name: expr` fallback for simple scalar fields.
+scalar_field: IDENTIFIER COLON expression
+
+// Reserved field-name tokens used above (given low-enough priority to stay
+// unambiguous, but reserved so they cannot be redefined as scalar fields).
+IMAGE.4: "image"
+BUILD.4: "build"
+PORT.4: "port"
+PORTS.4: "ports"
+ENV.4: "env"
+ENV_FROM.4: "envFrom"
+COMMAND.4: "command"
+ARGS.4: "args"
+REPLICAS.4: "replicas"
+RESOURCES.4: "resources"
+HEALTH.4: "health"
+PROBES.4: "probes"
+VOLUMES.4: "volumes"
+VOLUME.4: "volume"
+DEPENDS.4: "depends"
+LABELS.4: "labels"
+ANNOTATIONS.4: "annotations"
+STRATEGY.4: "strategy"
+SECURITY.4: "security"
+LIFECYCLE.4: "lifecycle"
+INGRESS.4: "ingress"
+EXPOSE.4: "expose"
+
+// Build
+build_block: LBRACE (build_item (COMMA? build_item)*)? RBRACE
+build_item: CONTEXT COLON expression
+    | DOCKERFILE COLON expression
+    | ARGS COLON map_literal
+    | TARGET COLON expression
+    | scalar_field
+CONTEXT.4: "context"
+DOCKERFILE.4: "dockerfile"
+TARGET.4: "target"
+
+// Ports
+port_spec: PORT NUMBER
+         | PORT NUMBER COLON NUMBER
+         | PORT port_object
+port_value: NUMBER | NUMBER COLON NUMBER | port_object
+port_object: LBRACE (port_field (COMMA? port_field)*)? RBRACE
+port_field: HOST COLON NUMBER
+    | TARGET COLON NUMBER
+    | PROTOCOL COLON expression
+    | scalar_field
+HOST.4: "host"
+TARGET_PORT.4: "target"
+PROTOCOL.4: "protocol"
+
+// Ingress
+ingress_block: LBRACE (ingress_item (COMMA? ingress_item)*)? RBRACE
+ingress_item: HOST COLON expression
+    | TLS COLON expression
+    | DOMAIN COLON expression
+    | RATE_LIMIT COLON rate_limit_spec
+    | RATE_LIMIT rate_limit_spec
+    | CORS COLON cors_block
+    | CORS cors_block
+    | PATHS COLON list_literal
+    | scalar_field
+TLS.4: "tls"
+DOMAIN.4: "domain"
+RATE_LIMIT.4: "rate_limit"
+CORS.4: "cors"
+PATHS.4: "paths"
+
+rate_limit_spec: LBRACE (rate_item (COMMA? rate_item)*)? RBRACE
+rate_item: REQ_PER_SEC COLON expression
+    | BURST COLON expression
+    | scalar_field
+REQ_PER_SEC.4: "rps"
+BURST.4: "burst"
+
+cors_block: LBRACE (cors_item (COMMA? cors_item)*)? RBRACE
+cors_item: ORIGINS COLON list_literal
+    | METHODS COLON list_literal
+    | HEADERS COLON list_literal
+    | CREDENTIALS COLON expression
+    | scalar_field
+ORIGINS.4: "origins"
+METHODS.4: "methods"
+HEADERS.4: "headers"
+CREDENTIALS.4: "credentials"
+
+// Environment
+env_block: LBRACE (env_entry (COMMA? env_entry)*)? RBRACE
+env_entry: IDENTIFIER COLON env_value
+env_value: expression
+         | FROM from_source STRING (DOT IDENTIFIER)?
+from_source: SECRET | CONFIG | FIELD | ENV
+FIELD.4: "field"
+
+env_from_block: LBRACE (env_from_entry (COMMA? env_from_entry)*)? RBRACE
+env_from_entry: IDENTIFIER COLON STRING
+
+// Resources
+resources_block: LBRACE (resource_item (COMMA? resource_item)*)? RBRACE
+resource_item: REQUESTS COLON resource_map
+    | REQUESTS resource_map
+    | LIMITS COLON resource_map
+    | LIMITS resource_map
+    | resource_cpu
+    | resource_memory
+resource_map: LBRACE resource_entry (COMMA resource_entry)* RBRACE
+resource_entry: (CPU | MEMORY) COLON resource_value
+REQUESTS.4: "requests"
+LIMITS.4: "limits"
+CPU.4: "cpu"
+MEMORY.4: "memory"
+resource_cpu: CPU COLON resource_value
+resource_memory: MEMORY COLON resource_value
+
+// Health / probes
+health_spec: health_shorthand | health_object
+health_shorthand: (HTTP | TCP | EXEC | GRPC) LPAR expression RPAR health_object?
+health_object: LBRACE (health_item (COMMA? health_item)*)? RBRACE
+health_item: INTERVAL COLON expression
+    | TIMEOUT COLON expression
+    | RETRIES COLON expression
+    | START_PERIOD COLON expression
+    | INITIAL_DELAY COLON expression
+    | PATH COLON expression
+    | PORT COLON expression
+    | COMMAND COLON list_literal
+    | scalar_field
+HTTP.4: "http"
+TCP.4: "tcp"
+EXEC.4: "exec"
+GRPC.4: "grpc"
+INTERVAL.4: "interval"
+TIMEOUT.4: "timeout"
+RETRIES.4: "retries"
+START_PERIOD.4: "startPeriod"
+INITIAL_DELAY.4: "initialDelay"
+PATH.4: "path"
+
+probes_block: LBRACE (probe_entry (COMMA? probe_entry)*)? RBRACE
+probe_entry: LIVENESS health_spec
+    | LIVENESS COLON health_spec
+    | READINESS health_spec
+    | READINESS COLON health_spec
+    | STARTUP health_spec
+    | STARTUP COLON health_spec
+LIVENESS.4: "liveness"
+READINESS.4: "readiness"
+STARTUP.4: "startup"
+
+// Volumes
+volume_list: LBRACKET volume_spec* RBRACKET
+volume_block: LBRACE (volume_spec (COMMA? volume_spec)*)? RBRACE
+volume_spec: LBRACE (volume_field (COMMA? volume_field)*)? RBRACE
+          | IDENTIFIER COLON LBRACE (volume_field (COMMA? volume_field)*)? RBRACE
+volume_field: NAME COLON expression
+    | MOUNT_PATH COLON expression
+    | HOST_PATH COLON expression
+    | CLAIM COLON expression
+    | READONLY COLON expression
+    | SC SIZE COLON expression
+    | scalar_field
+NAME.4: "name"
+MOUNT_PATH.4: "mountPath"
+SC.4: "sc"
+HOST_PATH.4: "hostPath"
+CLAIM.4: "claim"
+READONLY.4: "readOnly"
+SIZE.4: "size"
+
+// Strategy
+strategy_block: strategy_name | strategy_object
+strategy_name: (ROLLING | RECREATE | BLUE_GREEN | CANARY)
+strategy_object: LBRACE (strategy_item (COMMA? strategy_item)*)? RBRACE
+strategy_item: TYPE COLON expression
+    | STEPS COLON list_literal
+    | CANARY COLON LBRACE (canary_item (COMMA? canary_item)*)? RBRACE
+    | scalar_field
+ROLLING.4: "rolling"
+RECREATE.4: "recreate"
+BLUE_GREEN.4: "blue_green"
+CANARY.4: "canary"
+TYPE.4: "type"
+STEPS.4: "steps"
+canary_item: WEIGHT COLON expression
+    | STEPS COLON expression
+    | TRAFFIC COLON expression
+WEIGHT.4: "weight"
+TRAFFIC.4: "traffic"
+
+// Security
+security_block: LBRACE (security_item (COMMA? security_item)*)? RBRACE
+security_item: USER COLON expression
+    | GROUP COLON expression
+    | CAPABILITIES COLON list_literal
+    | SECCOMP COLON expression
+    | SELINUX COLON LBRACE (selinux_item (COMMA? selinux_item)*)? RBRACE
+    | SELINUX LBRACE (selinux_item (COMMA? selinux_item)*)? RBRACE
+    | READONLY_ROOT COLON expression
+    | PRIVILEGED COLON expression
+    | scalar_field
+USER.4: "user"
+GROUP.4: "group"
+CAPABILITIES.4: "capabilities"
+SECCOMP.4: "seccomp"
+SELINUX.4: "selinux"
+READONLY_ROOT.4: "readOnlyRootFilesystem"
+PRIVILEGED.4: "privileged"
+selinux_item: LEVEL COLON expression
+    | ROLE COLON expression
+    | TYPE COLON expression
+LEVEL.4: "level"
+ROLE.4: "role"
+
+// Lifecycle
+lifecycle_block: LBRACE (lifecycle_item (COMMA? lifecycle_item)*)? RBRACE
+lifecycle_item: POST_START hook_block
+    | POST_START COLON hook_block
+    | PRE_STOP hook_block
+    | PRE_STOP COLON hook_block
+POST_START.4: "postStart"
+PRE_STOP.4: "preStop"
+hook_block: LBRACE (hook_field (COMMA? hook_field)*)? RBRACE
+hook_field: EXEC COLON list_literal
+    | COMMAND COLON list_literal
+    | HTTP COLON expression
+    | scalar_field
+
+// ---------------------------------------------------------------------------
+// Database
+// ---------------------------------------------------------------------------
+
+database_def: DATABASE IDENTIFIER LBRACE database_body RBRACE
+database_body: (database_item (COMMA? database_item)*)?
+database_item: DB_TYPE COLON expression
+    | VERSION COLON expression
+    | REPLICAS COLON expression
+    | BACKUP backup_block
+    | STORAGE COLON expression
+    | USERS LBRACE (db_user (COMMA? db_user)*)? RBRACE
+    | HA COLON expression
+    | SIZE COLON expression
+    | scalar_field
+DB_TYPE.4: "type"
+BACKUP.4: "backup"
+HA.4: "ha"
+VERSION.4: "version"
+USERS.4: "users"
+db_user: IDENTIFIER COLON expression
+backup_block: LBRACE (backup_item (COMMA? backup_item)*)? RBRACE
+backup_item: ENABLED COLON expression
+    | SCHEDULE COLON expression
+    | RETENTION COLON expression
+    | STORAGE COLON expression
+    | scalar_field
+ENABLED.4: "enabled"
+SCHEDULE.4: "schedule"
+RETENTION.4: "retention"
+
+// ---------------------------------------------------------------------------
+// Cache
+// ---------------------------------------------------------------------------
+
+cache_def: CACHE IDENTIFIER LBRACE cache_body RBRACE
+cache_body: (cache_item (COMMA? cache_item)*)?
+cache_item: CACHE_TYPE COLON expression
+    | VERSION COLON expression
+    | MAXMEMORY COLON expression
+    | CACHE_POLICY COLON expression
+    | PERSISTENCE COLON expression
+    | REPLICAS COLON expression
+    | scalar_field
+CACHE_TYPE.4: "type"
+MAXMEMORY.4: "maxmemory"
+CACHE_POLICY.4: "policy"
+PERSISTENCE.4: "persistence"
+
+// ---------------------------------------------------------------------------
+// Queue
+// ---------------------------------------------------------------------------
+
+queue_def: QUEUE IDENTIFIER LBRACE queue_body RBRACE
+queue_body: (queue_item (COMMA? queue_item)*)?
+queue_item: QUEUE_TYPE COLON expression
+    | VERSION COLON expression
+    | TOPICS LBRACE (topic_spec (COMMA? topic_spec)*)? RBRACE
+    | CONFIG LBRACE (queue_config_item (COMMA? queue_config_item)*)? RBRACE
+    | USERS LBRACE (mq_user (COMMA? mq_user)*)? RBRACE
+    | REPLICAS COLON expression
+    | scalar_field
+QUEUE_TYPE.4: "type"
+TOPICS.4: "topics"
+topic_spec: IDENTIFIER COLON LBRACE (topic_item (COMMA? topic_item)*)? RBRACE
+topic_item: PARTITIONS COLON expression
+    | REPLICATION COLON expression
+    | RETENTION COLON expression
+    | scalar_field
+PARTITIONS.4: "partitions"
+REPLICATION.4: "replication"
+queue_config_item: IDENTIFIER COLON expression
+mq_user: IDENTIFIER COLON expression
+
+// ---------------------------------------------------------------------------
+// Storage
+// ---------------------------------------------------------------------------
+
+storage_def: STORAGE IDENTIFIER LBRACE storage_body RBRACE
+storage_body: (storage_item (COMMA? storage_item)*)?
+storage_item: STORAGE_TYPE COLON expression
+    | SIZE COLON expression
+    | CLASS COLON expression
+    | ACCESS_MODE COLON expression
+    | LIFECYCLE storage_lifecycle
+    | BUCKET COLON expression
+    | REGION COLON expression
+    | scalar_field
+STORAGE_TYPE.4: "type"
+CLASS.4: "class"
+ACCESS_MODE.4: "accessMode"
+BUCKET.4: "bucket"
+REGION.4: "region"
+storage_lifecycle: LBRACE (lifecycle_field (COMMA? lifecycle_field)*)? RBRACE
+lifecycle_field: RETENTION COLON expression
+    | PREFIX COLON expression
+    | TRANSITION COLON expression
+    | EXPIRATION COLON expression
+    | scalar_field
+PREFIX.4: "prefix"
+TRANSITION.4: "transition"
+EXPIRATION.4: "expiration"
+
+// ---------------------------------------------------------------------------
+// Network
+// ---------------------------------------------------------------------------
+
+network_def: NETWORK IDENTIFIER LBRACE network_body RBRACE
+network_body: (network_item (COMMA? network_item)*)?
+network_item: CIDR COLON expression
+    | SUBNETS LBRACE (subnet_spec (COMMA? subnet_spec)*)? RBRACE
+    | POLICY LBRACE (policy_rule (COMMA? policy_rule)*)? RBRACE
+    | scalar_field
+CIDR.4: "cidr"
+SUBNETS.4: "subnets"
+POLICY.4: "policy"
+subnet_spec: IDENTIFIER COLON LBRACE (subnet_item (COMMA? subnet_item)*)? RBRACE
+subnet_item: CIDR COLON expression
+    | AZ COLON expression
+    | scalar_field
+AZ.4: "az"
+policy_rule: IDENTIFIER COLON LBRACE (rule_item (COMMA? rule_item)*)? RBRACE
+rule_item: FROM_DIR COLON expression
+    | TO_DIR COLON expression
+    | PORTS COLON list_literal
+    | SELECTOR COLON map_literal
+    | scalar_field
+FROM_DIR.4: "from"
+TO_DIR.4: "to"
+SELECTOR.4: "selector"
+
+// ---------------------------------------------------------------------------
+// Secret
+// ---------------------------------------------------------------------------
+
+secret_def: SECRET IDENTIFIER LBRACE secret_body RBRACE
+secret_body: (secret_item (COMMA? secret_item)*)?
+secret_item: IDENTIFIER COLON secret_value
+secret_value: expression
+            | FROM secret_source STRING (DOT IDENTIFIER)?
+secret_source: ENV | FILE | VAULT | AWS | GCP
+FILE.4: "file"
+VAULT.4: "vault"
+AWS.4: "aws"
+GCP.4: "gcp"
+
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+
+config_def: CONFIG IDENTIFIER LBRACE config_body RBRACE
+config_body: (config_item (COMMA? config_item)*)?
+config_item: IDENTIFIER COLON expression
+    | FILE COLON STRING
+
+// ---------------------------------------------------------------------------
+// Pipeline
+// ---------------------------------------------------------------------------
+
+pipeline_def: PIPELINE IDENTIFIER LBRACE pipeline_body RBRACE
+pipeline_body: (pipeline_item (COMMA? pipeline_item)*)?
+pipeline_item: TRIGGER LBRACE (trigger_field (COMMA? trigger_field)*)? RBRACE
+    | TRIGGER COLON LBRACE (trigger_field (COMMA? trigger_field)*)? RBRACE
+    | STAGES LBRACE (stage_spec (COMMA? stage_spec)*)? RBRACE
+    | STAGES COLON LBRACE (stage_spec (COMMA? stage_spec)*)? RBRACE
+    | ARTIFACTS LBRACE (artifact_field (COMMA? artifact_field)*)? RBRACE
+    | ARTIFACTS COLON LBRACE (artifact_field (COMMA? artifact_field)*)? RBRACE
+    | PIPELINE_CACHE LBRACE (cache_field (COMMA? cache_field)*)? RBRACE
+    | PIPELINE_CACHE COLON LBRACE (cache_field (COMMA? cache_field)*)? RBRACE
+    | CONCURRENCY LBRACE (conc_field (COMMA? conc_field)*)? RBRACE
+    | CONCURRENCY COLON LBRACE (conc_field (COMMA? conc_field)*)? RBRACE
+    | scalar_field
+TRIGGER.4: "trigger"
+STAGES.4: "stages"
+ARTIFACTS.4: "artifacts"
+PIPELINE_CACHE.4: "cache"
+CONCURRENCY.4: "concurrency"
+KEY.4: "key"
+trigger_field: BRANCHES COLON list_literal
+    | TAGS COLON list_literal
+    | PATHS COLON list_literal
+    | SCHEDULE COLON expression
+    | MANUAL COLON expression
+    | EVENTS COLON list_literal
+    | scalar_field
+BRANCHES.4: "branches"
+TAGS.4: "tags"
+MANUAL.4: "manual"
+EVENTS.4: "events"
+stage_spec: IDENTIFIER COLON LBRACE (stage_item (COMMA? stage_item)*)? RBRACE
+stage_item: IMAGE COLON expression
+    | RUNS_ON COLON expression
+    | NEEDS COLON list_literal
+    | CONDITION COLON expression
+    | ENV COLON map_literal
+    | TIMEOUT COLON expression
+    | MATRIX COLON LBRACE (matrix_item (COMMA? matrix_item)*)? RBRACE
+    | MATRIX LBRACE (matrix_item (COMMA? matrix_item)*)? RBRACE
+    | PARALLEL COLON LBRACE (stage_spec (COMMA? stage_spec)*)? RBRACE
+    | PARALLEL LBRACE (stage_spec (COMMA? stage_spec)*)? RBRACE
+    | STEPS COLON LBRACE (step_spec (COMMA? step_spec)*)? RBRACE
+    | STEPS LBRACE (step_spec (COMMA? step_spec)*)? RBRACE
+    | scalar_field
+RUNS_ON.4: "runsOn"
+NEEDS.4: "needs"
+CONDITION.4: "if"
+MATRIX.4: "matrix"
+PARALLEL.4: "parallel"
+step_spec: IDENTIFIER COLON step_body
+step_body: expression | LBRACE (step_field (COMMA? step_field)*)? RBRACE
+step_field: RUN COLON expression
+    | USES COLON expression
+    | WITH_ARGS COLON map_literal
+    | CONDITION COLON expression
+    | CONTINUE_ON_ERROR COLON expression
+    | TIMEOUT COLON expression
+    | ENV COLON map_literal
+    | scalar_field
+RUN.4: "run"
+USES.4: "uses"
+WITH_ARGS.4: "with"
+CONTINUE_ON_ERROR.4: "continueOnError"
+artifact_field: UPLOAD COLON list_literal
+    | DOWNLOAD COLON list_literal
+    | scalar_field
+UPLOAD.4: "upload"
+DOWNLOAD.4: "download"
+cache_field: PATH COLON expression
+    | KEY COLON expression
+    | RESTORE_KEYS COLON list_literal
+    | scalar_field
+RESTORE_KEYS.4: "restoreKeys"
+conc_field: GROUP COLON expression
+    | CANCEL_IN_PROGRESS COLON expression
+    | scalar_field
+CANCEL_IN_PROGRESS.4: "cancelInProgress"
+matrix_item: IDENTIFIER COLON list_literal
+
+// ---------------------------------------------------------------------------
+// Environment
+// ---------------------------------------------------------------------------
+
+environment_def: ENVIRONMENT IDENTIFIER (EXTENDS IDENTIFIER)? LBRACE env_def_body RBRACE
+env_def_body: (env_def_item (COMMA? env_def_item)*)?
+env_def_item: PROVIDER COLON expression
+    | REGION COLON expression
+    | RESOURCES resources_block
+    | NAMESPACE COLON expression
+    | LABELS COLON map_literal
+    | QUOTAS quota_block
+    | QUOTAS COLON quota_block
+    | scalar_field
+
+// ResourceQuota for a namespace
+quota_block: LBRACE (quota_item (COMMA? quota_item)*)? RBRACE
+quota_item: MAX_CPU COLON? resource_value
+          | MAX_MEMORY COLON? resource_value
+          | MAX_PODS COLON? NUMBER
+QUOTAS.4: "quotas"
+MAX_CPU.4: "max_cpu"
+MAX_MEMORY.4: "max_memory"
+MAX_PODS.4: "max_pods"
+PROVIDER.4: "provider"
+NAMESPACE.4: "namespace"
+
+// ---------------------------------------------------------------------------
+// Cluster
+// ---------------------------------------------------------------------------
+
+cluster_def: CLUSTER IDENTIFIER LBRACE cluster_body RBRACE
+cluster_body: (cluster_item (COMMA? cluster_item)*)?
+cluster_item: PROVIDER COLON expression
+    | REGION COLON expression
+    | VERSION COLON expression
+    | NODES LBRACE (node_pool (COMMA? node_pool)*)? RBRACE
+    | NODES COLON LBRACE (node_pool (COMMA? node_pool)*)? RBRACE
+    | NODES LBRACE (node_pool (COMMA? node_pool)*)? RBRACE
+    | NETWORKING LBRACE (cluster_net_item (COMMA? cluster_net_item)*)? RBRACE
+    | NETWORKING COLON LBRACE (cluster_net_item (COMMA? cluster_net_item)*)? RBRACE
+    | NETWORKING LBRACE (cluster_net_item (COMMA? cluster_net_item)*)? RBRACE
+    | IAM LBRACE (cluster_iam_item (COMMA? cluster_iam_item)*)? RBRACE
+    | IAM COLON LBRACE (cluster_iam_item (COMMA? cluster_iam_item)*)? RBRACE
+    | IAM LBRACE (cluster_iam_item (COMMA? cluster_iam_item)*)? RBRACE
+    | scalar_field
+NODES.4: "nodes"
+NETWORKING.4: "networking"
+IAM.4: "iam"
+node_pool: IDENTIFIER COLON LBRACE (node_item (COMMA? node_item)*)? RBRACE
+node_item: MACHINE TYPE COLON expression
+    | MIN COLON expression
+    | MAX COLON expression
+    | LABELS COLON map_literal
+    | scalar_field
+MIN.4: "min"
+MAX.4: "max"
+MACHINE.4: "machine"
+cluster_net_item: CIDR COLON expression
+    | VPC COLON expression
+    | scalar_field
+VPC.4: "vpc"
+cluster_iam_item: SA COLON LBRACE (sa_item (COMMA? sa_item)*)? RBRACE
+    | SA LBRACE (sa_item (COMMA? sa_item)*)? RBRACE
+    | ROLE COLON LBRACE (role_item (COMMA? role_item)*)? RBRACE
+    | ROLE LBRACE (role_item (COMMA? role_item)*)? RBRACE
+    | scalar_field
+SA.4: "serviceAccount"
+sa_item: NAME COLON expression
+    | POLICY COLON map_literal
+    | scalar_field
+role_item: ACTIONS COLON list_literal
+    | RESOURCES COLON list_literal
+    | scalar_field
+ACTIONS.4: "actions"
+
+// ---------------------------------------------------------------------------
+// Expressions (operator precedence from lowest to highest)
+// ---------------------------------------------------------------------------
+
+?expression: if_expr
+
+?if_expr: IF expression THEN expression ELSE expression
+        | or_expr
+
+?or_expr: and_expr (OP_OR and_expr)*
+?and_expr: not_expr (OP_AND not_expr)*
+?not_expr: OP_NOT not_expr
+         | comparison
+
+?comparison: sum_expr ((OP_EQ | OP_NEQ | OP_LT | OP_LE | OP_GT | OP_GE) sum_expr)*
+?sum_expr: term ((OP_PLUS | OP_MINUS) term)*
+?term: factor ((OP_STAR | OP_SLASH | OP_PERCENT) factor)*
+?factor: OP_MINUS factor
+       | power
+?power: unary (OP_POW unary)?
+?unary: primary
+
+?primary: literal
+    | match_expr
+    | list_literal
+    | map_literal
+    | template_string
+    | unit_value
+    | percentage
+    | call_chain
+
+call_chain: atom call_tail*
+call_tail: LPAR call_args RPAR | DOT IDENTIFIER | LBRACKET expression RBRACKET
+
+atom: IDENTIFIER | SECRET | CONFIG | ENV | LPAR expression RPAR
+
+call_args: (call_arg (COMMA? call_arg)*)?
+call_arg: expression (OP_ASSIGN expression)?   // keyword args: name = value
+
+?literal: NUMBER | STRING | TRUE | FALSE | NULL
+
+// A number-with-unit is interpreted contextually: resource fields build a
+// ResourceValue, time fields build a Duration, bare expressions build a
+// Duration. `unit_value` is the single grammar alternative used in primary.
+unit_value: UNIT_NUMBER
+duration: unit_value
+resource_value: unit_value | NUMBER | IDENTIFIER
+percentage: NUMBER "%"
+
+list_literal: LBRACKET (expression (COMMA? expression)*)? RBRACKET
+
+map_literal: LBRACE map_entry (COMMA map_entry)* RBRACE
+map_entry: expression COLON expression
+
+template_string: STRING_TEMPLATE
+STRING_TEMPLATE.6: /`(?:[^`\\]|\\.)*`/
+
+// ---------------------------------------------------------------------------
+// Pattern matching
+// ---------------------------------------------------------------------------
+
+match_expr: MATCH expression LBRACE (match_arm (COMMA? match_arm)*)? RBRACE
+match_arm: pattern ARROW expression
+pattern: NUMBER | STRING | TRUE | FALSE | IDENTIFIER | UNDERSCORE
+UNDERSCORE.4: "_"

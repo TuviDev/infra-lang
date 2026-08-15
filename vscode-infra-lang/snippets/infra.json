@@ -1,0 +1,152 @@
+{
+  "service basic": {
+    "prefix": "svc",
+    "scope": "infra",
+    "body": [
+      "service ${1:name} {",
+      "    image: \"${2:your-image}:${3:1.0.0}\"",
+      "    port: ${4:8080}",
+      "    replicas: ${5:1}",
+      "    health http(\"${6:/health}\")",
+      "    resources {",
+      "        requests { cpu: ${7:100m}, memory: ${8:128Mi} }",
+      "        limits   { cpu: ${9:500m}, memory: ${10:256Mi} }",
+      "    }",
+      "}"
+    ],
+    "description": "Full service with port, health check and resources"
+  },
+  "service full": {
+    "prefix": "svc-full",
+    "scope": "infra",
+    "body": [
+      "service ${1:name} {",
+      "    image: \"${2:your-image}:${3:1.0.0}\"",
+      "    port: ${4:8080}",
+      "    replicas: ${5:2}",
+      "    health http(\"${6:/health}\")",
+      "    resources {",
+      "        requests { cpu: ${7:200m}, memory: ${8:256Mi} }",
+      "        limits   { cpu: ${9:1000m}, memory: ${10:512Mi} }",
+      "    }",
+      "    autoscale { min: ${11:2} max: ${12:10} target_cpu: ${13:70} }",
+      "    security { user: ${14:1000} }",
+      "    network_policy { deny_from: [\"*\"] allow_egress: [${15:db}] }",
+      "}"
+    ],
+    "description": "Service with autoscale, security and network policy"
+  },
+  "database": {
+    "prefix": "db",
+    "scope": "infra",
+    "body": [
+      "database ${1:name} {",
+      "    type:    ${2:postgres}",
+      "    version: \"${3:15.4}\"",
+      "    storage: ${4:20Gi}",
+      "    ssl:     ${5:true}",
+      "    backup { enabled: true schedule: \"${6:0 2 * * *}\" retention: ${7:30d} }",
+      "}"
+    ],
+    "description": "Database with SSL and backup"
+  },
+  "cache redis": {
+    "prefix": "cache",
+    "scope": "infra",
+    "body": [
+      "cache ${1:name} {",
+      "    type:        ${2:redis}",
+      "    version:     \"${3:7}\"",
+      "    maxmemory:   ${4:512Mi}",
+      "    persistence: ${5:true}",
+      "}"
+    ],
+    "description": "Redis cache with memory and persistence"
+  },
+  "pipeline ci cd": {
+    "prefix": "pipeline",
+    "scope": "infra",
+    "body": [
+      "pipeline ${1:build} {",
+      "    trigger { branches: [\"${2:main}\"] }",
+      "    stages {",
+      "        test: { runsOn: \"${3:ubuntu-latest}\" steps { run: \"${4:pytest -q}\" } }",
+      "        build: { needs: [test] runsOn: \"${3:ubuntu-latest}\" steps { run: \"${5:docker build -t app .}\" } }",
+      "        deploy: { needs: [build] runsOn: \"${3:ubuntu-latest}\" steps { run: \"${6:kubectl apply -f deploy/}\" } }",
+      "    }",
+      "}"
+    ],
+    "description": "CI/CD pipeline with test, build and deploy stages"
+  },
+  "secret from env": {
+    "prefix": "secret",
+    "scope": "infra",
+    "body": [
+      "secret ${1:name} {",
+      "    ${2:key}: from env \"${3:KEY_NAME}\"",
+      "}"
+    ],
+    "description": "Secret sourced from an environment variable"
+  },
+  "environment extends": {
+    "prefix": "environment",
+    "scope": "infra",
+    "body": [
+      "environment ${1:prod} extends ${2:dev} {",
+      "    namespace: \"${3:myapp-prod}\"",
+      "    quotas { max_cpu: ${4:10cores} max_memory: ${5:20Gi} max_pods: ${6:100} }",
+      "}"
+    ],
+    "description": "Environment that inherits from another environment"
+  },
+  "microservices stack": {
+    "prefix": "micro",
+    "scope": "infra",
+    "body": [
+      "service ${1:api} { image: \"${2:api}:1.0.0\" port: 8080 depends: [db] }",
+      "service ${3:worker} { image: \"${4:worker}:1.0.0\" depends: [db] }",
+      "service ${5:frontend} { image: \"${6:frontend}:1.0.0\" port: 3000 expose: true }",
+      "database ${7:db} { type: postgres storage: 20Gi }",
+      "cache ${8:session} { type: redis maxmemory: 512Mi persistence: true }"
+    ],
+    "description": "Microservices stack: 3 services + database + cache"
+  },
+  "health check": {
+    "prefix": "health",
+    "scope": "infra",
+    "body": [
+      "health ${1:http}(\"${2:/health}\") { interval: ${3:10s} timeout: ${4:5s} retries: ${5:3} }"
+    ],
+    "description": "Health check shorthand with interval, timeout and retries"
+  },
+  "resources small": {
+    "prefix": "res-s",
+    "scope": "infra",
+    "body": [
+      "resources {",
+      "    requests { cpu: ${1:100m}, memory: ${2:128Mi} }",
+      "    limits   { cpu: ${3:500m}, memory: ${4:256Mi} }",
+      "}"
+    ],
+    "description": "Small resource requests and limits"
+  },
+  "resources medium": {
+    "prefix": "res-m",
+    "scope": "infra",
+    "body": [
+      "resources {",
+      "    requests { cpu: ${1:500m}, memory: ${2:512Mi} }",
+      "    limits   { cpu: ${3:2000m}, memory: ${4:1Gi} }",
+      "}"
+    ],
+    "description": "Medium resource requests and limits"
+  },
+  "autoscale block": {
+    "prefix": "autoscale",
+    "scope": "infra",
+    "body": [
+      "autoscale { min: ${1:2} max: ${2:10} target_cpu: ${3:70} }"
+    ],
+    "description": "Horizontal Pod Autoscaler block with min, max and target CPU"
+  }
+}

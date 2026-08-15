@@ -1,0 +1,3 @@
+# Purpose: port out of range.
+# Expected: E012
+service api { image: "x:1" port: 70000 }

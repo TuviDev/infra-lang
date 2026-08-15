@@ -1,0 +1,43 @@
+# CI/CD pipeline — tests trigger, stages, steps, matrix, artifacts and cache.
+pipeline build_and_deploy {
+    trigger {
+        branches: ["main"]
+        paths: ["src/**"]
+        schedule: "0 2 * * *"
+    }
+
+    concurrency {
+        group: "deploy-${{ github.ref }}"
+        cancelInProgress: true
+    }
+
+    stages {
+        test: {
+            runsOn: "ubuntu-latest"
+            matrix { python: ["3.10", "3.11", "3.12"] }
+            steps {
+                checkout: { uses: "checkout" }
+                setup:    { uses: "setup-python 3.11" }
+                run_tests: { run: "pytest" }
+            }
+        }
+
+        deploy: {
+            needs: ["test"]
+            image: "deployer"
+            steps {
+                deploy: { run: "kubectl apply -f manifest.yaml" }
+            }
+        }
+    }
+
+    artifacts {
+        upload: ["dist/"]
+        download: ["dist/"]
+    }
+
+    cache {
+        path: "~/.cache/pip"
+        key: "${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}"
+    }
+}

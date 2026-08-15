@@ -1,0 +1,10 @@
+# main.infra — entry point for the demo microservices project.
+# It imports every other definition file; run from the demo directory with:
+#   infra validate main.infra
+#   infra compile main.infra --target kubernetes
+#   infra compile main.infra --target compose
+
+import "./api.infra"
+import "./worker.infra"
+import "./databases.infra"
+import "./cache.infra"

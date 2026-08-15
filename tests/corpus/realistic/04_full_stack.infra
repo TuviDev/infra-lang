@@ -1,0 +1,17 @@
+# Purpose: everything together — services, db, cache, queue, pipeline.
+# Expected: parse, validate, compile to K8s
+service api {
+    image: "app/api:1.0.0"
+    port: 8080
+    replicas: 3
+    health http("/health")
+    autoscale { min: 2 max: 10 target_cpu: 70 }
+    depends: [db, cache, events]
+}
+database db { type: postgres storage: 20Gi ssl: true backup { enabled: true } }
+cache cache { type: redis maxmemory: 512Mi persistence: true }
+queue events { type: rabbitmq replicas: 3 }
+pipeline ci {
+    trigger { branches: ["main"] }
+    stages { test: { runsOn: "ubuntu-latest" steps { run: "pytest" } } }
+}

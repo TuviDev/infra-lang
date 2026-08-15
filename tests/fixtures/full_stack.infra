@@ -1,0 +1,44 @@
+# Complete stack — service + database + cache + queue + secret + config.
+service api {
+    image: "api:1.0"
+    replicas: 3
+    port 8080
+    depends: ["users"]
+    env {
+        DATABASE_URL: from secret "db".url
+        REDIS_URL: from secret "redis".url
+    }
+}
+
+database users {
+    type: "postgres"
+    version: "14"
+    replicas: 2
+    ha: true
+    backup { enabled: true, schedule: "0 3 * * *" }
+    users { admin: "change-me" }
+}
+
+cache session {
+    type: "redis"
+    maxmemory: 512Mi
+    policy: "allkeys-lru"
+    persistence: true
+}
+
+queue jobs {
+    type: "rabbitmq"
+    topics {
+        tasks: { partitions: 3, replication: 2 }
+    }
+}
+
+secret db {
+    url: from vault "secret/data/db"
+    password: "change-me"
+}
+
+config app {
+    log_level: "info"
+    feature_flag: true
+}

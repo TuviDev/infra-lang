@@ -1,0 +1,24 @@
+# Prelude — automatically loaded before every .infra file.
+# Provides common constants and resource presets.
+
+# Standard labels / versions
+const MANAGED_BY = "infra-lang"
+const K8S_VERSION = "apps/v1"
+
+# Resource presets
+const SMALL_CPU = 100m
+const SMALL_MEM = 128Mi
+const MEDIUM_CPU = 500m
+const MEDIUM_MEM = 512Mi
+const LARGE_CPU = 1000m
+const LARGE_MEM = 1Gi
+
+# Common timeouts
+const DEFAULT_TIMEOUT = 30s
+const LONG_TIMEOUT = 5min
+const SHORT_TIMEOUT = 10s
+
+# Common health check paths
+const HEALTH_PATH = "/health"
+const READY_PATH = "/ready"
+const METRICS_PATH = "/metrics"

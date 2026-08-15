@@ -1,0 +1,14 @@
+# databases.infra — the primary Postgres database with SSL and automated
+# backups enabled.
+
+database db {
+    type:    postgres
+    version: "15.4"
+    storage: 20Gi
+    ssl:     true
+    backup {
+        enabled:   true
+        schedule:  "0 2 * * *"
+        retention: 30d
+    }
+}
