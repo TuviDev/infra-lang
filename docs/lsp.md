@@ -22,7 +22,9 @@
   workspace, not just the current file.
 - **Rename symbol**: rename a block and all of its references in one action
   (F2 in VS Code). Rename applies to the current document and any other open
-  document that references the symbol. Comments are left untouched.
+  document that references the symbol. Comments are left untouched. A
+  `prepareRename` step validates the position and pre-fills the current name
+  in the rename box.
 - **Formatting**: `infra fmt` formatting available as document formatting
   (format-on-save via the extension).
 - **Code actions (quick fixes)**: safe, automatic fixes for common findings —

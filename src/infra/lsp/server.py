@@ -22,6 +22,7 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_DOCUMENT_SYMBOL,
     TEXT_DOCUMENT_FORMATTING,
     TEXT_DOCUMENT_HOVER,
+    TEXT_DOCUMENT_PREPARE_RENAME,
     TEXT_DOCUMENT_REFERENCES,
     TEXT_DOCUMENT_RENAME,
     CodeActionParams,
@@ -41,6 +42,8 @@ from lsprotocol.types import (
     MarkupContent,
     MarkupKind,
     Position,
+    PrepareRenameParams,
+    PrepareRenameResult_Type1,
     Range,
     ReferenceParams,
     RenameParams,
@@ -58,6 +61,7 @@ from ..lsp.symbols import (
     reference_ranges,
     rename_edits,
     symbol_at,
+    symbol_range,
 )
 from ..lsp.workspace_symbols import all_references, build_index, resolve_location
 from ..parser.ast_nodes import SourceLocation
@@ -299,6 +303,31 @@ def references(
         # single-document fallback preserves the original behaviour
         return reference_ranges(source, name)
     return all_references(build_index(docs), docs, name)
+
+
+@server.feature(TEXT_DOCUMENT_PREPARE_RENAME)
+def prepare_rename(
+    ls: LanguageServer,
+    params: PrepareRenameParams,
+) -> PrepareRenameResult_Type1 | None:
+    """Validate that the position is a renameable symbol.
+
+    Returns the range of the symbol under the cursor plus its current name as
+    the pre-filled placeholder, or ``None`` if the position is not renameable
+    (so the editor keeps rename disabled / reports "cannot rename").
+    """
+    uri = params.text_document.uri
+    source = _doc_source(ls, uri)
+    line = max(0, params.position.line)
+    char = max(0, params.position.character)
+    resolved = find_definition(source, line, char)
+    if resolved is None:
+        return None
+    name, _ = resolved
+    rng = symbol_range(source, line, char)
+    if rng is None:
+        return None
+    return PrepareRenameResult_Type1(range=rng, placeholder=name)
 
 
 @server.feature(TEXT_DOCUMENT_RENAME)

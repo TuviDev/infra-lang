@@ -14,7 +14,12 @@ from lsprotocol.types import (
 
 try:
     from infra.lsp import server as mod
-    from infra.lsp.symbols import rename_edits, rename_symbol, symbol_at
+    from infra.lsp.symbols import (
+        rename_edits,
+        rename_symbol,
+        symbol_at,
+        symbol_range,
+    )
     from infra.lsp.workspace_symbols import (
         all_references,
         block_definitions,
@@ -114,6 +119,21 @@ class TestSymbolAt:
         assert symbol_at("x\n", 5, 0) is None
 
 
+class TestSymbolRange:
+    def test_range_covers_word_under_cursor(self):
+        rng = symbol_range("service api {}\n", 0, 8)
+        assert rng is not None
+        assert rng.start.line == 0
+        assert rng.start.character == 8
+        assert rng.end.character == 11  # "api"
+
+    def test_range_none_for_blank_line(self):
+        assert symbol_range("service api {}\n\n", 1, 0) is None
+
+    def test_range_none_for_bad_line(self):
+        assert symbol_range("x\n", 5, 0) is None
+
+
 class TestRenameEdits:
     def test_renames_definition_and_references(self):
         src = "service db {}\nservice api {\n    depends: [db]\n}\n"
@@ -211,3 +231,28 @@ class TestRenameHandler:
             new_name="x",
         )
         assert mod.rename(ls, params) is None
+
+
+class TestPrepareRename:
+    def test_returns_placeholder_for_block(self):
+        ls = _make_ls({"file:///a.infra": A_SRC})
+        from lsprotocol.types import PrepareRenameParams
+
+        params = PrepareRenameParams(
+            text_document=TextDocumentIdentifier(uri="file:///a.infra"),
+            position=Position(line=0, character=8),
+        )
+        result = mod.prepare_rename(ls, params)
+        assert result is not None
+        assert result.placeholder == "api"
+        assert result.range is not None
+
+    def test_returns_none_for_non_resolvable_position(self):
+        ls = _make_ls({"file:///a.infra": 'service web {\n    image: "x"\n}\n'})
+        from lsprotocol.types import PrepareRenameParams
+
+        params = PrepareRenameParams(
+            text_document=TextDocumentIdentifier(uri="file:///a.infra"),
+            position=Position(line=1, character=2),
+        )
+        assert mod.prepare_rename(ls, params) is None

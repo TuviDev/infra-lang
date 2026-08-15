@@ -14,6 +14,8 @@ All notable changes to Infra Lang are documented here.
   symbols defined in other open `.infra` documents (e.g. imported blocks).
 - LSP **symbol rename** (F2): renames a block and all of its references across
   the open workspace in one edit; comments are left untouched.
+- LSP **prepareRename**: validates the rename target and pre-fills the current
+  symbol name in the editor's rename box.
 - LSP document formatting (via the existing `infra fmt` printer).
 - Completion polish: ranking (sort_text), prefix filtering, and **symbol-aware**
   suggestions for reference fields (`depends`, `allow_from`, `allow_egress`).

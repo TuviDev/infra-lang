@@ -134,6 +134,31 @@ def symbol_at(source: str, line: int, char: int) -> Optional[str]:
     return _word_at(lines[line], char) or None
 
 
+def symbol_range(source: str, line: int, char: int) -> Optional[Range]:
+    """Return the ``Range`` of the identifier under the cursor, if any."""
+    lines = source.splitlines()
+    if line < 0 or line >= len(lines):
+        return None
+    text = lines[line]
+    start, end = _word_span(text, char)
+    if start == end:
+        return None
+    return Range(
+        start=Position(line=line, character=start),
+        end=Position(line=line, character=end),
+    )
+
+
+def _word_span(line: str, char: int) -> Tuple[int, int]:
+    start = char
+    while start > 0 and (line[start - 1].isalnum() or line[start - 1] in "_-"):
+        start -= 1
+    end = char
+    while end < len(line) and (line[end].isalnum() or line[end] in "_-"):
+        end += 1
+    return start, end
+
+
 def rename_edits(
     source: str, target_name: str, new_name: str
 ) -> List[Tuple[Range, str]]:
