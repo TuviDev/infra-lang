@@ -173,6 +173,33 @@ class TestTransformerOtherDefinitions:
         )
         assert len(sec.entries) == 3
 
+    def test_cluster_iam_service_account(self):
+        (cl,) = _user_defs(
+            'cluster c1 { provider: aws iam { '
+            'serviceAccount { name: "app-sa" } } }'
+        )
+        assert cl.iam is not None
+        assert cl.iam.service_account.name == "app-sa"
+
+    def test_cluster_iam_role(self):
+        (cl,) = _user_defs(
+            'cluster c1 { provider: aws iam { '
+            'role { name: "app-role" actions: ["ec2:Describe*"] resources: ["*"] } } }'
+        )
+        assert cl.iam is not None
+        assert cl.iam.role.name == "app-role"
+        assert cl.iam.role.actions == ("ec2:Describe*",)
+        assert cl.iam.role.resources == ("*",)
+
+    def test_cluster_iam_sa_and_role(self):
+        (cl,) = _user_defs(
+            'cluster c1 { provider: aws iam { '
+            'serviceAccount { name: "sa" } '
+            'role { name: "r" actions: ["s3:ListBucket"] } } }'
+        )
+        assert cl.iam.service_account.name == "sa"
+        assert cl.iam.role.name == "r"
+
     def test_config_entries(self):
         (cfg,) = _user_defs('config cfg1 { name: "x" file: "app.yaml" }')
         assert cfg.entries[0].name == "name"
