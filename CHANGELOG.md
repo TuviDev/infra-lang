@@ -4,6 +4,17 @@ All notable changes to Infra Lang are documented here.
 
 ## [0.2.0] - in development
 
+### Fixed
+- **LSP robustness**: `find_definition`, `symbol_at`, `symbol_range` and hover
+  crashed with `IndexError` when the editor reported a cursor position past
+  the end of a short line (common while editing). Positions are now clamped to
+  the line, so definition / references / prepare-rename / hover never raise on
+  malformed positions.
+- **Compose**: removed the deprecated top-level `version:` key (Docker Compose
+  v2 ignores it and emits a deprecation warning).
+- **GitHub Actions**: bumped `upload-artifact`/`download-artifact` from
+  deprecated `@v3` to `@v4`.
+
 ### Added (implemented)
 - LSP code actions (quick fixes) for safe, automatic fixes (e.g. E011
   `replicas: 0` → `replicas: 1`, E012 port out of range → valid port).

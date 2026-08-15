@@ -103,7 +103,9 @@ class DockerComposeBackend(Backend, BaseYAMLBackend):
                     if src and not src.startswith((".", "/", "~", "${")):
                         volumes.setdefault(src, {})
 
-        compose: Dict[str, Any] = {"version": "3.8"}
+        # Docker Compose v2 ignores a top-level `version:` key (emitting one
+        # triggers a deprecation warning), so we deliberately omit it.
+        compose: Dict[str, Any] = {}
         if services:
             compose["services"] = services
         if networks:
