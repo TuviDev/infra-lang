@@ -9,7 +9,7 @@ from typing import List
 import typer
 
 from infra.analyzer.validator import SemanticValidator
-from infra.parser import Parser
+from infra.parser import _parser
 
 
 def _error_dict(e, file: str = "?") -> dict:
@@ -34,7 +34,7 @@ def validate(
     var: List[str] = typer.Option([], "--var", help="Variable: --var key=value"),
 ) -> None:
     """Validate .infra files semantically (no compilation)."""
-    parser = Parser()
+    parser = _parser()
     all_errors = []
     all_warnings = []
     any_invalid = False

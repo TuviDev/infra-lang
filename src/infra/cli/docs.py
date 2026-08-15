@@ -7,7 +7,7 @@ from typing import List, Optional
 
 import typer
 
-from infra.parser import Parser
+from infra.parser import _parser
 from infra.parser import ast_nodes as n
 
 
@@ -18,7 +18,7 @@ def docs(
     ),
 ) -> None:
     """Generate a Markdown inventory of the defined resources."""
-    parser = Parser()
+    parser = _parser()
     lines = ["# Infra Inventory", ""]
     for f in files:
         program = parser.parse_file(f)

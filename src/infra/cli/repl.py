@@ -9,7 +9,7 @@ import typer
 
 from infra.analyzer.validator import SemanticValidator
 from infra.backends import get_backend
-from infra.parser import Parser
+from infra.parser import _parser
 
 try:
     from prompt_toolkit import PromptSession
@@ -25,7 +25,7 @@ class InfraREPL:
         self, target: str = "kubernetes", history_file: Optional[Path] = None
     ) -> None:
         self.target = target
-        self.parser = Parser()
+        self.parser = _parser()
         self.history_file = history_file or Path.home() / ".infra_history"
         self.accumulator: list[str] = []
         self.last_ast = None

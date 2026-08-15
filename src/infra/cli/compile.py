@@ -9,7 +9,7 @@ import typer
 
 from infra.analyzer.validator import SemanticValidator
 from infra.backends import get_backend
-from infra.parser import Parser
+from infra.parser import _parser
 
 
 def _parse_var_options(var: List[str]) -> Dict[str, str]:
@@ -66,7 +66,7 @@ def compile(
         return
 
     backend = get_backend(target, split=split)
-    parser = Parser()
+    parser = _parser()
     total = 0
     issues: List[str] = []
     for f in files:
