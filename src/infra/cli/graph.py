@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import typer
 
-from infra.parser import Parser
+from infra.parser import _parser
 from infra.parser import ast_nodes as n
 
 _SHAPES = {
@@ -20,7 +20,7 @@ _SHAPES = {
 
 def _collect(files: List[Path]) -> Tuple[Dict[str, Dict], List[Tuple[str, str]]]:
     """Return {name: {kind, sub, ingress_host}} nodes and depends edges."""
-    parser = Parser()
+    parser = _parser()
     nodes: Dict[str, Dict] = {}
     edges: Set[Tuple[str, str]] = set()
 

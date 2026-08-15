@@ -497,6 +497,7 @@ def hover(
 def _get_word_at(line: str, char: int) -> str | None:
     if not line:
         return None
+    char = max(0, min(char, len(line)))
     start = char
     while start > 0 and (line[start - 1].isalnum() or line[start - 1] == "_"):
         start -= 1

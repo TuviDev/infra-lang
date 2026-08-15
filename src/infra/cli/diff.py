@@ -6,7 +6,7 @@ from pathlib import Path
 
 import typer
 
-from infra.parser import Parser
+from infra.parser import _parser
 
 
 def diff_cmd(
@@ -22,7 +22,7 @@ def diff_cmd(
     """Compare two .infra files field by field."""
     from infra.diff.engine import InfraDiff
 
-    parser = Parser()
+    parser = _parser()
     p1 = parser.parse(file1.read_text(), filename=file1.name)
     p2 = parser.parse(file2.read_text(), filename=file2.name)
     result = InfraDiff().diff(p1, p2)

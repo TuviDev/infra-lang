@@ -99,6 +99,9 @@ def find_definition(
 
 
 def _word_at(line: str, char: int) -> str:
+    # Clamp the cursor to the line so an LSP position past the end of a short
+    # line (common while editing) never raises IndexError.
+    char = max(0, min(char, len(line)))
     start = char
     while start > 0 and (line[start - 1].isalnum() or line[start - 1] in "_-"):
         start -= 1
@@ -150,6 +153,7 @@ def symbol_range(source: str, line: int, char: int) -> Optional[Range]:
 
 
 def _word_span(line: str, char: int) -> Tuple[int, int]:
+    char = max(0, min(char, len(line)))
     start = char
     while start > 0 and (line[start - 1].isalnum() or line[start - 1] in "_-"):
         start -= 1

@@ -7,14 +7,14 @@ from typing import List
 
 import typer
 
-from infra.parser import Parser
+from infra.parser import _parser
 
 
 def check(
     files: List[Path] = typer.Argument(..., help=".infra file(s) to check")
 ) -> None:
     """Check syntax only (no semantic analysis)."""
-    parser = Parser()
+    parser = _parser()
     ok = True
     for f in files:
         try:

@@ -15,6 +15,8 @@ from infra.lsp.symbols import (
     document_symbols,
     find_definition,
     reference_ranges,
+    symbol_at,
+    symbol_range,
 )
 
 SRC = "database db {}\nservice api {\n    depends: [db]\n}\n"
@@ -88,6 +90,33 @@ class TestReferences:
 
     def test_references_empty_for_unknown(self):
         assert reference_ranges(SRC, "nonexistent") == []
+
+
+class TestPositionRobustness:
+    """Regression: an LSP position past the end of a short line must not crash."""
+
+    SHORT = "service"
+
+    def test_find_definition_with_char_beyond_line(self):
+        # char > len(line) is a realistic edit-time cursor position
+        assert find_definition(self.SHORT, 0, 50) is None or True
+        find_definition(self.SHORT, 0, 10**6)
+
+    def test_symbol_at_with_char_beyond_line(self):
+        # cursor clamped to end-of-line -> returns the trailing word
+        assert symbol_at(self.SHORT, 0, 50) == "service"
+        assert symbol_at(self.SHORT, 0, 10**6) == "service"
+
+    def test_symbol_range_with_char_beyond_line(self):
+        rng = symbol_range(self.SHORT, 0, 50)
+        assert rng is not None
+        assert rng.start.character == 0
+        assert rng.end.character == len(self.SHORT)
+
+    def test_find_definition_negative_and_out_of_range_lines(self):
+        assert find_definition(self.SHORT, -1, 3) is None
+        assert find_definition(self.SHORT, 100, 3) is None
+        assert symbol_at(self.SHORT, 100, 3) is None
 
 
 class TestLspHandlers:
