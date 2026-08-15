@@ -142,7 +142,10 @@ class TestKubernetesExtraBranches:
         )
         docs = [d for d in yaml.safe_load_all(content) if d]
         secret = next(d for d in docs if d["kind"] == "Secret")
-        assert secret["data"]["a"] == "from-vault:secret/a"
+        # Values in data: are base64; the placeholder must decode back.
+        import base64
+
+        assert base64.b64decode(secret["data"]["a"]).decode() == "from-vault:secret/a"
 
 
 class TestLspCmdCoverage:
