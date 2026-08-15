@@ -168,6 +168,25 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         )
         return "\n".join(self._to_yaml(m) for m in self._compile_service(node, ctx))
 
+    def _ensure_service_port_names(self, ports: List[Dict[str, Any]]) -> None:
+        """Mutate ``ports`` in place, adding stable unique names when >1 port.
+
+        Kubernetes requires a ``name`` on every port when a Service exposes
+        more than one port. Names are derived as ``<proto>-<port>`` (e.g.
+        ``tcp-5672``); on collision an index suffix is appended (``tcp-80-1``).
+        Single-port Services are left unchanged (name is optional there).
+        """
+        if len(ports) <= 1:
+            return
+        used: set[str] = set()
+        for i, p in enumerate(ports):
+            proto = (p.get("protocol") or "tcp").lower()
+            eff = p.get("port") or p.get("targetPort") or 80
+            base = f"{proto}-{eff}"
+            name = base if base not in used else f"{base}-{i}"
+            used.add(name)
+            p["name"] = name
+
     def _compile_service(self, node: n.ServiceDef, ctx: CompileContext):
         image = self._resolve_image(node, ctx)
         if image is None and node.build is not None:
@@ -262,21 +281,11 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
             {
                 "port": p.host or p.target or 80,
                 "targetPort": p.target or p.host or 80,
+                **({"protocol": p.protocol} if p.protocol else {}),
             }
             for p in node.ports
         ] or [{"port": 80, "targetPort": 80}]
-        if len(ports) > 1:
-            # Kubernetes requires a name on every port when a Service exposes
-            # more than one port. Derive a stable, readable name (tcp-5672);
-            # if two ports collide, disambiguate with the index suffix.
-            used: set[str] = set()
-            for i, p in enumerate(node.ports):
-                proto = (p.protocol or "tcp").lower()
-                eff = p.host or p.target or 80
-                base = f"{proto}-{eff}"
-                name = base if base not in used else f"{base}-{i}"
-                used.add(name)
-                ports[i]["name"] = name
+        self._ensure_service_port_names(ports)
         svc = {
             "apiVersion": "v1",
             "kind": "Service",
@@ -924,16 +933,18 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
                 },
             },
         }
+        ports = [
+            {"port": 5672, "targetPort": 5672},
+            {"port": 15672, "targetPort": 15672},
+        ]
+        self._ensure_service_port_names(ports)
         svc = {
             "apiVersion": "v1",
             "kind": "Service",
             "metadata": {"name": node.name, "labels": labels},
             "spec": {
                 "selector": {"app.kubernetes.io/name": node.name},
-                "ports": [
-                    {"port": 5672, "targetPort": 5672},
-                    {"port": 15672, "targetPort": 15672},
-                ],
+                "ports": ports,
             },
         }
         return [self._clean_none(sts), self._clean_none(svc)]

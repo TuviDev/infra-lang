@@ -160,6 +160,34 @@ class TestServicePortNames:
         assert len(set(names)) == len(names), f"colliding ports need unique names: {names}"
 
 
+class TestQueueServicePortNames:
+    """Regression: the queue (RabbitMQ) Service is a separate code path from
+    ``_compile_service`` and must also emit unique port names."""
+
+    def _queue_service(self):
+        docs = compile_docs("queue events { type: rabbitmq }")
+        return get_kind(docs, "Service")
+
+    def test_queue_multi_port_has_unique_names(self):
+        svc = self._queue_service()
+        ports = svc["spec"]["ports"]
+        assert len(ports) == 2
+        names = [p.get("name") for p in ports]
+        assert all(names), f"queue Service ports need names: {ports}"
+        assert len(set(names)) == len(names), f"queue port names must be unique: {names}"
+
+    def test_queue_port_names_reflect_rabbitmq_ports(self):
+        svc = self._queue_service()
+        names = {p.get("name") for p in svc["spec"]["ports"]}
+        assert "tcp-5672" in names
+        assert "tcp-15672" in names
+
+    def test_queue_ports_have_correct_numbers(self):
+        svc = self._queue_service()
+        nums = {p.get("port") for p in svc["spec"]["ports"]}
+        assert nums == {5672, 15672}
+
+
 class TestSecretBase64:
     """Regression: every value in a Secret's data: must be valid base64."""
 
