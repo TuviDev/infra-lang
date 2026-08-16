@@ -38,3 +38,6 @@ vscode-infra-lang/out/
 
 # MkDocs build output
 site/
+
+# Local E2E tools (kubectl, kind, kubeconform)
+.tools/
