@@ -1,0 +1,25 @@
+{
+  "name": "Infra Lang",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
+  },
+  "postCreateCommand": "pip install -e '.[dev,docs]' && pip install 'pygls==1.3.1' 'lsprotocol==2023.0.1' && cd vscode-infra-lang && npm ci --no-audit --no-fund && npm run compile",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "charliermarsh.ruff",
+        "ms-python.mypy-type-checker"
+      ],
+      "settings": {
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"],
+        "python.defaultInterpreterPath": "/usr/local/bin/python"
+      }
+    }
+  },
+  "forwardPorts": [8000],
+  "remoteUser": "vscode"
+}
