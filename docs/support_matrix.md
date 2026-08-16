@@ -37,23 +37,42 @@
 | ClusterRoleBinding | rbac.authorization.k8s.io/v1 | 1.8 |
 | TopologySpreadConstraints | (spec field) | 1.19 |
 
+## Helm backend
+
+| Resource | Template file | Notes |
+|----------|---------------|-------|
+| `service` | `deployment.yaml`, `service.yaml` | image/replicas/ports/resources/health via `values.yaml` |
+| `database` | `statefulset.yaml`, `service.yaml` | StatefulSet + PVC via `volumeClaimTemplates` |
+| `cache` | `deployment.yaml`, `service.yaml` | Deployment |
+| `queue` | `statefulset.yaml`, `service.yaml` | StatefulSet |
+| `secret` | `secret.yaml` | base64-encoded; empty placeholders in `values.yaml` |
+| `config` | `configmap.yaml` | data from `values.yaml` |
+
+Compile any example:
+
+```bash
+infra compile examples/02_web_app.infra --target helm
+```
+
+See [docs/backends/helm.md](backends/helm.md).
+
 ## Feature × backend support (verified against code)
 
 Legend: ✅ supported · ⚠️ partial / backend-specific · ❌ ignored or not emitted
 
-| Structure | Kubernetes | Compose | Terraform | GitHub Actions |
-|-----------|-----------|---------|-----------|----------------|
-| `service` | ✅ | ✅ | ❌ | ❌ |
-| `database` | ✅ | ✅ | ✅ | ❌ |
-| `cache` | ✅ | ✅ | ❌ | ❌ |
-| `queue` | ✅ | ✅ | ❌ (no SQS) | ❌ |
-| `storage` | ✅ | ⚠️ (only `minio`) | ✅ (S3/GCS/Azure) | ❌ |
-| `network` | ✅ | ❌ | ✅ (VPC) | ❌ |
-| `secret` | ✅ | ✅ | ✅ | ❌ |
-| `config` | ✅ | ✅ | ❌ | ❌ |
-| `pipeline` | ❌ | ❌ | ❌ | ✅ |
-| `environment` | ✅ (Namespace + quota) | ✅ | ❌ | ❌ |
-| `cluster` | ❌ | ❌ | ✅ | ❌ |
+| Structure | Kubernetes | Compose | Terraform | GitHub Actions | Helm |
+|-----------|-----------|---------|-----------|----------------|------|
+| `service` | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `database` | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `cache` | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `queue` | ✅ | ✅ | ❌ (no SQS) | ❌ | ✅ |
+| `storage` | ✅ | ⚠️ (only `minio`) | ✅ (S3/GCS/Azure) | ❌ | ❌ |
+| `network` | ✅ | ❌ | ✅ (VPC) | ❌ | ❌ |
+| `secret` | ✅ | ✅ | ✅ | ❌ | ✅ |
+| `config` | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `pipeline` | ❌ | ❌ | ❌ | ✅ | ❌ |
+| `environment` | ✅ (Namespace + quota) | ✅ | ❌ | ❌ | ❌ |
+| `cluster` | ❌ | ❌ | ✅ | ❌ | ❌ |
 
 > **Notes**
 > - `pipeline` is GitHub-Actions-only; `cluster` is Terraform-only.

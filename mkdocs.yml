@@ -76,6 +76,7 @@ nav:
       - Language Spec: language_spec.md
       - Design Decisions: language_decisions.md
   - Backends:
+      - Helm: backends/helm.md
       - Support Matrix: support_matrix.md
   - LSP & Editor:
       - LSP Server: lsp.md
