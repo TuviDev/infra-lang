@@ -5,6 +5,14 @@ All notable changes to Infra Lang are documented here.
 ## [0.2.0] - in development
 
 ### Added
+- **Whole-project LSP indexing** (`workspace_index.py`): on `initialized` the
+  server scans the workspace root for `*.infra` files (non-blocking, on the
+  thread pool), so go-to-definition, find-references and the new
+  `workspace/symbol` handler work across every file in the project, not just
+  open tabs. Index is tolerant of malformed files, bounded (1000 files / 1 MB
+  each), kept live on save/close, and freed on shutdown.
+- **Workspace symbols** (Ctrl+T): list/search all top-level resources project-
+  wide, grouped by resource type.
 - **Live Kubernetes E2E test suite** (`tests/test_live_e2e.py`, marker
   `live_e2e`): compiles `examples/*.infra` and really applies them to a `kind`
   cluster with `kubectl apply`, guarding Secret base64, multi-port Service

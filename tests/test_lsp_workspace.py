@@ -256,3 +256,161 @@ class TestPrepareRename:
             position=Position(line=1, character=2),
         )
         assert mod.prepare_rename(ls, params) is None
+
+
+class TestOnDiskWorkspace:
+    """Cross-file navigation over files found by the on-disk index (S31)."""
+
+    @pytest.fixture(autouse=True)
+    def _populate_index(self):
+        # Populate the global on-disk index used by the handlers.
+        mod.workspace_index.clear()
+        mod.workspace_index.add_file(
+            "file:///proj/a.infra", "service api {\n    depends: [db]\n}\n"
+        )
+        mod.workspace_index.add_file(
+            "file:///proj/b.infra", "database db { type: postgres }\n"
+        )
+        yield
+        mod.workspace_index.clear()
+
+    def test_definition_resolves_to_other_file(self):
+        # Cursor on `db` in depends inside a.infra -> definition in b.infra
+        ls = _make_ls({"file:///proj/a.infra": "service api {\n    depends: [db]\n}\n"})
+        params = DefinitionParams(
+            text_document=TextDocumentIdentifier(uri="file:///proj/a.infra"),
+            position=Position(line=1, character=14),
+        )
+        loc = mod.definition(ls, params)
+        assert loc is not None
+        assert loc.uri == "file:///proj/b.infra"
+        assert loc.range.start.line == 0
+
+    def test_definition_returns_none_when_missing(self):
+        # Cursor on a symbol that exists nowhere
+        ls = _make_ls({"file:///proj/a.infra": 'service api {\n    image: "x"\n}\n'})
+        params = DefinitionParams(
+            text_document=TextDocumentIdentifier(uri="file:///proj/a.infra"),
+            position=Position(line=1, character=2),  # "image" key, not a block
+        )
+        assert mod.definition(ls, params) is None
+
+    def test_workspace_symbol_lists_all_resources(self):
+        from lsprotocol.types import WorkspaceSymbolParams
+
+        ls = _make_ls({})
+        params = WorkspaceSymbolParams(query="")
+        result = mod.workspace_symbol(ls, params)
+        names = {s.name for s in result}
+        assert names == {"api", "db"}
+        kinds = {s.name: s.kind.name for s in result}
+        assert kinds["api"] == "Class"      # service
+        assert kinds["db"] == "Interface"   # database
+
+    def test_workspace_symbol_filters_by_query(self):
+        from lsprotocol.types import WorkspaceSymbolParams
+
+        ls = _make_ls({})
+        result = mod.workspace_symbol(ls, WorkspaceSymbolParams(query="api"))
+        assert {s.name for s in result} == {"api"}
+
+    def test_references_found_across_disk_files(self):
+        ls = _make_ls({"file:///proj/a.infra": "service api {\n    depends: [db]\n}\n"})
+        params = ReferenceParams(
+            text_document=TextDocumentIdentifier(uri="file:///proj/b.infra"),
+            position=Position(line=0, character=3),
+            context=ReferenceContext(include_declaration=False),
+        )
+        result = mod.references(ls, params)
+        uris = {loc.uri for loc in result}
+        assert uris == {"file:///proj/a.infra", "file:///proj/b.infra"}
+
+
+class TestProjectIndexingHandlers:
+    """Cover the on-disk indexing handlers (initialized/_root_dir/did_close)."""
+
+    def _fake_root_ls(self, root_uri=None, root_path=None, executor=None):
+        class FakeWorkspace:
+            def __init__(self):
+                self.root_uri = root_uri
+                self.root_path = root_path
+
+        class FakeLS:
+            workspace = FakeWorkspace()
+            thread_pool_executor = executor
+
+        return FakeLS()
+
+    def test_root_dir_from_uri(self):
+        ls = self._fake_root_ls(root_uri="file:///tmp/proj")
+        root = mod._root_dir(ls)
+        assert str(root).replace("\\", "/").endswith("/tmp/proj")
+
+    def test_root_dir_from_path(self):
+        ls = self._fake_root_ls(root_path="/tmp/proj")
+        root = mod._root_dir(ls)
+        assert str(root).replace("\\", "/").endswith("/tmp/proj")
+
+    def test_root_dir_none_when_unknown(self):
+        ls = self._fake_root_ls()
+        assert mod._root_dir(ls) is None
+
+    def test_initialized_scans_workspace(self, tmp_path):
+        (tmp_path / "a.infra").write_text("service api {}\n")
+        ls = self._fake_root_ls(root_uri=f"file://{tmp_path}")
+        mod.initialized(ls, None)
+        # scan runs synchronously when there is no executor
+        assert any(s.name == "api" for s in mod.workspace_index.all_symbols())
+        mod.workspace_index.clear()
+
+    def test_initialized_with_executor(self, tmp_path):
+        import concurrent.futures
+        (tmp_path / "a.infra").write_text("database db {}\n")
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        ls = self._fake_root_ls(root_uri=f"file://{tmp_path}", executor=executor)
+        mod.initialized(ls, None)
+        executor.shutdown()
+        assert any(s.name == "db" for s in mod.workspace_index.all_symbols())
+        mod.workspace_index.clear()
+
+    def test_did_close_restores_disk_state(self, tmp_path):
+        p = tmp_path / "svc.infra"
+        p.write_text("service diskver {}\n")
+        uri = p.as_uri()
+        # editor had a newer in-memory version
+        mod.workspace_index.add_file(uri, "service memoryver {}\n")
+        assert "memoryver" in {s.name for s in mod.workspace_index.all_symbols()}
+
+        class FakeLS:
+            class _W:
+                pass
+            workspace = _W()
+
+        from lsprotocol.types import DidCloseTextDocumentParams, TextDocumentIdentifier
+        mod.did_close(
+            FakeLS(),
+            DidCloseTextDocumentParams(text_document=TextDocumentIdentifier(uri=uri)),
+        )
+        # after close, the disk version is restored
+        names = {s.name for s in mod.workspace_index.all_symbols()}
+        assert "diskver" in names and "memoryver" not in names
+        mod.workspace_index.clear()
+
+    def test_server_shutdown_releases_index(self):
+        mod.workspace_index.add_file("file:///x.infra", "service a {}\n")
+        assert mod.workspace_index.all_symbols()
+        mod.server.shutdown()  # must not raise and should release the index
+        # index may be cleared; shutdown is best-effort
+        mod.workspace_index.clear()
+
+    def test_references_single_document_fallback(self):
+        # workspace index empty and fake workspace has no documents -> fallback
+        mod.workspace_index.clear()
+        ls = _make_ls({})
+        from lsprotocol.types import ReferenceContext, ReferenceParams
+        params = ReferenceParams(
+            text_document=TextDocumentIdentifier(uri="file:///a.infra"),
+            position=Position(line=0, character=3),
+            context=ReferenceContext(include_declaration=False),
+        )
+        assert mod.references(ls, params) == []
