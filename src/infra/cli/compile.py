@@ -27,7 +27,7 @@ def compile(
         "kubernetes",
         "--target",
         "-t",
-        help="Backend: kubernetes, compose, terraform, github",
+        help="Backend: kubernetes, compose, terraform, github, helm",
     ),
     output: Path = typer.Option(
         Path("./infra-out"), "--output", "-o", help="Output directory"

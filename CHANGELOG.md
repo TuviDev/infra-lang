@@ -66,11 +66,21 @@ Initial public release.
   cursor (Write for definitions, Read for references), word-boundary aware.
 - **Folding ranges**: foldable `{}` blocks (top-level and nested) and comment
   runs.
+- **Helm backend** (`-t helm`): compiles to a complete, idiomatic Helm chart
+  (`Chart.yaml`, `values.yaml`, `templates/`, `_helpers.tpl`, `.helmignore`)
+  that passes `helm lint --strict` and renders with `helm template`. Maps
+  `service`/`cache` → Deployment, `database`/`queue` → StatefulSet (+PVC),
+  `secret` → base64 Secret, `config` → ConfigMap; all parameters configurable
+  via `values.yaml`; multi-port services get `tcp-<port>` names.
 - Opt-in anonymous error reporting (off by default; never sends source code,
   paths, or PII).
 
 **Tests**
-- 1703 tests across lexer, parser, transformer, analyzer, backends, CLI, LSP.
+- 1758 tests across lexer, parser, transformer, analyzer, backends, CLI, LSP
+  (incl. 55 Helm unit + live `helm lint`/`template` tests).
+- **Live Helm E2E** (`pytest -m live_e2e`): runs `helm lint --strict` and
+  `helm template` on every example's generated chart; skipped when helm is
+  absent.
 - **Live Kubernetes E2E** (`pytest -m live_e2e`): compiles the examples and
   really applies them to a `kind` cluster with `kubectl`, verifying Secret
   base64, multi-port Service names, and labels. Automatically skipped when the

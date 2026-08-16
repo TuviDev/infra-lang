@@ -102,8 +102,8 @@ infra compile app.infra --target github
 - **11 top-level resource types** — `service`, `database`, `cache`, `queue`,
   `storage`, `network`, `secret`, `config`, `pipeline`, `environment`,
   `cluster`.
-- **4 compilation targets** — Kubernetes (17 resource kinds), Docker Compose,
-  Terraform HCL (AWS/GCP/Azure), GitHub Actions.
+- **5 compilation targets** — Kubernetes (17 resource kinds), **Helm charts**,
+  Docker Compose, Terraform HCL (AWS/GCP/Azure), GitHub Actions.
 - **Compiler-grade validation** — 30+ error codes with source locations and
   actionable hints; invalid configs fail before anything is emitted.
 - **Built-in security linter** (SEC001–SEC010) and **reliability linter**
@@ -162,6 +162,7 @@ commented [examples](examples/).
 | Target | Command | What it generates |
 |--------|---------|-------------------|
 | **Kubernetes** | `-t kubernetes` | Deployments, Services, Ingress, StatefulSets, PVCs, ConfigMaps, Secrets, CronJobs, HPA, PDBs, NetworkPolicies, ResourceQuotas, Namespaces, RBAC, TopologySpreadConstraints |
+| **Helm** | `-t helm` | A complete chart: `Chart.yaml`, `values.yaml`, `templates/`, `_helpers.tpl`, `.helmignore` |
 | **Docker Compose** | `-t compose` | `docker-compose.yml`, `.env.example`, `Makefile` |
 | **Terraform** | `-t terraform` | `main.tf`, `variables.tf`, `outputs.tf`, `providers.tf` (AWS/GCP/Azure) |
 | **GitHub Actions** | `-t github` | `.github/workflows/*.yml`, `dependabot.yml` |
