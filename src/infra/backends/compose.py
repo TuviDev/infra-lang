@@ -169,6 +169,16 @@ class DockerComposeBackend(Backend, BaseYAMLBackend):
             for e in node.env:
                 if e.value is not None and _lit(e.value):
                     env_vars[node.name.upper() + "_" + e.name.upper()] = _lit(e.value)
+            # A `from secret "x.y"` reference must also mount the secret into
+            # the container; otherwise the secret is declared top-level but
+            # never reachable inside the service (the env var stays empty).
+            secret_names = {
+                e.from_secret.partition(".")[0]
+                for e in node.env
+                if e.from_secret
+            }
+            if secret_names:
+                svc["secrets"] = sorted(secret_names)
         if node.command:
             svc["command"] = list(node.command)
         if node.volumes:

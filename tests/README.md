@@ -160,6 +160,35 @@ Per-example resources are removed with `kubectl delete -f`. All subprocess
 calls are timeout-bounded. If a test fails, check `docker ps` / `kind get
 clusters` for leftovers and `kind delete cluster --name infra-lang-e2e`.
 
+### Live Compose E2E (real `docker compose`)
+
+`tests/test_live_compose_e2e.py` compiles `examples/*.infra` to Docker Compose
+and **really runs** `docker compose` against a Docker daemon, guarding the
+Compose output contracts that can look valid but never start. It is marked
+`live_e2e` and **silently skips** when Docker (or a running daemon) is missing.
+A normal `pytest tests` never runs it.
+
+```bash
+# Requires: a running Docker daemon (e.g. Docker Desktop).
+pytest tests -m live_e2e -q          # runs K8s AND Compose live E2E
+pytest tests/test_live_compose_e2e.py -v
+```
+
+Two levels of testing:
+
+- **`docker compose config`** — validates every example that produces services
+  (all examples except the pipeline-only `04_cicd_pipeline.infra`).
+- **`docker compose up -d --wait`** — actually starts the stack, but only for
+  examples whose images are **all public** (currently `01_hello_world` /
+  nginx). Examples using private images (`myapp/*`) would fail with
+  `image pull failed`, which is not a generator bug, so they are
+  config-validated only.
+
+Every `up` is followed by `docker compose down -v` in a `finally`, so no
+containers, networks, or volumes leak. The Compose **regression** guards in the
+same file (multi-port service, secret declaration + mounting) inspect the
+generated YAML and run in the normal suite — no Docker needed.
+
 ## Adding a new test
 
 1. Put it in the file matching its area (see layout).
