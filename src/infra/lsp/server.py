@@ -24,26 +24,35 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_DID_CLOSE,
     TEXT_DOCUMENT_DID_OPEN,
     TEXT_DOCUMENT_DID_SAVE,
+    TEXT_DOCUMENT_DOCUMENT_HIGHLIGHT,
     TEXT_DOCUMENT_DOCUMENT_SYMBOL,
+    TEXT_DOCUMENT_FOLDING_RANGE,
     TEXT_DOCUMENT_FORMATTING,
     TEXT_DOCUMENT_HOVER,
     TEXT_DOCUMENT_PREPARE_RENAME,
     TEXT_DOCUMENT_REFERENCES,
     TEXT_DOCUMENT_RENAME,
     TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
+    TEXT_DOCUMENT_SIGNATURE_HELP,
     WORKSPACE_SYMBOL,
     CodeActionParams,
+    CodeDescription,
     CompletionList,
     CompletionParams,
     DefinitionParams,
     Diagnostic,
+    DiagnosticRelatedInformation,
     DiagnosticSeverity,
     DidChangeTextDocumentParams,
     DidCloseTextDocumentParams,
     DidOpenTextDocumentParams,
     DidSaveTextDocumentParams,
     DocumentFormattingParams,
+    DocumentHighlight,
+    DocumentHighlightKind,
+    DocumentHighlightParams,
     DocumentSymbolParams,
+    FoldingRangeParams,
     Hover,
     HoverParams,
     InitializedParams,
@@ -59,6 +68,8 @@ from lsprotocol.types import (
     SemanticTokens,
     SemanticTokensLegend,
     SemanticTokensParams,
+    SignatureHelpOptions,
+    SignatureHelpParams,
     SymbolKind,
     TextEdit,
     WorkspaceEdit,
@@ -74,6 +85,7 @@ from ..lsp.semantic_tokens import TOKEN_TYPES, encode_delta, tokenize_source
 from ..lsp.symbols import (
     document_symbols,
     find_definition,
+    highlight_ranges,
     reference_ranges,
     rename_edits,
     symbol_at,
@@ -85,7 +97,7 @@ from ..lsp.workspace_index import (
     find_references_in_sources,
     iterable_symbol_locations,
 )
-from ..lsp.workspace_symbols import build_index, resolve_location
+from ..lsp.workspace_symbols import block_definitions, build_index, resolve_location
 from ..parser.ast_nodes import SourceLocation
 
 server = LanguageServer(
@@ -119,6 +131,51 @@ def _shutdown_with_cleanup() -> None:
 server.shutdown = _shutdown_with_cleanup  # type: ignore[method-assign]
 
 _ERR_SEC = {"SEC001", "SEC002", "SEC004", "SEC007"}
+
+#: Base URL for the hosted language-spec docs, used for diagnostic code links.
+_DOCS_BASE = "https://kakukpl.github.io/infra-lang/language_spec/"
+
+#: Codes that indicate a duplicate definition -> point at the sibling(s).
+_DUPLICATE_CODES = {"E002", "E001"}
+
+
+def _code_href(code: str) -> str:
+    """Return a docs URL for a diagnostic code (used for clickable links)."""
+    return f"{_DOCS_BASE}#{code.lower()}"
+
+
+def _related_for_duplicate(
+    source: str, uri: str, code: str, message: str, current_line: int
+) -> list[DiagnosticRelatedInformation]:
+    """Find sibling definitions of the same name for duplicate-name errors.
+
+    Returns DiagnosticRelatedInformation pointing at every other block
+    definition with the duplicated name.
+    """
+    import re
+
+    if code not in _DUPLICATE_CODES:
+        return []
+    m = re.search(r"'([^']+)'", message)
+    if not m:
+        return []
+    name = m.group(1)
+    related: list[DiagnosticRelatedInformation] = []
+    for other_name, line in block_definitions(source):
+        if other_name == name and line != current_line:
+            related.append(
+                DiagnosticRelatedInformation(
+                    location=Location(
+                        uri=uri,
+                        range=Range(
+                            start=Position(line=line, character=0),
+                            end=Position(line=line, character=len(name)),
+                        ),
+                    ),
+                    message=f"Earlier definition of '{name}'",
+                )
+            )
+    return related
 
 
 def _severity(code: str | None) -> DiagnosticSeverity:
@@ -160,26 +217,40 @@ def _diagnose(source: str, uri: str) -> list[Diagnostic]:
         result = SemanticValidator().validate(program)
 
         for error in result.errors:
+            code = error.code or "E000"
             rng = _location_to_range(error.location, source)
+            cur_line = rng.start.line
+            related = _related_for_duplicate(
+                source, uri, code, error.message, cur_line
+            )
             diagnostics.append(
                 Diagnostic(
                     range=rng,
                     message=error.message,
                     severity=DiagnosticSeverity.Error,
-                    code=error.code or "E000",
+                    code=code,
                     source="infra-lang",
+                    code_description=CodeDescription(href=_code_href(code)),
+                    related_information=related or None,
                 )
             )
 
         for warning in result.warnings:
+            code = warning.code or "W000"
             rng = _location_to_range(warning.location, source)
+            cur_line = rng.start.line
+            related = _related_for_duplicate(
+                source, uri, code, warning.message, cur_line
+            )
             diagnostics.append(
                 Diagnostic(
                     range=rng,
                     message=warning.message,
                     severity=DiagnosticSeverity.Warning,
-                    code=warning.code or "W000",
+                    code=code,
                     source="infra-lang",
+                    code_description=CodeDescription(href=_code_href(code)),
+                    related_information=related or None,
                 )
             )
 
@@ -196,6 +267,7 @@ def _diagnose(source: str, uri: str) -> list[Diagnostic]:
                 severity=DiagnosticSeverity.Error,
                 code="PARSE",
                 source="infra-lang",
+                code_description=CodeDescription(href=_code_href("parse")),
             )
         )
 
@@ -330,6 +402,64 @@ def semantic_tokens_full(
     source = _doc_source(ls, params.text_document.uri)
     tokens = tokenize_source(source)
     return SemanticTokens(data=encode_delta(tokens))
+
+
+@server.feature(
+    TEXT_DOCUMENT_SIGNATURE_HELP,
+    options=SignatureHelpOptions(
+        trigger_characters=["{", "\n", "."], retrigger_characters=[","]
+    ),
+)
+def signature_help(
+    ls: LanguageServer,
+    params: SignatureHelpParams,
+):
+    """Show the fields available inside the block the cursor is in."""
+    source = _doc_source(ls, params.text_document.uri)
+    from ..lsp.signature import signature_help_at
+
+    return signature_help_at(
+        source,
+        max(0, params.position.line),
+        max(0, params.position.character),
+    )
+
+
+@server.feature(TEXT_DOCUMENT_DOCUMENT_HIGHLIGHT)
+def document_highlight(
+    ls: LanguageServer,
+    params: DocumentHighlightParams,
+) -> list:
+    """Highlight every occurrence of the symbol under the cursor in the file."""
+    source = _doc_source(ls, params.text_document.uri)
+    line = max(0, params.position.line)
+    char = max(0, params.position.character)
+    name, ranges = highlight_ranges(source, line, char)
+    if not name:
+        return []
+    return [
+        DocumentHighlight(
+            range=rng,
+            kind=(
+                DocumentHighlightKind.Write
+                if kind == "write"
+                else DocumentHighlightKind.Read
+            ),
+        )
+        for rng, kind in ranges
+    ]
+
+
+@server.feature(TEXT_DOCUMENT_FOLDING_RANGE)
+def folding_range(
+    ls: LanguageServer,
+    params: FoldingRangeParams,
+) -> list:
+    """Return foldable regions (blocks + comment runs) for the document."""
+    source = _doc_source(ls, params.text_document.uri)
+    from ..lsp.folding import folding_ranges
+
+    return folding_ranges(source)
 
 
 @server.feature(TEXT_DOCUMENT_DID_OPEN)
