@@ -211,7 +211,12 @@ def init(
         import subprocess
 
         try:
-            subprocess.run(["git", "init", str(root)], check=True, capture_output=True)
+            subprocess.run(
+                ["git", "init", str(root)],
+                check=True,
+                capture_output=True,
+                timeout=60,
+            )
         except Exception:  # pragma: no cover
             pass
 

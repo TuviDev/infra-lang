@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import abc
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -12,6 +13,8 @@ from ruamel.yaml import YAML
 
 from infra.analyzer.symbols import SymbolTable
 from infra.parser import ast_nodes as n
+
+logger = logging.getLogger(__name__)
 
 #: label applied to every generated resource
 # NOTE: keep in sync with the literal labels in kubernetes.py; must be "infra-lang"
@@ -216,7 +219,9 @@ def evaluate_expression(expr: Optional[n.Expression], context: CompileContext) -
                 return left == right
             if op == "!=":
                 return left != right
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - lenient eval, log for diag
+            logger.debug("binary eval failed (op=%s, l=%r, r=%r): %s",
+                         getattr(expr, "operator", None), left, right, exc)
             return None
     if isinstance(expr, n.Call):
         return _eval_builtin(expr, context)
@@ -254,8 +259,8 @@ def _eval_builtin(expr: n.Call, context: CompileContext) -> Any:
             "if_env",
         ):
             return call_builtin(callee, args)
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001 - lenient eval, log for diag
+        logger.debug("builtin eval failed (callee=%r): %s", callee, exc)
     if callee == "secret":
         return args[0] if args else None
     if callee == "config":

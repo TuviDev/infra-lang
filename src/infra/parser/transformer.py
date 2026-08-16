@@ -10,6 +10,7 @@ is used so rule methods receive ``(meta, children)``.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import replace
 from typing import Any, Optional, Tuple
 
@@ -66,7 +67,24 @@ def _loc(meta: Any) -> Optional[n.SourceLocation]:
 
 
 class _CurFile:
-    value: str = "<string>"
+    """Per-thread current file name, used as a SourceLocation fallback.
+
+    The cached ``Parser`` singleton can be used concurrently (e.g. the LSP
+    thread pool). A plain module-global here would let one thread's ``_set_file``
+    leak its filename into another thread's parsed locations, so the value is
+    stored in ``threading.local()``.
+    """
+
+    def __init__(self) -> None:
+        self._local = threading.local()
+
+    @property
+    def value(self) -> str:
+        return getattr(self._local, "value", "<string>")
+
+    @value.setter
+    def value(self, name: str) -> None:
+        self._local.value = name
 
 
 _CUR_FILE = _CurFile()
@@ -462,10 +480,6 @@ class InfraTransformer(Transformer):
     def _field(self, children):
         """Build (field_name, value) from ``[NAME_TOKEN, COLON, value]``."""
         return (_name(children[0]), children[2])
-
-    def _field_or(self, children, key, value):
-        """Return a ``(key, value)`` tuple for a block field."""
-        return (key, value)
 
     def _body_dict(self, children):
         """Collapse item children into a dict, mapping typed objects to keys."""

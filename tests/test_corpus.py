@@ -65,31 +65,88 @@ def test_edge_cases_do_not_crash(f):
         pass
 
 
+def _expected_marker(content: str):
+    """Parse the ``# Expected: <token>`` header of an invalid corpus file.
+
+    Returns a tuple ``(kind, token)`` where ``kind`` is ``"code"`` (e.g. E001),
+    ``"parse"`` (expect an InfraParseError) or ``"lex"`` (expect an
+    InfraLexError). Returns ``None`` if no recognized marker is present.
+    """
+    for line in content.split("\n"):
+        if "Expected:" not in line:
+            continue
+        val = line.split("Expected:", 1)[1].strip()
+        import re
+
+        code = re.search(r"\b([A-Z]+\d{3})\b", val)
+        if code:
+            return ("code", code.group(1))
+        if "InfraParseError" in val or "parse" in val:
+            return ("parse", None)
+        if "InfraLexError" in val or "lex" in val:
+            return ("lex", None)
+        return ("unknown", val)
+    return None
+
+
+def _invalid_files():
+    return (
+        list((CORPUS / "invalid").glob("*.infra"))
+        if (CORPUS / "invalid").exists()
+        else []
+    )
+
+
+def test_every_invalid_file_declares_expected_marker():
+    """Every invalid corpus file must declare what error it expects.
+
+    This guards against an invalid file that only passes because the test
+    swallowed its failure without ever asserting the error contract.
+    """
+    for f in _invalid_files():
+        marker = _expected_marker(f.read_text())
+        assert marker is not None, (
+            f"{f.name}: invalid corpus file has no '# Expected:' marker"
+        )
+        assert marker[0] in ("code", "parse", "lex"), (
+            f"{f.name}: unrecognized expected marker: {marker}"
+        )
+
+
 @pytest.mark.parametrize(
     "f",
-    list((CORPUS / "invalid").glob("*.infra"))
-    if (CORPUS / "invalid").exists()
-    else [],
+    _invalid_files(),
     ids=lambda f: f.stem,
 )
 def test_invalid_files_fail_with_known_error(f):
     content = f.read_text()
-    expected_code = None
-    for line in content.split("\n"):
-        if "Expected:" in line:
-            parts = line.split("Expected:")
-            if len(parts) > 1:
-                expected_code = parts[1].strip()
-                break
+    expected = _expected_marker(content)
+
     try:
         program = parse(content, filename=str(f))
-        result = validate(program)
-        if expected_code:
-            all_codes = {e.code for e in result.errors}
-            assert expected_code in all_codes, (
-                f"{f.name}: expected {expected_code}, got {all_codes}"
-            )
-        else:
-            assert not result.is_valid
-    except (InfraParseError, InfraLexError):
-        pass
+    except InfraLexError:
+        # A lex error is only acceptable if that's what the file expects.
+        assert expected and expected[0] == "lex", (
+            f"{f.name}: got InfraLexError but expected {expected}"
+        )
+        return
+    except InfraParseError:
+        # A parse error is only acceptable if the file expects a parse error
+        # (or no specific code). If it expects a semantic code, fail.
+        assert not (expected and expected[0] == "code"), (
+            f"{f.name}: expected code {expected[1]} but got InfraParseError"
+        )
+        assert not (expected and expected[0] == "unknown"), (
+            f"{f.name}: expected marker {expected} but got InfraParseError"
+        )
+        return
+
+    # Parsed OK -> the file must fail semantic validation with the code.
+    result = validate(program)
+    if expected and expected[0] == "code":
+        all_codes = {e.code for e in result.errors}
+        assert expected[1] in all_codes, (
+            f"{f.name}: expected {expected[1]}, got {all_codes}"
+        )
+    else:
+        assert not result.is_valid

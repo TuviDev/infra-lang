@@ -265,3 +265,43 @@ class TestGitHubActionsBackend:
         )
         for content in files.values():
             load_yaml(content)
+
+
+class TestSharedImageMaps:
+    """The cache/queue image maps must come from one shared source so adding
+    an engine type updates both Kubernetes and Compose together (no drift)."""
+
+    def test_backends_share_same_cache_map(self):
+        import infra.backends.compose as c
+        import infra.backends.kubernetes as k
+        assert k._CACHE_IMAGES is c._CACHE_IMAGES
+
+    def test_backends_share_same_queue_map(self):
+        import infra.backends.compose as c
+        import infra.backends.kubernetes as k
+        assert k._QUEUE_IMAGES is c._QUEUE_IMAGES
+
+    def test_shared_maps_have_expected_engines(self):
+        from infra.backends._images import CACHE_IMAGES, QUEUE_IMAGES
+        assert set(CACHE_IMAGES) == {"redis", "valkey", "memcached"}
+        assert set(QUEUE_IMAGES) == {"rabbitmq", "kafka", "nats"}
+
+    def test_cache_engine_resolves_in_both_backends(self):
+        # A new engine added to the shared map would be picked up by both.
+        import infra.backends.compose as c
+        import infra.backends.kubernetes as k
+        for engine in ("redis", "valkey", "memcached"):
+            kimg = k._CACHE_IMAGES.get(engine, "redis")
+            cimg = c._CACHE_IMAGES.get(engine, "redis")
+            assert kimg == cimg == engine
+
+    def test_queue_engine_resolves_in_both_backends(self):
+        import infra.backends.compose as c
+        import infra.backends.kubernetes as k
+        for engine, expected in (
+            ("rabbitmq", "rabbitmq:3-management"),
+            ("kafka", "bitnami/kafka"),
+            ("nats", "nats"),
+        ):
+            assert k._QUEUE_IMAGES.get(engine) == expected
+            assert c._QUEUE_IMAGES.get(engine) == expected

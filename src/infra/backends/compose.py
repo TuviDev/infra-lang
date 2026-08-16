@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
+from infra.backends._images import CACHE_IMAGES as _CACHE_IMAGES
+from infra.backends._images import QUEUE_IMAGES as _QUEUE_IMAGES
 from infra.backends.base import (
     Backend,
     BaseYAMLBackend,
@@ -30,12 +32,7 @@ _DB_IMAGES = {
     "mongodb": ("mongo", {"MONGO_INITDB_ROOT_USERNAME", "MONGO_INITDB_ROOT_PASSWORD"}),
     "redis": ("redis", {"REDIS_PASSWORD"}),
 }
-_CACHE_IMAGES = {"redis": "redis", "valkey": "valkey", "memcached": "memcached"}
-_QUEUE_IMAGES = {
-    "rabbitmq": "rabbitmq:3-management",
-    "kafka": "bitnami/kafka",
-    "nats": "nats",
-}
+
 
 
 class DockerComposeBackend(Backend, BaseYAMLBackend):

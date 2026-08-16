@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from difflib import get_close_matches
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from infra.analyzer import types as T
 from infra.analyzer.symbols import (
@@ -491,7 +491,7 @@ class SemanticValidator:
 # --------------------------------------------------------------------------- #
 
 
-def _string_list(value) -> Tuple[str, ...]:  # type: ignore[no-untyped-def]
+def _string_list(value: Any) -> Tuple[str, ...]:
     """Coerce an ``n.List``/tuple of literals into a tuple of strings."""
     items = value.items if isinstance(value, n.List) else (value or ())
     out = []
