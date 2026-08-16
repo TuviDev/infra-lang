@@ -19,7 +19,7 @@ SRC = Path("src/infra/analyzer/reliability.py")
 TESTS = [
     "tests/test_reliability.py",
     "tests/test_autoscale_disruption.py",
-    "tests/test_reliability_s9.py",
+    "tests/test_reliability_advanced.py",
     "tests/test_network_topology_quota.py",
 ]
 

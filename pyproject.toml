@@ -81,6 +81,7 @@ markers = [
     "slow: takes > 2 seconds",
     "behavioral: business behavior documentation",
     "contracts: public API contract tests",
+    "live_e2e: real Docker/kind/kubectl E2E (skipped when tools missing)",
 ]
 
 [tool.ruff]

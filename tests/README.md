@@ -124,6 +124,42 @@ The **CLI registration contract** (`infra lsp --help`) deliberately lives in
 `test_cli.py`, not an LSP module, so it runs deterministically even when pygls
 is missing or a version mismatch skips the LSP modules.
 
+### Live E2E (real Docker / kind / kubectl)
+
+`tests/test_live_e2e.py` compiles `examples/*.infra` to Kubernetes and **really
+applies** it to a `kind` cluster with `kubectl apply`, guarding the K8s output
+contracts that earlier regressions (Secret base64, unnamed multi-port
+Services) violated.
+
+**Always optional.** The tests are marked `live_e2e` and **silently skip** when
+any of Docker, kind, kubectl or kubeconform is missing or not running. A normal
+`pytest tests` (or CI's `-m "not live_e2e"`) never runs them.
+
+```bash
+# Install tools (macOS):
+brew install docker kind kubectl kubeconform
+#   ... or Linux:
+#   curl -Lo kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
+#   curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+#   kubeconform: see https://github.com/yannh/kubeconform
+# Windows: install Docker Desktop + the three binaries via choco/scoop.
+
+# Run only live E2E (needs a working Docker daemon; creates a kind cluster):
+pytest tests -m live_e2e -q
+
+# Run everything EXCEPT live E2E (default for CI):
+pytest tests -m "not live_e2e" -q
+
+# Or run the live file directly (still skips if tools missing):
+pytest tests/test_live_e2e.py -v
+```
+
+The kind cluster is created once per session and **always deleted** (teardown
+runs in a `finally`, so no zombie clusters survive even if a test fails).
+Per-example resources are removed with `kubectl delete -f`. All subprocess
+calls are timeout-bounded. If a test fails, check `docker ps` / `kind get
+clusters` for leftovers and `kind delete cluster --name infra-lang-e2e`.
+
 ## Adding a new test
 
 1. Put it in the file matching its area (see layout).
