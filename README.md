@@ -108,9 +108,11 @@ infra compile app.infra --target github
   actionable hints; invalid configs fail before anything is emitted.
 - **Built-in security linter** (SEC001–SEC010) and **reliability linter**
   (REL001–REL014); `Error`-severity findings block compilation.
-- **A language server** — context-aware completion (46+ fields), hover docs,
-  live diagnostics, go-to-definition, find-references, workspace symbols, and
-  symbol rename across every `.infra` file on disk.
+- **A language server** — context-aware completion, hover docs, live
+  diagnostics with links and related info, go-to-definition, find-references,
+  workspace symbols, symbol rename, signature help, document highlight,
+  semantic tokens, folding, formatting, and quick-fixes — all across every
+  `.infra` file on disk.
 - **A formatter, REPL, and diff engine** — `infra fmt`, `infra repl`, and
   `infra diff` for reviewing changes.
 - **Reusable pieces** — template-string interpolation, `import` with cycle

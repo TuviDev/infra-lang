@@ -57,11 +57,20 @@ Initial public release.
 - **Semantic tokens**: precise LSP syntax highlighting (block keywords, resource
   names, field names, type values, strings, numbers, comments) via
   `textDocument/semanticTokens/full`; tolerant of malformed input.
+- **Diagnostics with context**: every diagnostic carries a code, `source:
+  "infra-lang"`, and a clickable docs link; duplicate-name errors include
+  related information pointing at the earlier definition.
+- **Signature help**: shows the fields available inside the current block with
+  types and docs (triggered by `{`, newline, `.`); used fields marked `(set)`.
+- **Document highlight**: highlights every occurrence of the symbol under the
+  cursor (Write for definitions, Read for references), word-boundary aware.
+- **Folding ranges**: foldable `{}` blocks (top-level and nested) and comment
+  runs.
 - Opt-in anonymous error reporting (off by default; never sends source code,
   paths, or PII).
 
 **Tests**
-- 1671 tests across lexer, parser, transformer, analyzer, backends, CLI, LSP.
+- 1703 tests across lexer, parser, transformer, analyzer, backends, CLI, LSP.
 - **Live Kubernetes E2E** (`pytest -m live_e2e`): compiles the examples and
   really applies them to a `kind` cluster with `kubectl`, verifying Secret
   base64, multi-port Service names, and labels. Automatically skipped when the

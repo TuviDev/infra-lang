@@ -163,6 +163,40 @@ def _word_span(line: str, char: int) -> Tuple[int, int]:
     return start, end
 
 
+def highlight_ranges(
+    source: str, line: int, char: int
+) -> Tuple[Optional[str], List[Tuple[Range, str]]]:
+    """Return ``(name, [(range, kind)])`` for occurrences of the symbol under
+    the cursor in ``source`` (same file only).
+
+    ``kind`` is ``"write"`` for a definition line, ``"read"`` otherwise.
+    Word-boundary aware: renaming ``api`` never highlights ``api-2``/``my_api``.
+    Returns ``(None, [])`` when the cursor is not on a symbol.
+    """
+    name = symbol_at(source, line, char)
+    if not name:
+        return None, []
+    ranges: List[Tuple[Range, str]] = []
+    pattern = re.compile(
+        rf"(?<![A-Za-z0-9_-]){re.escape(name)}(?![A-Za-z0-9_-])"
+    )
+    for i, ln in enumerate(source.splitlines()):
+        stripped = ln.split("#", 1)[0]
+        is_def = bool(_BLOCK_RE.match(stripped))
+        for mm in pattern.finditer(stripped):
+            kind = "write" if is_def else "read"
+            ranges.append(
+                (
+                    Range(
+                        start=Position(line=i, character=mm.start()),
+                        end=Position(line=i, character=mm.end()),
+                    ),
+                    kind,
+                )
+            )
+    return name, ranges
+
+
 def rename_edits(
     source: str, target_name: str, new_name: str
 ) -> List[Tuple[Range, str]]:

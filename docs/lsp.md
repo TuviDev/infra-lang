@@ -36,6 +36,20 @@
   semantic tokens (VS Code, Neovim, Helix) get highlighting beyond the TextMate
   grammar. A malformed document still yields whatever tokens are recognizable —
   never a crash.
+- **Diagnostics with context**: every diagnostic carries a `code`, the
+  `source: "infra-lang"`, and a clickable link (`codeDescription`) to the docs.
+  Duplicate-name errors include **related information** pointing at the earlier
+  definition. Severity follows the analyzer: parse/type/security errors →
+  `Error`, reliability warnings → `Warning`.
+- **Signature help**: when the cursor is inside a block (e.g. `service api { |`),
+  the editor shows the fields available for that block with their types and
+  short docs; fields already set are marked `(set)`. Triggered by `{`, newline
+  and `.`.
+- **Document highlight**: hovering a symbol highlights every occurrence in the
+  current file — `Write` for the definition, `Read` for references — using the
+  same word-boundary rules as rename.
+- **Folding ranges**: every `{}` block (top-level and nested) and runs of
+  comment lines are foldable in the editor.
 
 ## Whole-project indexing
 
