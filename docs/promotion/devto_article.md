@@ -65,11 +65,12 @@ A DSL gives you a few things for free:
 
 ## What it compiles to
 
-Four targets today:
+Five targets today:
 
 | Target | What you get |
 |--------|--------------|
 | Kubernetes | Deployments, Services, Ingress, StatefulSets, PVCs, ConfigMaps, Secrets, CronJobs, HPA, PDBs, NetworkPolicies, ResourceQuotas, Namespaces, RBAC, TopologySpreadConstraints |
+| Helm | a complete chart: `Chart.yaml`, `values.yaml`, `templates/`, `_helpers.tpl` |
 | Docker Compose | `docker-compose.yml`, `.env.example`, a `Makefile` |
 | Terraform | `main.tf`, `variables.tf`, `outputs.tf`, `providers.tf` for AWS/GCP/Azure |
 | GitHub Actions | a workflow plus a `dependabot.yml` |

@@ -17,6 +17,42 @@ release.**
 - [x] examples commented and compiling
 - [x] release notes in `docs/release_notes_v0.1.0.md`
 - [x] Full suite green, coverage ≥92%, ruff/mypy clean, build+twine PASS
+- [x] CI runs on 3 OS × 3 Python versions (Linux/macOS/Windows × 3.11/3.12/3.13)
+- [x] Codespaces devcontainer present
+- [x] History audited for `.tools/`, large blobs, and secrets
+
+## 1b. Clean git history before public (IMPORTANT — do this FIRST)
+
+Audit found **no** `.tools/` binaries or large blobs in history and no real
+secrets (only test literals like `supersecret`). If you ever need to purge a
+file from history, this is the recipe:
+
+```bash
+# 1. Backup: clone the repo to a separate folder first
+git clone <repo-url> /tmp/infra-lang-backup
+
+# 2. Install git-filter-repo
+pip install git-filter-repo
+
+# 3. Purge a path (e.g. .tools/) from ALL history
+git filter-repo --path .tools --invert-paths
+
+# 4. Force push the rewritten history
+git push --force
+
+# 5. Verify the file is gone from history
+git log --all --pretty=format: --name-only | sort -u | grep -i tools
+```
+
+**Expected outcome:** the path no longer appears in any commit. The repo size
+(.git) drops and the history is clean.
+
+**Warning:** this rewrites history. Every existing clone becomes incompatible
+and must be re-cloned. This is **only** acceptable for a private repo before the
+first public release — never after publishing.
+
+**Rollback:** if something goes wrong, restore from the backup clone made in
+step 1 (push it back with `--force`).
 
 ## 2. Make the repo public
 
@@ -25,7 +61,10 @@ release.**
 3. Optional: add a short description and the tagline in the repo "About" box:
    "Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions."
 4. Add topics in the About box: `iac`, `kubernetes`, `docker-compose`,
-   `devops`, `github-actions`, `terraform`, `dsl`, `infrastructure-as-code`.
+   `devops`, `github-actions`, `terraform`, `helm`, `dsl`,
+   `infrastructure-as-code`.
+5. Enable **Discussions**: Settings → Features → check "Discussions". Set the
+   announcement to point at `docs/promotion/` and the hosted docs.
 
 ## 3. Create the GitHub Release (v0.1.0)
 
@@ -92,6 +131,19 @@ paths (so they work on GitHub).
    ```
 6. Update the README install command from `git+...` to `pip install infra-lang`.
 7. Update `docs/quickstart.md` and `PUBLISH` references accordingly.
+
+## 5b. Monitoring after publication
+
+- **GitHub Actions**: watch `CI` and `Deploy Docs` runs for the first pushes.
+- **Issues**: triage new issues within the first 48h; the issue templates
+  capture environment + repro.
+- **Docs traffic**: enable GitHub Pages traffic analytics (Pages → Traffic) if
+  you want numbers.
+- **Star growth**: watch the repo Insights → traffic / stars for the first week.
+
+**Rollback:** if a critical bug ships, revert the commit or tag `v0.1.1` with
+the fix. Publishing to PyPI is the only step that's hard to undo — test
+TestPyPI first (§5).
 
 ## 6. Posting to HN / Reddit / Dev.to
 

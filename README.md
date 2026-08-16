@@ -119,6 +119,15 @@ infra compile app.infra --target github
   detection, `extends` inheritance, 25+ stdlib functions and a prelude of
   shared constants.
 
+## Try it in Codespaces
+
+Click the button below to open this project in GitHub Codespaces:
+
+[![Open in Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/kakukpl/infra-lang)
+
+No local installation needed — full dev environment in about 2 minutes
+(Python 3.12, Docker-in-Docker, kubectl/helm, Ruff/Mypy extensions).
+
 ## Installation
 
 ```bash
