@@ -51,11 +51,17 @@ Initial public release.
   for `*.infra` files (non-blocking, bounded, tolerant of malformed files) so
   navigation works across every file on disk, not just open tabs.
 - VS Code extension with syntax highlighting, snippets, and an LSP client.
+- **Cross-file rename**: renaming a symbol now propagates to every file in the
+  project, including files on disk not open in the editor (via the workspace
+  index); word boundaries are respected (`-`/`_` are part of an identifier).
+- **Semantic tokens**: precise LSP syntax highlighting (block keywords, resource
+  names, field names, type values, strings, numbers, comments) via
+  `textDocument/semanticTokens/full`; tolerant of malformed input.
 - Opt-in anonymous error reporting (off by default; never sends source code,
   paths, or PII).
 
 **Tests**
-- 1659 tests across lexer, parser, transformer, analyzer, backends, CLI, LSP.
+- 1671 tests across lexer, parser, transformer, analyzer, backends, CLI, LSP.
 - **Live Kubernetes E2E** (`pytest -m live_e2e`): compiles the examples and
   really applies them to a `kind` cluster with `kubectl`, verifying Secret
   base64, multi-port Service names, and labels. Automatically skipped when the
