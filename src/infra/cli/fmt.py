@@ -32,7 +32,7 @@ def fmt(
             typer.echo(f"{f}: would reformat")
             continue
         if diff:
-            original = Path(f).read_text()
+            original = Path(f).read_text(encoding="utf-8")
             udiff = difflib.unified_diff(
                 original.splitlines(),
                 formatted.splitlines(),

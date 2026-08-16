@@ -70,7 +70,7 @@ class TestSystemInvariants:
     def test_all_examples_compile_to_k8s(self):
         examples = list(Path("examples").glob("*.infra"))
         for f in examples:
-            program = parse(f.read_text())
+            program = parse(f.read_text(encoding="utf-8"))
             assert KubernetesBackend().compile(program) is not None, f"Failed: {f.name}"
 
     def test_diff_symmetric_add_remove(self):

@@ -57,7 +57,7 @@ class TestLiveHelmE2E:
     @pytest.mark.parametrize("infra_path", [str(p) for p in EXAMPLES])
     def test_helm_lint_strict(self, helm_available, infra_path, tmp_path):
         p = Path(infra_path)
-        prog = parse(p.read_text(), filename=p.name)
+        prog = parse(p.read_text(encoding="utf-8"), filename=p.name)
         files = get_backend("helm").compile(prog).files
         chartdir = _write_chart(str(tmp_path), files)
         r = _run("lint", "--strict", str(chartdir))
@@ -68,7 +68,7 @@ class TestLiveHelmE2E:
     @pytest.mark.parametrize("infra_path", [str(p) for p in EXAMPLES])
     def test_helm_template_renders(self, helm_available, infra_path, tmp_path):
         p = Path(infra_path)
-        prog = parse(p.read_text(), filename=p.name)
+        prog = parse(p.read_text(encoding="utf-8"), filename=p.name)
         files = get_backend("helm").compile(prog).files
         chartdir = _write_chart(str(tmp_path), files)
         r = _run("template", "rel", str(chartdir))
@@ -78,7 +78,7 @@ class TestLiveHelmE2E:
 
     def test_chart_render_has_expected_kinds(self, helm_available, tmp_path):
         p = ROOT / "examples" / "02_web_app.infra"
-        prog = parse(p.read_text(), filename=p.name)
+        prog = parse(p.read_text(encoding="utf-8"), filename=p.name)
         files = get_backend("helm").compile(prog).files
         chartdir = _write_chart(str(tmp_path), files)
         r = _run("template", "rel", str(chartdir))

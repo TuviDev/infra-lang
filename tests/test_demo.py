@@ -20,7 +20,7 @@ class TestDemoProject:
     def test_main_infra_parses(self):
         f = self.DEMO / "main.infra"
         assert f.exists()
-        parse(f.read_text(), filename=str(f))
+        parse(f.read_text(encoding="utf-8"), filename=str(f))
 
     def test_demo_validates_without_semantic_errors(self):
         program = parse_file(self.DEMO / "main.infra")
@@ -47,9 +47,9 @@ class TestDemoProject:
         assert (self.DEMO / "README.md").exists()
 
     def test_demo_contains_service_database_and_cache(self):
-        api = (self.DEMO / "api.infra").read_text()
-        db = (self.DEMO / "databases.infra").read_text()
-        cache = (self.DEMO / "cache.infra").read_text()
+        api = (self.DEMO / "api.infra").read_text(encoding="utf-8")
+        db = (self.DEMO / "databases.infra").read_text(encoding="utf-8")
+        cache = (self.DEMO / "cache.infra").read_text(encoding="utf-8")
         assert "service api" in api
         assert "database db" in db
         assert "cache session" in cache

@@ -99,7 +99,7 @@ class TestDocsCLI:
         r = CliRunner().invoke(app, ["docs", str(f), "--output", str(out)])
         assert r.exit_code == 0
         assert out.exists()
-        assert "api" in out.read_text()
+        assert "api" in out.read_text(encoding="utf-8")
 
     def test_docs_stdout(self, tmp_path):
         from typer.testing import CliRunner
@@ -162,7 +162,7 @@ class TestWatchHelpers:
 
         f = tmp_path / "t.infra"
         f.write_text('service api { image: "x:1" }')
-        prog = parse(f.read_text())
+        prog = parse(f.read_text(encoding="utf-8"))
         files = _collect_watched_files(f, prog)
         assert f.resolve() in files
 
@@ -175,6 +175,6 @@ class TestWatchHelpers:
         lib.write_text('const X = "1"')
         f = tmp_path / "t.infra"
         f.write_text('import "./lib.infra"\nservice api { image: X }')
-        prog = parse(f.read_text())
+        prog = parse(f.read_text(encoding="utf-8"))
         files = _collect_watched_files(f, prog)
         assert lib.resolve() in files

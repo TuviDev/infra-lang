@@ -29,7 +29,7 @@ def _infra_files(root) -> list:
 
 def _all_valid(root) -> bool:
     for f in _infra_files(root):
-        res = validate(parse(f.read_text()))
+        res = validate(parse(f.read_text(encoding="utf-8")))
         if not res.is_valid:
             return False
     return True
@@ -41,7 +41,7 @@ class TestInitBasic:
         files = _infra_files(root)
         assert len(files) >= 4  # main + service + database + secret
         for f in files:
-            parse(f.read_text())  # must not raise
+            parse(f.read_text(encoding="utf-8"))  # must not raise
 
     def test_validates_clean(self, tmp_path):
         root = _init(tmp_path, "myproj", "basic")
@@ -49,8 +49,8 @@ class TestInitBasic:
 
     def test_contains_service_and_database(self, tmp_path):
         root = _init(tmp_path, "myproj", "basic")
-        svc = (root / "infra" / "services" / "api.infra").read_text()
-        db = (root / "infra" / "databases" / "main.infra").read_text()
+        svc = (root / "infra" / "services" / "api.infra").read_text(encoding="utf-8")
+        db = (root / "infra" / "databases" / "main.infra").read_text(encoding="utf-8")
         assert "service api" in svc
         assert "port: 8080" in svc
         assert "health http" in svc
@@ -63,22 +63,22 @@ class TestInitMicroservices:
         root = _init(tmp_path, "micro", "microservices")
         services_dir = root / "infra" / "services"
         assert len(list(services_dir.glob("*.infra"))) == 3
-        content = "".join(f.read_text() for f in services_dir.glob("*.infra"))
+        content = "".join(f.read_text(encoding="utf-8") for f in services_dir.glob("*.infra"))
         for svc in ("api", "worker", "frontend"):
             assert f"service {svc}" in content
 
     def test_includes_db_cache_queue(self, tmp_path):
         root = _init(tmp_path, "micro", "microservices")
-        db = (root / "infra" / "databases" / "main.infra").read_text()
-        cache = (root / "infra" / "caches" / "session.infra").read_text()
-        queue = (root / "infra" / "queues" / "events.infra").read_text()
+        db = (root / "infra" / "databases" / "main.infra").read_text(encoding="utf-8")
+        cache = (root / "infra" / "caches" / "session.infra").read_text(encoding="utf-8")
+        queue = (root / "infra" / "queues" / "events.infra").read_text(encoding="utf-8")
         assert "database db" in db
         assert "cache session" in cache
         assert "queue events" in queue
 
     def test_network_policies_present(self, tmp_path):
         root = _init(tmp_path, "micro", "microservices")
-        api = (root / "infra" / "services" / "api.infra").read_text()
+        api = (root / "infra" / "services" / "api.infra").read_text(encoding="utf-8")
         assert "network_policy" in api
         assert "deny_from" in api
 

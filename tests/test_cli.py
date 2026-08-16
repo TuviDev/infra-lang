@@ -143,7 +143,7 @@ class TestFmtCommand:
         src = write_infra(tmp_path / "fmt.infra", 'service api{image:"nginx:1.0"}')
         result = runner.invoke(app, ["fmt", str(src)])
         assert result.exit_code == 0
-        assert "image:" in src.read_text()
+        assert "image:" in src.read_text(encoding="utf-8")
 
     def test_fmt_check_unformatted_exits_1(self, tmp_path):
         src = write_infra(tmp_path / "fmt.infra", 'service api{image:"nginx:1.0"}')
@@ -153,9 +153,9 @@ class TestFmtCommand:
     def test_fmt_idempotent(self, tmp_path):
         src = write_infra(tmp_path / "fmt.infra", 'service api { image: "nginx:1.0" }')
         runner.invoke(app, ["fmt", str(src)])
-        first = src.read_text()
+        first = src.read_text(encoding="utf-8")
         runner.invoke(app, ["fmt", str(src)])
-        assert src.read_text() == first
+        assert src.read_text(encoding="utf-8") == first
 
 
 class TestCheckCommand:
@@ -190,7 +190,7 @@ class TestInitCommand:
             if main.exists():
                 from infra import parse, validate
 
-                prog = parse(main.read_text())
+                prog = parse(main.read_text(encoding="utf-8"))
                 res = validate(prog)
                 assert len(res.errors) == 0
         finally:
@@ -226,7 +226,7 @@ class TestErrorReporter:
         from infra import parse, validate
         from infra.errors.reporter import ErrorReporter
 
-        source = invalid_service.read_text()
+        source = invalid_service.read_text(encoding="utf-8")
         result = validate(parse(source))
         output = ErrorReporter().report_semantic_errors(result.errors, result.warnings, source)
         assert isinstance(output, str)
@@ -246,7 +246,7 @@ class TestErrorReporter:
         from infra import parse, validate
         from infra.errors.reporter import ErrorReporter
 
-        result = validate(parse(invalid_service.read_text()))
+        result = validate(parse(invalid_service.read_text(encoding="utf-8")))
         data = json.loads(ErrorReporter().format_as_json(result))
         assert "errors" in data
         assert "valid" in data
