@@ -98,3 +98,15 @@ def live_e2e_tools() -> str | None:
     from tests.tools import require_tools
 
     return require_tools(("docker", "kind", "kubectl", "kubeconform"))
+
+
+@pytest.fixture(scope="session")
+def compose_tools() -> str | None:
+    """Return 'docker' if the daemon is unavailable, else None (Compose E2E).
+
+    Docker Compose live E2E only needs the Docker daemon (not kind/kubectl),
+    so it is gated on Docker alone.
+    """
+    from tests.tools import require_tools
+
+    return require_tools(("docker",))

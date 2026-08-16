@@ -60,8 +60,17 @@ Initial public release.
   really applies them to a `kind` cluster with `kubectl`, verifying Secret
   base64, multi-port Service names, and labels. Automatically skipped when the
   tools are missing.
+- **Live Compose E2E** (`pytest -m live_e2e`): compiles examples to Docker
+  Compose and really runs `docker compose config` (all service examples) and
+  `docker compose up -d --wait` (examples with only public images), then
+  `down -v` cleans up. Skipped without a Docker daemon. Includes regression
+  guards (multi-port, secret declaration + mounting) that run in the normal
+  suite.
 
 ### Fixed
+- **Compose**: a service using `from secret "x.y"` now mounts the secret into
+  the container (`secrets:` on the service). Previously the secret was declared
+  top-level but never mounted, so it was unreachable at runtime.
 - Secrets now emit valid base64 in `data:` (was `illegal base64 data` on
   `kubectl apply`).
 - Multi-port Services (including the RabbitMQ queue path) now get named ports,
