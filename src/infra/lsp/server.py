@@ -30,6 +30,7 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_PREPARE_RENAME,
     TEXT_DOCUMENT_REFERENCES,
     TEXT_DOCUMENT_RENAME,
+    TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
     WORKSPACE_SYMBOL,
     CodeActionParams,
     CompletionList,
@@ -55,6 +56,9 @@ from lsprotocol.types import (
     Range,
     ReferenceParams,
     RenameParams,
+    SemanticTokens,
+    SemanticTokensLegend,
+    SemanticTokensParams,
     SymbolKind,
     TextEdit,
     WorkspaceEdit,
@@ -66,6 +70,7 @@ from pygls.server import LanguageServer
 from ..errors.exceptions import InfraLexError, InfraParseError
 from ..lsp.completion import completions_at
 from ..lsp.quickfix import quick_fixes
+from ..lsp.semantic_tokens import TOKEN_TYPES, encode_delta, tokenize_source
 from ..lsp.symbols import (
     document_symbols,
     find_definition,
@@ -305,6 +310,26 @@ def workspace_symbol(
         )
         for s in symbols
     ]
+
+
+@server.feature(
+    TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
+    options=SemanticTokensLegend(
+        token_types=list(TOKEN_TYPES), token_modifiers=[]
+    ),
+)
+def semantic_tokens_full(
+    ls: LanguageServer,
+    params: SemanticTokensParams,
+) -> SemanticTokens:
+    """Return LSP semantic tokens for a document.
+
+    Uses a deterministic, line-based tokenizer so malformed / incomplete input
+    never raises — the editor always gets a (possibly partial) token stream.
+    """
+    source = _doc_source(ls, params.text_document.uri)
+    tokens = tokenize_source(source)
+    return SemanticTokens(data=encode_delta(tokens))
 
 
 @server.feature(TEXT_DOCUMENT_DID_OPEN)

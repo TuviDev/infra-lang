@@ -24,10 +24,18 @@
 - **Find references**: locate all references to a symbol across the whole
   project, not just the current file.
 - **Rename symbol**: rename a block and all of its references in one action
-  (F2 in VS Code). Rename applies to the current document and any other open
-  document that references the symbol. Comments are left untouched. A
-  `prepareRename` step validates the position and pre-fills the current name
-  in the rename box.
+  (F2 in VS Code). **Cross-file**: rename propagates to every file in the
+  project that references the symbol — including files on disk that are not
+  open in the editor (via the workspace index). Comments are left untouched.
+  Rename respects word boundaries: `-` and `_` are part of an identifier, so
+  renaming `db` does not touch `main-db` or `db-2`. A `prepareRename` step
+  validates the position and pre-fills the current name in the rename box.
+- **Semantic tokens**: precise syntax highlighting (block keywords, resource
+  names, field names, type values, strings, numbers, comments) served over the
+  standard `textDocument/semanticTokens/full` request. Editors that support
+  semantic tokens (VS Code, Neovim, Helix) get highlighting beyond the TextMate
+  grammar. A malformed document still yields whatever tokens are recognizable —
+  never a crash.
 
 ## Whole-project indexing
 
@@ -46,9 +54,6 @@ file + line). Design:
   restores the on-disk version. The in-memory index is freed on shutdown.
 - The current editor buffers always take precedence over the on-disk copy.
 
-## Not yet supported
-- Cross-file rename across files on disk that are not open in the editor
-  (rename applies to documents currently open in the workspace).
 - **Formatting**: `infra fmt` formatting available as document formatting
   (format-on-save via the extension).
 - **Code actions (quick fixes)**: safe, automatic fixes for common findings —
@@ -56,8 +61,10 @@ file + line). Design:
   port. Only deterministic, safe rewrites are offered.
 
 ## Not yet supported
-- Cross-file rename across files on disk that are not open in the editor
-  (rename applies to documents currently open in the workspace).
+- Semantic token delta/range variants (`full/delta` and `range`) are not yet
+  served — only `semanticTokens/full`. Editors fall back to full re-tokenization.
+- Rename conflict detection (renaming onto an existing symbol) is left to the
+  client.
 
 ## Installation
 

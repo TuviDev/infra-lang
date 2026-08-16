@@ -188,7 +188,10 @@ def rename_edits(
                 )
             )
             continue
-        for mm in re.finditer(rf"\b{re.escape(target_name)}\b", stripped):
+        for mm in re.finditer(
+            rf"(?<![A-Za-z0-9_-]){re.escape(target_name)}(?![A-Za-z0-9_-])",
+            stripped,
+        ):
             edits.append(
                 (
                     Range(
