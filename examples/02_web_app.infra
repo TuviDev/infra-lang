@@ -1,3 +1,10 @@
+# Example 02 — A web application
+# A realistic single app: a database, a cache, a secret loaded from the
+# environment, and a service that depends on them.
+#   infra compile examples/02_web_app.infra --target kubernetes
+#   infra compile examples/02_web_app.infra --target compose
+
+# Secrets are referenced (not hard-coded); values come from env vars at deploy time.
 secret db-creds {
     password: from env "DB_PASSWORD"
     url: from env "DATABASE_URL"

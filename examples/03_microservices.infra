@@ -1,3 +1,8 @@
+# Example 03 — A microservices application
+# Three services sharing a database and a message queue, wired with `depends`
+# and service discovery. This is the example used in the live kind E2E suite.
+#   infra compile examples/03_microservices.infra --target kubernetes
+
 secret shared-creds {
     db_url: from env "DATABASE_URL"
 }

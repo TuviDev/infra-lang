@@ -1,6 +1,0 @@
-# Purpose: shows how SEC001 is caught when a password is hardcoded.
-# Expected: validate reports SEC001
-service api {
-    image: "myapp:v1.0.0"
-    env { PASSWORD: "bad123" }
-}

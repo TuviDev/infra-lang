@@ -64,7 +64,7 @@ file + line). Design:
 ### 1. Install infra-lang with LSP support
 
 ```bash
-pip install 'infra-lang[lsp]'
+pip install 'git+https://github.com/kakukpl/infra-lang.git[lsp]'
 ```
 
 ### 2. Install the VS Code extension

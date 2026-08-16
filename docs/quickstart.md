@@ -2,8 +2,15 @@
 
 ## Install
 ```bash
-pip install infra-lang
+pip install 'git+https://github.com/kakukpl/infra-lang.git'
+# with the language server (recommended for VS Code):
+pip install 'git+https://github.com/kakukpl/infra-lang.git[lsp]'
 ```
+
+Verify: `infra --version`
+
+> PyPI publishing is coming soon; until then install from Git. Requires
+> Python 3.11+.
 
 ## Create your first .infra file
 Save as `app.infra`:

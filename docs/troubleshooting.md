@@ -2,11 +2,11 @@
 
 ## Installation
 
-- `pip install infra-lang` fails → ensure Python 3.11+ (`python --version`).
+- `pip install 'git+https://github.com/kakukpl/infra-lang.git'` fails → ensure Python 3.11+ (`python --version`).
 - `infra: command not found` after install → the console-script dir isn't on
   `PATH`; install with `python -m pip install --user infra-lang` or use
   `python -m infra`.
-- LSP not available → install with `pip install 'infra-lang[lsp]'`.
+- LSP not available → install with `pip install 'git+https://github.com/kakukpl/infra-lang.git[lsp]'`.
 
 ## LSP / VS Code
 

@@ -1,26 +1,25 @@
 # Infra Lang — Tutorial
 
-Gotowy na to, by przejść od `pip install` do działającej infrastruktury w
-około 15 minut. Wszystkie bloki `infra` poniżej są w pełni działającymi
-przykładami.
+Ready to go from `pip install` to working infrastructure in about 15 minutes.
+Every `infra` block below is a fully working example.
 
-## Wymagania
+## Prerequisites
 - Python 3.11+
 
-## Instalacja
+## Installation
 
 ```bash
-pip install infra-lang
+pip install 'git+https://github.com/kakukpl/infra-lang.git'
 infra --version
 ```
 
-Powinieneś zobaczyć numer wersji, np. `0.1.0`.
+You should see a version number, e.g. `0.1.0`.
 
 ---
 
-## Lekcja 1: Pierwszy serwis (3 min)
+## Lesson 1: Your first service (3 min)
 
-Zapisz ten plik jako `hello.infra`:
+Save this file as `hello.infra`:
 
 ```infra
 service hello {
@@ -31,33 +30,33 @@ service hello {
 }
 ```
 
-Waliduj składnię i semantykę:
+Validate the syntax and semantics:
 
 ```bash
 infra validate hello.infra
 ```
 
-Dobrego pliku nie zawiera błędów. Teraz skompiluj go do Kubernetes:
+A valid file reports no errors. Now compile it to Kubernetes:
 
 ```bash
 infra compile hello.infra --target kubernetes --dry-run
 ```
 
-Zobaczysz wygenerowany `Deployment` i `Service`. Ten sam plik możesz
-skompilować do Docker Compose bez żadnych zmian w źródle:
+You'll see a generated `Deployment` and `Service`. The same file compiles to
+Docker Compose with no changes to the source:
 
 ```bash
 infra compile hello.infra --target compose --dry-run
 ```
 
-**Co się stało:** Infra sparsował Twój plik, zbudował AST, zwalidował go i
-wyrenderował manifesty dla wybranego backendu.
+**What happened:** Infra parsed your file, built an AST, validated it, and
+rendered the manifests for the selected backend.
 
 ---
 
-## Lekcja 2: Baza i sekrety (4 min)
+## Lesson 2: Databases and secrets (4 min)
 
-Nie chcemy hardcodować haseł w plikach źródłowych. Użyj `secret` + `from env`:
+You don't want to hardcode passwords in source files. Use `secret` + `from env`:
 
 ```infra
 secret db-creds {
@@ -83,9 +82,9 @@ service api {
 }
 ```
 
-### Jak Infra łapie hardcoded sekrety?
+### How Infra catches hardcoded secrets?
 
-Gdybyś wpisał hasło wprost w `env`:
+If you put a password directly in `env`:
 
 ```infra
 service api {
@@ -94,7 +93,7 @@ service api {
 }
 ```
 
-`infra validate` zgłosi:
+`infra validate` reports:
 
 ```
 error[SEC001] ... Hardcoded secret detected: 'PASSWORD' in service 'api'
@@ -102,7 +101,7 @@ error[SEC001] ... Hardcoded secret detected: 'PASSWORD' in service 'api'
 Found 1 errors and 4 warnings
 ```
 
-**Naprawa:** zamień literał na źródło z secret managera:
+**Fix:** replace the literal with a source from a secret manager:
 
 ```infra
 service api {
@@ -111,16 +110,16 @@ service api {
 }
 ```
 
-W ten sposób sekret nigdy nie trafia do repozytorium.
+This way the secret never ends up in your repository.
 
 ---
 
-## Lekcja 3: Reliability hints (3 min)
+## Lesson 3: Reliability hints (3 min)
 
-Wbudowany linter reliability podpowiada, jak poprawić niezawodność
-infrastruktury.
+The built-in reliability linter points out ways to make your infrastructure
+more robust.
 
-### REL003 — brak limitu pamięci
+### REL003 — no memory limit
 
 ```infra
 service api {
@@ -130,11 +129,11 @@ service api {
 }
 ```
 
-Ostrzeżenie: serwis ma `requests` ale nie ma `limits` pamięci → ryzyko OOM.
+Warning: the service has `requests` but no memory `limits` → OOM risk.
 
-**Naprawa:** dodaj `limits { memory: 256Mi }` do bloku `resources`.
+**Fix:** add `limits { memory: 256Mi }` to the `resources` block.
 
-### REL006 — baza bez backupu
+### REL006 — database without a backup
 
 ```infra
 database main-db {
@@ -143,15 +142,15 @@ database main-db {
 }
 ```
 
-Ostrzeżenie: baza nie ma włączonego backupu.
+Warning: the database has no backup enabled.
 
-**Naprawa:** dodaj blok `backup { enabled: true schedule: "0 2 * * *" }`.
+**Fix:** add a `backup { enabled: true schedule: "0 2 * * *" }` block.
 
 ---
 
-## Lekcja 4: Multi-environment (3 min)
+## Lesson 4: Multiple environments (3 min)
 
-Definiuj środowiska i dziedzicz po nich:
+Define environments and inherit from one another:
 
 ```infra
 environment dev {
@@ -165,13 +164,14 @@ environment prod extends dev {
 }
 ```
 
-`prod` dziedziczy po `dev`, nadpisuje namespace i dodaje limity `ResourceQuota`.
+`prod` inherits from `dev`, overrides the namespace, and adds `ResourceQuota`
+limits.
 
 ---
 
-## Lekcja 5: CI/CD Pipeline (2 min)
+## Lesson 5: A CI/CD pipeline (2 min)
 
-Zdefiniuj pipeline, a Infra wygeneruje GitHub Actions:
+Define a pipeline and Infra generates a GitHub Actions workflow:
 
 ```infra
 pipeline build {
@@ -190,9 +190,9 @@ infra compile build.infra --target github
 
 ---
 
-## Co dalej
+## What's next
 
-- [Specyfikacja języka](language_spec.md) — pełna gramatyka i struktury.
-- [Przykłady](../examples/) — gotowe projekty (`01_hello_world.infra`,
+- [Language spec](language_spec.md) — full grammar and structures.
+- [Examples](../examples/) — ready-made projects (`01_hello_world.infra`,
   `03_microservices.infra`, `04_cicd_pipeline.infra`).
-- [README](../README.md) — przegląd funkcji i backendów.
+- [README](../README.md) — overview of features and backends.
