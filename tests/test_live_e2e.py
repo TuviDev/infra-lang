@@ -54,10 +54,22 @@ _TIMEOUTS = {
 _MANAGED_BY = "app.kubernetes.io/managed-by"
 
 
-def _run(cmd, *, timeout, check=True):
-    """Run a subprocess and return CompletedProcess; raise on failure."""
+def _run(cmd, *, timeout, input: str | None = None, check=True):
+    """Run a subprocess and return CompletedProcess; raise on failure.
+
+    Uses UTF-8 for stdout/stderr so non-ASCII output from kubectl/kubeconform
+    does not crash on Windows where the default locale codec (e.g. cp1250)
+    cannot decode it. ``input`` (str) is forwarded to the child stdin.
+    """
     return subprocess.run(
-        cmd, capture_output=True, text=True, timeout=timeout, check=check
+        cmd,
+        capture_output=True,
+        text=True,
+        input=input,
+        timeout=timeout,
+        check=check,
+        encoding="utf-8",
+        errors="replace",
     )
 
 
