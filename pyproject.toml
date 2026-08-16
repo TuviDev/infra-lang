@@ -112,6 +112,10 @@ fail_under = 88
 show_missing = true
 
 [tool.mutmut]
-source_paths = ["src/infra/analyzer/reliability.py"]
-backup = false
-runner = "python -m pytest -x -q -p no:cacheprovider --no-cov tests/test_reliability.py"
+# Mutation testing. NOTE: the project uses a src/ layout; mutmut's coverage
+# mapping needs a flat package copy to associate tests with mutants. See
+# docs/testing_quality.md for the exact working procedure (run from a flat
+# copy with `source_paths = ["infra"]`).
+source_paths = ["src/infra"]
+pytest_add_cli_args = ["-q", "-p", "no:cacheprovider", "-o", "addopts=", "-k", "not live_e2e"]
+pytest_add_cli_args_test_selection = ["tests/test_security_checker.py", "tests/test_security_advanced.py"]
