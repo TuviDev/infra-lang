@@ -47,7 +47,7 @@ def get_all_contract_blocks():
     blocks = []
     for doc in PUBLIC_DOCS:
         if doc.exists():
-            for block, src in extract_infra_blocks(doc.read_text(), str(doc)):
+            for block, src in extract_infra_blocks(doc.read_text(encoding="utf-8"), str(doc)):
                 blocks.append((block, src))
     return blocks
 
@@ -85,7 +85,7 @@ class TestExamplesDirectory:
         ids=lambda f: str(f.relative_to(EXAMPLES_DIR)),
     )
     def test_example_parses(self, example_file):
-        parse(example_file.read_text(), filename=str(example_file))
+        parse(example_file.read_text(encoding="utf-8"), filename=str(example_file))
 
     @pytest.mark.parametrize(
         "example_file",
@@ -99,7 +99,7 @@ class TestExamplesDirectory:
         ids=lambda f: str(f.relative_to(EXAMPLES_DIR)),
     )
     def test_example_has_no_semantic_errors(self, example_file):
-        result = validate(parse(example_file.read_text()))
+        result = validate(parse(example_file.read_text(encoding="utf-8")))
         non_sec = [e for e in result.errors if not (e.code or "").startswith("SEC")]
         assert len(non_sec) == 0, (
             f"{example_file.name} has errors: {[e.message for e in non_sec]}"

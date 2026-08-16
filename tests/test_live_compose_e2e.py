@@ -77,7 +77,7 @@ def _compile_compose(infra_path: Path) -> dict[str, Path]:
     """
     import tempfile
 
-    prog = parse(infra_path.read_text(), filename=infra_path.name)
+    prog = parse(infra_path.read_text(encoding="utf-8"), filename=infra_path.name)
     result = DockerComposeBackend().compile(prog)
     tmp = Path(tempfile.mkdtemp(prefix="infra-compose-"))
     paths: dict[str, Path] = {}
@@ -218,7 +218,7 @@ class TestComposeRegression:
         p = ROOT / "examples" / "03_microservices.infra"
         files = _compile_compose(p)
         compose = _compose_file(files)
-        data = yaml.safe_load(compose.read_text())
+        data = yaml.safe_load(compose.read_text(encoding="utf-8"))
         events = data["services"]["events"]
         # RabbitMQ exposes 5672 (AMQP) + 15672 (management).
         ports = [str(x) for x in events.get("ports", [])]
@@ -230,7 +230,7 @@ class TestComposeRegression:
         p = ROOT / "examples" / "02_web_app.infra"
         files = _compile_compose(p)
         compose = _compose_file(files)
-        data = yaml.safe_load(compose.read_text())
+        data = yaml.safe_load(compose.read_text(encoding="utf-8"))
         assert "secrets" in data, "compose file has no top-level secrets"
         assert "db-creds" in data["secrets"], "db-creds secret missing from compose"
         entry = data["secrets"]["db-creds"]
@@ -244,7 +244,7 @@ class TestComposeRegression:
         p = ROOT / "examples" / "02_web_app.infra"
         files = _compile_compose(p)
         compose = _compose_file(files)
-        data = yaml.safe_load(compose.read_text())
+        data = yaml.safe_load(compose.read_text(encoding="utf-8"))
         api = data["services"]["api"]
         # api env references db-creds.password
         env = {k: str(v) for k, v in (api.get("environment") or {}).items()}

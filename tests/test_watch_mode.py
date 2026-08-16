@@ -75,7 +75,7 @@ class TestWatchFlag:
                 target = out / "infra.yaml"
                 if target.exists():
                     try:
-                        content = target.read_text()
+                        content = target.read_text(encoding="utf-8")
                     except OSError:
                         content = ""
                     if marker in content:

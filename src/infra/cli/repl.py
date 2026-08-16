@@ -107,7 +107,7 @@ class InfraREPL:
         elif name == "load" and len(args) >= 2:
             path = Path(args[1])
             if path.exists():
-                self.process_input(path.read_text())
+                self.process_input(path.read_text(encoding="utf-8"))
             else:
                 typer.echo(f"File not found: {path}")
         elif name == "target" and len(args) >= 2:

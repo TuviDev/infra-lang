@@ -27,7 +27,7 @@ CORPUS = Path("tests/corpus")
     ids=lambda f: f.stem,
 )
 def test_minimal_parses_and_validates(f):
-    program = parse(f.read_text(), filename=str(f))
+    program = parse(f.read_text(encoding="utf-8"), filename=str(f))
     result = validate(program)
     assert result.is_valid or len(
         [e for e in result.errors if not (e.code or "").startswith("SEC")]
@@ -44,7 +44,7 @@ def test_minimal_parses_and_validates(f):
 def test_realistic_compiles_to_valid_k8s(f):
     import yaml
 
-    program = parse(f.read_text(), filename=str(f))
+    program = parse(f.read_text(encoding="utf-8"), filename=str(f))
     result = KubernetesBackend().compile(program)
     for name, content in result.files.items():
         for doc in yaml.safe_load_all(content):
@@ -60,7 +60,7 @@ def test_realistic_compiles_to_valid_k8s(f):
 )
 def test_edge_cases_do_not_crash(f):
     try:
-        parse(f.read_text(), filename=str(f))
+        parse(f.read_text(encoding="utf-8"), filename=str(f))
     except (InfraParseError, InfraLexError):
         pass
 
@@ -104,7 +104,7 @@ def test_every_invalid_file_declares_expected_marker():
     swallowed its failure without ever asserting the error contract.
     """
     for f in _invalid_files():
-        marker = _expected_marker(f.read_text())
+        marker = _expected_marker(f.read_text(encoding="utf-8"))
         assert marker is not None, (
             f"{f.name}: invalid corpus file has no '# Expected:' marker"
         )
@@ -119,7 +119,7 @@ def test_every_invalid_file_declares_expected_marker():
     ids=lambda f: f.stem,
 )
 def test_invalid_files_fail_with_known_error(f):
-    content = f.read_text()
+    content = f.read_text(encoding="utf-8")
     expected = _expected_marker(content)
 
     try:

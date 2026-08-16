@@ -99,7 +99,7 @@ class ImportResolver:
 
         try:
             parser = Lark(
-                DEFAULT_GRAMMAR.read_text(),
+                DEFAULT_GRAMMAR.read_text(encoding="utf-8"),
                 parser="lalr",
                 propagate_positions=True,
             )

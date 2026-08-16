@@ -114,7 +114,7 @@ class TestSchemaValidator:
         from infra import parse
 
         for f in Path("examples").glob("*.infra"):
-            program = parse(f.read_text())
+            program = parse(f.read_text(encoding="utf-8"))
             result = KubernetesBackend().compile(program)
             issues = validate_compiled_output(result.files)
             errors = _errors(issues)

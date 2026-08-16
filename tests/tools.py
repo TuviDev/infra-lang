@@ -43,10 +43,25 @@ def _probe(binary: str, probe_args: Sequence[str] = ("--version",)) -> bool:
 
 
 def have_docker() -> bool:
-    """True if the Docker CLI is on PATH and the daemon responds."""
-    # `docker version` returns non-zero when the CLI is present but the daemon
-    # is not running — exactly what we need to distinguish the two cases.
-    return _probe("docker", ("version",))
+    """True if the Docker CLI is on PATH **and** the daemon responds.
+
+    A bare `docker --version` / `docker version` only proves the CLI binary
+    exists; the daemon may still be down (e.g. Docker Desktop not started on a
+    Windows/macOS CI runner). We probe `docker info`, which exits non-zero
+    when the daemon is unreachable, so live E2E skips instead of failing.
+    """
+    if shutil.which("docker") is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["docker", "info"],
+            capture_output=True,
+            timeout=_TOOL_TIMEOUT,
+            check=False,
+        )
+        return result.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
 
 
 def have_kind() -> bool:

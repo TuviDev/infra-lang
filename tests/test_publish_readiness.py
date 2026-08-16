@@ -53,7 +53,7 @@ class TestPublishReadiness:
     def test_package_version_consistent(self):
         from infra.version import __version__
 
-        content = Path("pyproject.toml").read_text()
+        content = Path("pyproject.toml").read_text(encoding="utf-8")
         m = re.search(r'version\s*=\s*"([^"]+)"', content)
         assert m, "pyproject.toml has no version"
         assert __version__ == m.group(1), (
@@ -75,7 +75,7 @@ class TestPublishReadiness:
         This guards against a clean-venv install where an undeclared dependency
         (e.g. PyYAML) would break features like --validate-output and config.
         """
-        content = Path("pyproject.toml").read_text()
+        content = Path("pyproject.toml").read_text(encoding="utf-8")
         deps = content.lower()
         # the runtime modules import these packages directly
         required = {

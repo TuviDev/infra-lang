@@ -277,7 +277,7 @@ class TestHelmBinaryIntegration:
         from infra.backends import get_backend
 
         prog = parse(
-            (Path(__file__).resolve().parents[1] / "examples" / "02_web_app.infra").read_text(),
+            (Path(__file__).resolve().parents[1] / "examples" / "02_web_app.infra").read_text(encoding="utf-8"),
             filename="02.infra",
         )
         res = get_backend("helm").compile(prog)

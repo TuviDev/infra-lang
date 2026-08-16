@@ -23,8 +23,8 @@ def diff_cmd(
     from infra.diff.engine import InfraDiff
 
     parser = _parser()
-    p1 = parser.parse(file1.read_text(), filename=file1.name)
-    p2 = parser.parse(file2.read_text(), filename=file2.name)
+    p1 = parser.parse(file1.read_text(encoding="utf-8"), filename=file1.name)
+    p2 = parser.parse(file2.read_text(encoding="utf-8"), filename=file2.name)
     result = InfraDiff().diff(p1, p2)
 
     if format == "json":

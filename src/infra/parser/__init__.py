@@ -23,7 +23,7 @@ _PRELUDE: Optional["n.Program"] = None
 def _load_prelude() -> "n.Program":
     global _PRELUDE
     if _PRELUDE is None:
-        source = PRELUDE_PATH.read_text()
+        source = PRELUDE_PATH.read_text(encoding="utf-8")
         _PRELUDE = _parser().parse(source, filename="<prelude>")
     return _PRELUDE
 
@@ -34,7 +34,7 @@ class Parser:
     def __init__(self, grammar_path: Optional[Path] = None) -> None:
         path = Path(grammar_path) if grammar_path else DEFAULT_GRAMMAR
         self._grammar_path = path
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             grammar = f.read()
         self._lark = Lark(
             grammar,
@@ -92,7 +92,7 @@ class Parser:
     def parse_file(self, path: Path) -> n.Program:
         """Read and parse a file, resolving its imports."""
         path = Path(path)
-        source = path.read_text()
+        source = path.read_text(encoding="utf-8")
         program = self.parse(source, filename=path.name)
         try:
             from infra.resolver.imports import ImportResolver
@@ -113,7 +113,7 @@ class Parser:
     def parse_expression(self, source: str, filename: str = "<string>") -> n.Expression:
         """Parse a standalone expression (used by the REPL)."""
         parser = Lark(
-            self._grammar_path.read_text(),
+            self._grammar_path.read_text(encoding="utf-8"),
             parser="lalr",
             propagate_positions=True,
             start="expression",

@@ -15,7 +15,7 @@ TUTORIAL = Path("docs/tutorial.md")
 
 
 def _infra_blocks() -> list[str]:
-    content = TUTORIAL.read_text()
+    content = TUTORIAL.read_text(encoding="utf-8")
     return re.findall(r"```infra\n(.*?)```", content, re.DOTALL)
 
 
@@ -37,7 +37,7 @@ class TestTutorialBlocks:
                 ) from exc
 
     def test_tutorial_covers_required_lessons(self):
-        content = TUTORIAL.read_text()
+        content = TUTORIAL.read_text(encoding="utf-8")
         for heading in [
             "Installation",
             "Lesson 1: Your first service",

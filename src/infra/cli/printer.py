@@ -473,6 +473,6 @@ def format_source(source: str, indent: int = 4) -> str:
 
 def format_file(path: Path, indent: int = 4):
     """Return (formatted_source, changed: bool)."""
-    source = Path(path).read_text()
+    source = Path(path).read_text(encoding="utf-8")
     formatted = format_source(source, indent)
     return formatted, (formatted != source)

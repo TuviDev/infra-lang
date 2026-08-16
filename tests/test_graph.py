@@ -90,4 +90,4 @@ class TestGraphOutput:
         )
         assert r.exit_code == 0
         assert out.exists()
-        assert "digraph" in out.read_text()
+        assert "digraph" in out.read_text(encoding="utf-8")

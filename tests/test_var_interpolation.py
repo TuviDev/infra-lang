@@ -86,7 +86,7 @@ class TestVarCLI:
         out = tmp_path / "out"
         r = runner.invoke(app, ["compile", str(f), "--var", "ENV=staging", "--output", str(out)])
         assert r.exit_code == 0, r.output
-        content = "\n".join(p.read_text() for p in out.rglob("*.yaml"))
+        content = "\n".join(p.read_text(encoding="utf-8") for p in out.rglob("*.yaml"))
         assert "app:staging" in content
 
     def test_multiple_vars_cli(self, tmp_path):
@@ -98,7 +98,7 @@ class TestVarCLI:
             "--output", str(out),
         ])
         assert r.exit_code == 0
-        content = "\n".join(p.read_text() for p in out.rglob("*.yaml"))
+        content = "\n".join(p.read_text(encoding="utf-8") for p in out.rglob("*.yaml"))
         assert "acme/api:v3.0" in content
 
     def test_var_without_equals_ignored(self, tmp_path):

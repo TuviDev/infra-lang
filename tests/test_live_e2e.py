@@ -76,7 +76,7 @@ def _run(cmd, *, timeout, input: str | None = None, check=True):
 
 def _compile_k8s(infra_path: Path) -> str:
     """Compile an example to a single Kubernetes YAML string."""
-    program = parse(infra_path.read_text(), filename=infra_path.name)
+    program = parse(infra_path.read_text(encoding="utf-8"), filename=infra_path.name)
     result = KubernetesBackend().compile(program)
     return "\n".join(result.files.values())
 
