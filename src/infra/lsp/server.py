@@ -12,11 +12,16 @@ Protocol: JSON-RPC over stdio (standard LSP transport).
 
 from __future__ import annotations
 
+from pathlib import Path
+from typing import Optional
+
 from lsprotocol.types import (
+    INITIALIZED,
     TEXT_DOCUMENT_CODE_ACTION,
     TEXT_DOCUMENT_COMPLETION,
     TEXT_DOCUMENT_DEFINITION,
     TEXT_DOCUMENT_DID_CHANGE,
+    TEXT_DOCUMENT_DID_CLOSE,
     TEXT_DOCUMENT_DID_OPEN,
     TEXT_DOCUMENT_DID_SAVE,
     TEXT_DOCUMENT_DOCUMENT_SYMBOL,
@@ -25,6 +30,7 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_PREPARE_RENAME,
     TEXT_DOCUMENT_REFERENCES,
     TEXT_DOCUMENT_RENAME,
+    WORKSPACE_SYMBOL,
     CodeActionParams,
     CompletionList,
     CompletionParams,
@@ -32,12 +38,14 @@ from lsprotocol.types import (
     Diagnostic,
     DiagnosticSeverity,
     DidChangeTextDocumentParams,
+    DidCloseTextDocumentParams,
     DidOpenTextDocumentParams,
     DidSaveTextDocumentParams,
     DocumentFormattingParams,
     DocumentSymbolParams,
     Hover,
     HoverParams,
+    InitializedParams,
     Location,
     MarkupContent,
     MarkupKind,
@@ -47,8 +55,11 @@ from lsprotocol.types import (
     Range,
     ReferenceParams,
     RenameParams,
+    SymbolKind,
     TextEdit,
     WorkspaceEdit,
+    WorkspaceSymbol,
+    WorkspaceSymbolParams,
 )
 from pygls.server import LanguageServer
 
@@ -63,13 +74,44 @@ from ..lsp.symbols import (
     symbol_at,
     symbol_range,
 )
-from ..lsp.workspace_symbols import all_references, build_index, resolve_location
+from ..lsp.workspace_index import (
+    KIND_TO_SYMBOL_KIND,
+    WorkspaceIndex,
+    find_references_in_sources,
+    iterable_symbol_locations,
+)
+from ..lsp.workspace_symbols import build_index, resolve_location
 from ..parser.ast_nodes import SourceLocation
 
 server = LanguageServer(
     name="infra-lang",
     version="0.1.0",
 )
+
+#: Project-wide on-disk symbol index. Scanned after initialization; consulted by
+#: definition / references / workspace-symbol handlers for files not open in the
+#: editor. Guarded internally by a lock; safe to touch from the event loop.
+workspace_index = WorkspaceIndex()
+
+
+def _shutdown_release_index() -> None:
+    """Release the on-disk index when the server shuts down."""
+    workspace_index.clear()
+
+
+# Wrap pygls's own shutdown so the in-memory index is freed on exit, without
+# interfering with pygls's protocol-level shutdown handling.
+_orig_shutdown = server.shutdown
+
+
+def _shutdown_with_cleanup() -> None:
+    try:
+        _shutdown_release_index()
+    finally:
+        _orig_shutdown()
+
+
+server.shutdown = _shutdown_with_cleanup  # type: ignore[method-assign]
 
 _ERR_SEC = {"SEC001", "SEC002", "SEC004", "SEC007"}
 
@@ -175,27 +217,94 @@ def _publish(ls: LanguageServer, uri: str, source: str) -> None:
 
 
 def _workspace_documents(ls: LanguageServer) -> dict[str, str]:
-    """Return ``{uri: source}`` for every document known to the workspace.
+    """Return ``{uri: source}`` for every known document.
 
-    Returns an empty dict when the workspace exposes no document store (which
-    keeps the single-document handlers backward compatible in unit tests).
+    Merges the on-disk index with documents open in the editor; the open
+    (live) version wins over the stale on-disk copy. Returns an empty dict when
+    the workspace exposes no document store (keeps the single-document handlers
+    backward compatible in unit tests).
     """
-    sources: dict[str, str] = {}
+    sources: dict[str, str] = dict(workspace_index.sources())
     try:
         docs = ls.workspace.documents
     except Exception:  # noqa: BLE001 - defensive, missing attribute
         docs = {}
-    if not isinstance(docs, dict):
-        return sources
-    for uri, doc in docs.items():
-        src = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
-        sources[uri] = src
+    if isinstance(docs, dict):
+        for uri, doc in docs.items():
+            src = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+            sources[uri] = src  # open document wins
     return sources
 
 
 def _doc_source(ls: LanguageServer, uri: str) -> str:
-    doc = ls.workspace.get_text_document(uri)
-    return doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+    try:
+        doc = ls.workspace.get_text_document(uri)
+        return doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+    except Exception:  # noqa: BLE001 - fall back to the on-disk index
+        return workspace_index.sources().get(uri, "")
+
+
+def _root_dir(ls: LanguageServer) -> Optional[Path]:
+    """Return the workspace root directory as a Path, if known."""
+    try:
+        root = ls.workspace.root_uri or ""
+        if root:
+            from urllib.parse import unquote, urlparse
+
+            parsed = urlparse(root)
+            return Path(unquote(parsed.path))
+        root = ls.workspace.root_path
+        if root:
+            return Path(root)
+    except Exception:  # noqa: BLE001 - defensive
+        return None
+    return None
+
+
+@server.feature(INITIALIZED)
+def initialized(ls: LanguageServer, params: InitializedParams) -> None:
+    """Kick off a non-blocking scan of the workspace root for *.infra files.
+
+    Runs on the server's thread pool so disk I/O never blocks the event loop.
+    Any failure is swallowed (the server simply serves the open documents).
+    """
+    root = _root_dir(ls)
+    if root is None:
+        return
+    try:
+        executor = ls.thread_pool_executor
+    except Exception:  # noqa: BLE001
+        executor = None
+    scan = lambda: workspace_index.scan_directory(root)  # noqa: E731
+    if executor is not None:
+        executor.submit(scan)
+    else:
+        try:
+            scan()
+        except Exception:  # noqa: BLE001 - scanning must never raise
+            pass
+
+
+@server.feature(WORKSPACE_SYMBOL)
+def workspace_symbol(
+    ls: LanguageServer,
+    params: WorkspaceSymbolParams,
+) -> list:
+    """Return every top-level resource in the whole project (Ctrl+T)."""
+    query = (params.query or "").lower()
+    symbols = workspace_index.all_symbols()
+    if query:
+        symbols = [s for s in symbols if query in s.name.lower()]
+    symbols.sort(key=lambda s: (s.kind, s.name))
+    return [
+        WorkspaceSymbol(
+            name=s.name,
+            kind=getattr(SymbolKind, KIND_TO_SYMBOL_KIND.get(s.kind, "Class")),
+            location=iterable_symbol_locations([s])[0],
+            container_name=s.uri,
+        )
+        for s in symbols
+    ]
 
 
 @server.feature(TEXT_DOCUMENT_DID_OPEN)
@@ -222,6 +331,29 @@ def did_save(
 ) -> None:
     source = params.text or ""
     _publish(ls, params.text_document.uri, source)
+    if params.text:  # keep the on-disk index in sync with the saved file
+        workspace_index.add_file(params.text_document.uri, params.text)
+
+
+@server.feature(TEXT_DOCUMENT_DID_CLOSE)
+def did_close(ls: LanguageServer, params: DidCloseTextDocumentParams) -> None:
+    """On close, restore the file's on-disk state into the index.
+
+    The editor's in-memory copy is gone, so re-read the disk version so
+    cross-file navigation stays correct for the saved content.
+    """
+    uri = params.text_document.uri
+    try:
+        from pathlib import Path
+        from urllib.parse import unquote, urlparse
+
+        path = Path(unquote(urlparse(uri).path))
+        if path.exists():
+            workspace_index.add_file(uri, path.read_text(encoding="utf-8"))
+        else:
+            workspace_index.remove_file(uri)
+    except Exception:  # noqa: BLE001 - closing must never raise
+        workspace_index.remove_file(uri)
 
 
 @server.feature(TEXT_DOCUMENT_COMPLETION)
@@ -302,7 +434,22 @@ def references(
     if not docs:
         # single-document fallback preserves the original behaviour
         return reference_ranges(source, name)
-    return all_references(build_index(docs), docs, name)
+    # definition sites (so "find references" includes the declaration),
+    # derived from the merged (disk + open) source map.
+    locations: list = []
+    for defn in build_index(docs).get(name, []):
+        locations.append(
+            Location(
+                uri=defn.uri,
+                range=Range(
+                    start=Position(line=defn.line, character=0),
+                    end=Position(line=defn.line, character=len(defn.name)),
+                ),
+            )
+        )
+    # all reference occurrences, with a fast "name present?" pre-filter
+    locations.extend(find_references_in_sources(docs, name))
+    return locations
 
 
 @server.feature(TEXT_DOCUMENT_PREPARE_RENAME)

@@ -14,17 +14,41 @@
   Completion is heuristic and works even on incomplete / malformed input
   while you type.
 - **Document symbols**: an outline of all top-level blocks (Ctrl+Shift+O).
+- **Workspace symbols**: list/search every top-level resource in the whole
+  project (Ctrl+T in VS Code). Results are grouped by resource type.
 - **Go to definition**: jump from a reference (`depends: [db]`) to the block
-  definition, or from a block name to its definition line. **Cross-file**: if
-  the referenced block is defined in another open `.infra` document (e.g. via
-  `import`), it resolves to that file.
-- **Find references**: locate all references to a symbol across the open
-  workspace, not just the current file.
+  definition, or from a block name to its definition line. **Cross-file
+  (whole project)**: on startup the server scans the workspace root for
+  `*.infra` files and indexes their blocks, so definition resolves across any
+  file in the project — open in the editor or not.
+- **Find references**: locate all references to a symbol across the whole
+  project, not just the current file.
 - **Rename symbol**: rename a block and all of its references in one action
   (F2 in VS Code). Rename applies to the current document and any other open
   document that references the symbol. Comments are left untouched. A
   `prepareRename` step validates the position and pre-fills the current name
   in the rename box.
+
+## Whole-project indexing
+
+On the `initialized` notification the server scans the workspace root
+recursively for `*.infra` files and builds a **WorkspaceIndex** (block name →
+file + line). Design:
+
+- **Non-blocking**: the scan runs on pygls's thread pool, never on the event
+  loop; the server keeps serving the editor meanwhile.
+- **Tolerant**: files with syntax errors or unreadable files are skipped
+  silently; a bad file never breaks navigation for the rest of the project.
+- **Bounded**: caps indexing at 1000 files and 1 MB per file, so a huge
+  workspace cannot exhaust memory. Files in hidden directories (`.git`,
+  `.venv`, …) are ignored.
+- **Live**: `didSave` refreshes the index for the saved file; `didClose`
+  restores the on-disk version. The in-memory index is freed on shutdown.
+- The current editor buffers always take precedence over the on-disk copy.
+
+## Not yet supported
+- Cross-file rename across files on disk that are not open in the editor
+  (rename applies to documents currently open in the workspace).
 - **Formatting**: `infra fmt` formatting available as document formatting
   (format-on-save via the extension).
 - **Code actions (quick fixes)**: safe, automatic fixes for common findings —
