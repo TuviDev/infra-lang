@@ -1,3 +1,9 @@
+# Example 04 — A CI/CD pipeline
+# A pipeline compiles to a GitHub Actions workflow (and dependabot config).
+# Note: this file targets GitHub Actions only and produces no Kubernetes
+# output — that is expected.
+#   infra compile examples/04_cicd_pipeline.infra --target github
+
 pipeline main-ci {
     trigger {
       branches: [main, develop]

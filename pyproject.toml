@@ -5,15 +5,15 @@ build-backend = "hatchling.build"
 [project]
 name = "infra-lang"
 version = "0.1.0"
-description = "Infrastructure as Code DSL — compile to Kubernetes, Docker Compose, Terraform, GitHub Actions"
+description = "Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
 keywords = [
-    "infrastructure", "devops", "dsl",
-    "kubernetes", "terraform", "docker",
-    "iac", "platform-engineering",
+    "infrastructure", "kubernetes", "docker-compose", "github-actions",
+    "terraform", "devops", "dsl", "iac", "infrastructure-as-code",
+    "platform-engineering", "sre",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -21,11 +21,15 @@ classifiers = [
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Software Development :: Build Tools",
     "Topic :: Software Development :: Compilers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: System :: Systems Administration",
     "Typing :: Typed",
 ]
@@ -56,10 +60,11 @@ dev = [
 infra = "infra.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/infra-lang/infra-lang"
-Repository = "https://github.com/infra-lang/infra-lang"
-Documentation = "https://infra-lang.readthedocs.io"
-"Bug Tracker" = "https://github.com/infra-lang/infra-lang/issues"
+Homepage = "https://github.com/kakukpl/infra-lang"
+Repository = "https://github.com/kakukpl/infra-lang"
+Documentation = "https://github.com/kakukpl/infra-lang#readme"
+"Bug Tracker" = "https://github.com/kakukpl/infra-lang/issues"
+Changelog = "https://github.com/kakukpl/infra-lang/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/infra"]

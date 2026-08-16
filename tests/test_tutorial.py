@@ -39,11 +39,11 @@ class TestTutorialBlocks:
     def test_tutorial_covers_required_lessons(self):
         content = TUTORIAL.read_text()
         for heading in [
-            "Instalacja",
-            "Lekcja 1: Pierwszy serwis",
-            "Lekcja 2: Baza i sekrety",
-            "Lekcja 3: Reliability hints",
-            "Lekcja 4: Multi-environment",
-            "Lekcja 5: CI/CD Pipeline",
+            "Installation",
+            "Lesson 1: Your first service",
+            "Lesson 2: Databases and secrets",
+            "Lesson 3: Reliability hints",
+            "Lesson 4: Multiple environments",
+            "Lesson 5: A CI/CD pipeline",
         ]:
             assert heading in content, f"Missing section: {heading}"
