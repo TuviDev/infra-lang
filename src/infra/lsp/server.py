@@ -344,10 +344,15 @@ def did_close(ls: LanguageServer, params: DidCloseTextDocumentParams) -> None:
     """
     uri = params.text_document.uri
     try:
-        from pathlib import Path
         from urllib.parse import unquote, urlparse
+        from urllib.request import url2pathname
 
-        path = Path(unquote(urlparse(uri).path))
+        # url2pathname converts a file:// path to the native filesystem path on
+        # every platform (on Windows it handles the leading-slash drive form
+        # ``/C:/...`` and UNC paths; on POSIX it is just unquote). Without it,
+        # Windows would see ``Path("/C:/...")`` which never exists, so the
+        # on-disk file would be wrongly dropped from the index on close.
+        path = Path(url2pathname(unquote(urlparse(uri).path)))
         if path.exists():
             workspace_index.add_file(uri, path.read_text(encoding="utf-8"))
         else:
