@@ -39,6 +39,24 @@ release.**
 > If you already have a `v0.1.0-private` tag from earlier, either delete it or
 > create `v0.1.0` as the public release. Prefer a clean `v0.1.0`.
 
+## 3b. Enable GitHub Pages (deploy the hosted docs)
+
+The docs site is built with MkDocs Material and deployed automatically from
+`.github/workflows/docs.yml` (on every push touching `docs/`/`mkdocs.yml`).
+
+1. GitHub → **Settings** → **Pages**.
+2. Under **Build and deployment** → **Source**, select **GitHub Actions**.
+3. **Save**.
+4. Push to `main` (or run the `Deploy Docs` workflow manually via
+   **Actions → Deploy Docs → Run workflow**). The first deployment triggers.
+5. Verify the deployment: **Actions → Deploy Docs** shows a green run, and the
+   site is live at **https://kakukpl.github.io/infra-lang/**.
+6. The workflow sets the Pages environment URL automatically.
+
+> The Pages environment must be allowed. If the repo is still private, GitHub
+> Pages is not served publicly until the repo is made public — you can still
+> build locally with `mkdocs build --strict`.
+
 ## 4. Screenshots (what to show)
 
 Capture, then add to the README's quick-demo section or a `docs/images/` dir:
@@ -85,7 +103,7 @@ Drafts live in `docs/promotion/`:
 
 **Timing suggestion (stagger, don't dump all at once):**
 
-- **Day 0:** Make repo public + GitHub Release.
+- **Day 0:** Make repo public + GitHub Release + enable GitHub Pages (§3b).
 - **Day 0–1:** HN Show HN post.
 - **Day 1–2:** Reddit (r/devops, then r/kubernetes if well received).
 - **Day 2–3:** Dev.to article.

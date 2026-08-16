@@ -1,0 +1,91 @@
+site_name: Infra Lang
+site_description: "Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions"
+site_url: https://kakukpl.github.io/infra-lang/
+repo_url: https://github.com/kakukpl/infra-lang
+repo_name: kakukpl/infra-lang
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 Infra Lang contributors &mdash; MIT License
+
+theme:
+  name: material
+  language: en
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+
+exclude_docs: |
+  benchmark_baseline.md
+  performance_budgets.md
+  promotion/*
+
+plugins:
+  - search:
+      lang:
+        - en
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/kakukpl/infra-lang
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Quickstart: quickstart.md
+      - Tutorial: tutorial.md
+  - Language:
+      - Language Spec: language_spec.md
+      - Design Decisions: language_decisions.md
+  - Backends:
+      - Support Matrix: support_matrix.md
+  - LSP & Editor:
+      - LSP Server: lsp.md
+      - VS Code Setup: vscode_setup.md
+  - Reference:
+      - Troubleshooting: troubleshooting.md
+      - Versioning: versioning.md
+      - Feedback Policy: feedback_policy.md
+      - Known Limitations: known_limitations.md
+  - Project:
+      - Roadmap: roadmap_v0.2.0.md
+      - Release Notes: release_notes_v0.1.0.md
+      - Changelog: https://github.com/kakukpl/infra-lang/blob/main/CHANGELOG.md

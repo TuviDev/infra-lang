@@ -3,6 +3,7 @@
 **Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions.**
 
 [![CI](https://img.shields.io/github/actions/workflow/status/kakukpl/infra-lang/ci.yml?branch=main)](https://github.com/kakukpl/infra-lang/actions)
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://kakukpl.github.io/infra-lang/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 
@@ -141,7 +142,9 @@ infra --help
 
 ## Getting started
 
-The fastest path is the [5-minute quickstart](docs/quickstart.md). In short:
+Full documentation is hosted at **[kakukpl.github.io/infra-lang](https://kakukpl.github.io/infra-lang/)**.
+
+The fastest path is the [5-minute quickstart](https://kakukpl.github.io/infra-lang/quickstart/). In short:
 
 1. **Write** a `.infra` file (see the demo above).
 2. **Validate** it: `infra validate app.infra`
@@ -149,8 +152,8 @@ The fastest path is the [5-minute quickstart](docs/quickstart.md). In short:
 4. **Inspect** the output in `infra-out/`, or preview with `--dry-run`.
 5. **Iterate** with `infra fmt app.infra` and `infra diff app.infra app2.infra`.
 
-There is also a [guided tutorial](docs/tutorial.md) and commented
-[examples](examples/).
+There is also a [guided tutorial](https://kakukpl.github.io/infra-lang/tutorial/) and
+commented [examples](examples/).
 
 ## Supported targets
 
@@ -163,17 +166,20 @@ There is also a [guided tutorial](docs/tutorial.md) and commented
 
 Not every resource type maps to every target — for example, `pipeline` compiles
 only to GitHub Actions, and `cluster` only to Terraform. See the
-[support matrix](docs/support_matrix.md) for the full mapping.
+[support matrix](https://kakukpl.github.io/infra-lang/support_matrix/) for the
+full mapping.
 
 ## Documentation
 
+The documentation is hosted at **[kakukpl.github.io/infra-lang](https://kakukpl.github.io/infra-lang/)**.
+
 | Doc | What it covers |
 |-----|----------------|
-| [Quickstart](docs/quickstart.md) | 5-minute first run |
-| [Language spec](docs/language_spec.md) | Full DSL reference (blocks, fields, error codes) |
-| [Support matrix](docs/support_matrix.md) | Which resources map to which targets |
-| [LSP / editor support](docs/lsp.md) | VS Code extension and language server |
-| [Known limitations](docs/known_limitations.md) | Honest boundaries of the project |
+| [Quickstart](https://kakukpl.github.io/infra-lang/quickstart/) | 5-minute first run |
+| [Language spec](https://kakukpl.github.io/infra-lang/language_spec/) | Full DSL reference (blocks, fields, error codes) |
+| [Support matrix](https://kakukpl.github.io/infra-lang/support_matrix/) | Which resources map to which targets |
+| [LSP / editor support](https://kakukpl.github.io/infra-lang/lsp/) | VS Code extension and language server |
+| [Known limitations](https://kakukpl.github.io/infra-lang/known_limitations/) | Honest boundaries of the project |
 
 ## Contributing
 

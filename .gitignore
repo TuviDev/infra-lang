@@ -36,5 +36,5 @@ infra-out/
 vscode-infra-lang/node_modules/
 vscode-infra-lang/out/
 
-# Local E2E tools
-.tools/
+# MkDocs build output
+site/
