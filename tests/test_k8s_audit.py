@@ -303,6 +303,16 @@ class TestSecretOutput:
         s = get_kind(compile_docs('secret db { key: from env "KEY" }'), "Secret")
         assert s.get("type") == "Opaque"
 
+    def test_secret_has_managed_by_label(self):
+        # Regression: standalone Secrets lacked the managed-by label while
+        # every other resource had it (inconsistent labels across resources).
+        s = get_kind(compile_docs('secret db { key: from env "KEY" }'), "Secret")
+        assert s["metadata"]["labels"]["app.kubernetes.io/managed-by"] == "infra-lang"
+
+    def test_configmap_has_managed_by_label(self):
+        s = get_kind(compile_docs('config app { LOG_LEVEL: "info" }'), "ConfigMap")
+        assert s["metadata"]["labels"]["app.kubernetes.io/managed-by"] == "infra-lang"
+
 
 class TestResourceQuotaOutput:
     def test_quota_apiVersion_v1(self):

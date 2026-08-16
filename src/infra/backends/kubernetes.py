@@ -1026,7 +1026,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         return {
             "apiVersion": "v1",
             "kind": "Secret",
-            "metadata": {"name": node.name},
+            "metadata": {"name": node.name, "labels": self._labels(node.name)},
             "data": data,
             "type": "Opaque",
         }
@@ -1041,7 +1041,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         return {
             "apiVersion": "v1",
             "kind": "ConfigMap",
-            "metadata": {"name": node.name},
+            "metadata": {"name": node.name, "labels": self._labels(node.name)},
             "data": data,
         }
 

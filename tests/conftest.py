@@ -81,3 +81,20 @@ def infra_file(tmp_path):
         return f
 
     return _create
+
+
+# --------------------------------------------------------------------------- #
+# Live E2E tool availability (shared with tests/test_live_e2e.py)
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture(scope="session")
+def live_e2e_tools() -> str | None:
+    """Return the name of the first missing live-E2E tool, or None if ready.
+
+    Cached for the whole session. Tests should ``pytest.skip`` when this
+    returns a tool name.
+    """
+    from tests.tools import require_tools
+
+    return require_tools(("docker", "kind", "kubectl", "kubeconform"))

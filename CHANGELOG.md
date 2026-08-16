@@ -4,6 +4,16 @@ All notable changes to Infra Lang are documented here.
 
 ## [0.2.0] - in development
 
+### Added
+- **Live Kubernetes E2E test suite** (`tests/test_live_e2e.py`, marker
+  `live_e2e`): compiles `examples/*.infra` and really applies them to a `kind`
+  cluster with `kubectl apply`, guarding Secret base64, multi-port Service
+  names and consistent `managed-by` labels. Automatically skipped when
+  Docker/kind/kubectl/kubeconform are missing; cluster + resources always
+  cleaned up. Run with `pytest tests -m live_e2e`.
+- `tests/tools.py`: fast, session-cached detection of external E2E tools.
+- `scripts/setup_e2e_tools.py`: helper to fetch kind/kubectl/kubeconform.
+
 ### Fixed
 - **Watch mode (type safety)**: `on_modified` passed watchdog's `bytes | str`
   path directly to `Path()`, which mypy flagged; paths are now decoded to `str`
