@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from infra.backends._images import CACHE_IMAGES as _CACHE_IMAGES
+from infra.backends._images import QUEUE_IMAGES as _QUEUE_IMAGES
 from infra.backends.base import (
     GENERATED_HEADER,
     Backend,
@@ -36,12 +38,7 @@ _DB_IMAGES = {
     "redis": "redis",
     "mariadb": "mariadb",
 }
-_CACHE_IMAGES = {"redis": "redis", "valkey": "valkey", "memcached": "memcached"}
-_QUEUE_IMAGES = {
-    "rabbitmq": "rabbitmq:3-management",
-    "kafka": "bitnami/kafka",
-    "nats": "nats",
-}
+
 
 
 class KubernetesBackend(Backend, BaseYAMLBackend):

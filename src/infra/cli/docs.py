@@ -27,7 +27,7 @@ def docs(
             loc = getattr(getattr(stmt, "location", None), "file", "")
             if loc == "<prelude>":
                 continue  # built-in constants injected into every program
-            lines.append(_D._describe(stmt))  # type: ignore[no-untyped-call]
+            lines.append(_D._describe(stmt))
     text = "\n".join(lines) + "\n"
     if output:
         Path(output).write_text(text)
@@ -38,7 +38,7 @@ def docs(
 
 class _D:
     @staticmethod
-    def _describe(stmt):  # type: ignore[no-untyped-def]
+    def _describe(stmt: n.ASTNode) -> str:
         if isinstance(stmt, n.ServiceDef):
             return f"- **service** `{stmt.name}` (image: {stmt.image})"
         if isinstance(stmt, n.DatabaseDef):

@@ -472,3 +472,56 @@ class TestMainVerboseQuiet:
         result = CliRunner().invoke(app, ["--version"])
         assert result.exit_code == 0
         assert __version__ in result.output
+
+
+class TestConcurrentParseLocations:
+    """Regression: the cached parser must not leak filenames between threads.
+
+    The old implementation stored the "current file" in a module-global, so a
+    concurrent parse of two files could attach the wrong filename to a
+    SourceLocation. Locations are now kept per-thread.
+    """
+
+    def test_concurrent_parse_keeps_per_file_locations(self):
+        from infra import parse
+        from infra.parser.ast_nodes import ServiceDef
+
+        # Build the cached parser singleton single-threaded first, so the
+        # threads below only exercise concurrent *use* of the shared parser
+        # (not a racy first-time grammar build).
+        parse('service warm { image: "x" }', filename="warm.infra")
+
+        src_a = 'service api_a { image: "x" }\n'
+        src_b = 'service api_b { image: "y" }\n'
+        results: dict[str, str] = {}
+        errors: list = []
+
+        def run(name: str, src: str) -> None:
+            try:
+                prog = parse(src, filename=name)
+                svc = next(
+                    s for s in prog.statements if isinstance(s, ServiceDef)
+                )
+                results[name] = svc.location.file
+            except Exception as exc:  # noqa: BLE001
+                errors.append((name, exc))
+
+        threads = [
+            threading.Thread(target=run, args=(f"f{i}_a.infra", src_a))
+            for i in range(20)
+        ] + [
+            threading.Thread(target=run, args=(f"f{i}_b.infra", src_b))
+            for i in range(20)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert not errors, f"parse errors: {errors}"
+        assert len(results) == 40
+        for name, file_ in results.items():
+            assert file_ == name, (
+                f"location.file {file_!r} leaked from another thread; "
+                f"expected {name!r}"
+            )

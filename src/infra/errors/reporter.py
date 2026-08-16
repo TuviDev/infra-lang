@@ -6,7 +6,10 @@ Uses ``rich`` when available and falls back to plain text.
 from __future__ import annotations
 
 from difflib import get_close_matches
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
+
+if TYPE_CHECKING:
+    from infra.analyzer.validator import ValidationResult
 
 from infra.errors.exceptions import (
     InfraCompileError,
@@ -92,7 +95,12 @@ class ErrorReporter:
         )
 
     # ------------------------------------------------------------------ #
-    def _validation(self, e, source: str, is_error: bool) -> str:  # type: ignore[no-untyped-def]
+    def _validation(
+        self,
+        e: ValidationError | ValidationWarning,
+        source: str,
+        is_error: bool,
+    ) -> str:
         kind = "error" if is_error else "warning"
         code = e.code
         line = e.location.line if e.location else None
@@ -142,7 +150,7 @@ class ErrorReporter:
             rendered.append(f"... and {len(errors) - max} more error(s)")
         return "\n\n".join(rendered)
 
-    def format_as_json(self, result) -> str:  # type: ignore[no-untyped-def]
+    def format_as_json(self, result: "ValidationResult") -> str:
         """Serialize a ValidationResult to a JSON string."""
         import json
 
