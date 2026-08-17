@@ -338,3 +338,87 @@ class TestResourceQuotaOutput:
         assert "requests.cpu" in hard
         assert "limits.memory" in hard
         assert hard["pods"] == "100"
+
+
+class TestProbesAndSecurity:
+    def test_readiness_probe_http(self):
+        c = _container(compile_docs('service api { image: "x" health http("/ready") }'))
+        assert c["readinessProbe"]["httpGet"]["path"] == "/ready"
+
+    def test_liveness_probe_http_path(self):
+        c = _container(compile_docs('service api { image: "x" health http("/live") }'))
+        assert c["livenessProbe"]["httpGet"]["path"] == "/live"
+
+    def test_security_context_privileged_false_absent(self):
+        c = _container(compile_docs('service api { image: "x" security { user: 1000 } }'))
+        # no privileged by default
+        assert "privileged" not in str(c.get("securityContext") or {})
+
+    def test_security_context_user_and_group(self):
+        c = _container(compile_docs('service api { image: "x" security { user: 1000, group: 2000 } }'))
+        sc = c["securityContext"]
+        assert sc["runAsUser"] == 1000
+        assert sc["runAsGroup"] == 2000
+
+    def test_volume_mount_in_container(self):
+        c = _container(compile_docs('service api { image: "x" volumes { data: { mountPath: "/var/data" } } }'))
+        mounts = c.get("volumeMounts", [])
+        assert any(m.get("mountPath") == "/var/data" for m in mounts)
+
+
+class TestResourcesAndIngress:
+    def test_resources_limits_mapped(self):
+        c = _container(compile_docs(
+            'service api { image: "x" resources { '
+            'requests { cpu: 100m, memory: 128Mi } limits { cpu: 1000m, memory: 512Mi } } }'
+        ))
+        res = c["resources"]
+        assert res["requests"]["cpu"] == "100m"
+        assert res["limits"]["memory"] == "512Mi"
+
+    def test_ingress_port_uses_service_port(self):
+        ing = get_kind(compile_docs(
+            'service api { image: "x" port 8080 ingress { host: "api.example.com" } }'
+        ), "Ingress")
+        backend = ing["spec"]["rules"][0]["http"]["paths"][0]["backend"]["service"]["port"]
+        assert backend["number"] == 8080
+
+    def test_ingress_tls_secret_name(self):
+        ing = get_kind(compile_docs(
+            'service api { image: "x" port 80 ingress { host: "h.com" tls: true } }'
+        ), "Ingress")
+        assert ing["spec"]["tls"][0]["hosts"] == ["h.com"]
+        assert "tls" in ing["spec"]["tls"][0]["secretName"]
+
+    def test_annotations_propagated(self):
+        dep = get_kind(compile_docs(
+            'service api { image: "x" annotations: { team: "platform" } }'
+        ), "Deployment")
+        ann = dep["metadata"].get("annotations") or {}
+        assert ann.get("team") == "platform"
+
+    def test_labels_propagated(self):
+        dep = get_kind(compile_docs(
+            'service api { image: "x" labels: { tier: "web" } }'
+        ), "Deployment")
+        assert dep["metadata"]["labels"]["tier"] == "web"
+
+    def test_container_has_command(self):
+        c = _container(compile_docs('service api { image: "x" command: ["run"] }'))
+        assert c["command"] == ["run"]
+
+
+class TestAutoscaleAndDisruption:
+    def test_hpa_memory_metric(self):
+        hpa = get_kind(compile_docs(
+            'service api { image: "x" resources { limits { memory: 512Mi } } '
+            'autoscale { min: 2, max: 5, target_memory: 70 } }'
+        ), "HorizontalPodAutoscaler")
+        metrics = hpa["spec"]["metrics"]
+        assert any(m.get("type") == "Resource" for m in metrics)
+
+    def test_disruption_max_unavailable(self):
+        pdb = get_kind(compile_docs(
+            'service api { image: "x" replicas: 3 disruption { max_unavailable: 1 } }'
+        ), "PodDisruptionBudget")
+        assert pdb["spec"]["maxUnavailable"] == 1
