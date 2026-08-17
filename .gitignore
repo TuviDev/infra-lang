@@ -39,3 +39,7 @@ vscode-infra-lang/out/
 # MkDocs build output
 site/
 .mutmut-cache/
+
+# Local E2E tools
+.tools/
+
