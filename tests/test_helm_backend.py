@@ -353,3 +353,52 @@ class TestMoreStructure:
         assert "templates/deployment.yaml" in files
         assert "templates/statefulset.yaml" in files
         assert "templates/service.yaml" in files
+
+
+class TestHelmValueDefaults:
+    def test_database_storage_explicit(self):
+        vals = _yaml(_chart_files("database db { type: postgres storage: 50Gi }")["values.yaml"])
+        assert vals["service"]["db"]["storage"] == "50Gi"
+
+    def test_database_storage_size_fallback(self):
+        vals = _yaml(_chart_files("database db { type: postgres size: 25Gi }")["values.yaml"])
+        assert vals["service"]["db"]["storage"] == "25Gi"
+
+    def test_database_storage_default(self):
+        vals = _yaml(_chart_files("database db { type: postgres }")["values.yaml"])
+        assert vals["service"]["db"]["storage"] == "10Gi"
+
+    def test_split_image_registry_no_tag_defaults_latest(self):
+        vals = _yaml(_chart_files('service api { image: "gcr.io/my/repo" }')["values.yaml"])
+        img = vals["service"]["api"]["image"]
+        assert img["repository"] == "gcr.io/my/repo"
+        assert img["tag"] == "latest"
+
+    def test_split_image_tag_only(self):
+        vals = _yaml(_chart_files('service api { image: "nginx:2.0" }')["values.yaml"])
+        assert vals["service"]["api"]["image"]["repository"] == "nginx"
+        assert vals["service"]["api"]["image"]["tag"] == "2.0"
+
+    def test_health_default_path_when_missing(self):
+        vals = _yaml(_chart_files('service api { image: "x" }')["values.yaml"])
+        assert "health" not in vals["service"]["api"]
+
+    def test_database_version_empty_uses_latest(self):
+        vals = _yaml(_chart_files("database db { type: postgres }")["values.yaml"])
+        assert vals["service"]["db"]["version"] == ""
+
+
+class TestHelmServiceValues:
+    def test_build_only_service_image(self):
+        vals = _yaml(_chart_files('service api { build { context: "." } }')["values.yaml"])
+        img = vals["service"]["api"]["image"]
+        assert img["repository"] == "built-from-dockerfile"
+        assert img["tag"] == "latest"
+
+    def test_replicas_defaults_to_one(self):
+        vals = _yaml(_chart_files('service api { image: "x" }')["values.yaml"])
+        assert vals["service"]["api"]["replicas"] == 1
+
+    def test_service_type_clusterip_default(self):
+        vals = _yaml(_chart_files('service api { image: "x" }')["values.yaml"])
+        assert vals["service"]["api"]["serviceType"] == "ClusterIP"
