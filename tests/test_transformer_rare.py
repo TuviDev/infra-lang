@@ -525,3 +525,46 @@ class TestConcurrentParseLocations:
                 f"location.file {file_!r} leaked from another thread; "
                 f"expected {name!r}"
             )
+
+
+class TestModuleHelpers:
+    """Mutation-driven: module-level coercion helpers (_bool/_int/_lit/etc.)."""
+
+    def test_bool_literal_true(self):
+        from infra.parser.transformer import _bool
+        from infra.parser import ast_nodes as n
+        assert _bool(n.Literal(value=True)) is True
+
+    def test_bool_literal_false(self):
+        from infra.parser.transformer import _bool
+        from infra.parser import ast_nodes as n
+        assert _bool(n.Literal(value=False)) is False
+
+    def test_bool_identifier_true(self):
+        from infra.parser.transformer import _bool
+        from infra.parser import ast_nodes as n
+        assert _bool(n.Identifier(name="true")) is True
+
+    def test_bool_identifier_not_true(self):
+        from infra.parser.transformer import _bool
+        from infra.parser import ast_nodes as n
+        assert _bool(n.Identifier(name="false")) is False
+
+    def test_bool_plain_value(self):
+        from infra.parser.transformer import _bool
+        assert _bool(1) is True
+        assert _bool(0) is False
+
+    def test_int_list_from_list_node(self):
+        from infra.parser.transformer import _int_list
+        from infra.parser import ast_nodes as n
+        lst = n.List(items=[n.Literal(value=80), n.Literal(value=443)])
+        assert _int_list(lst) == (80, 443)
+
+    def test_int_list_from_tuple(self):
+        from infra.parser.transformer import _int_list
+        assert _int_list([1, 2, 3]) == (1, 2, 3)
+
+    def test_int_list_empty(self):
+        from infra.parser.transformer import _int_list
+        assert _int_list(None) == ()
