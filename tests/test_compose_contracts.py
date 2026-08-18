@@ -239,3 +239,23 @@ class TestEnvValDetail:
     def test_env_integer_literal(self):
         svc = _svc('service api { image: "x" env { N: 42 } }', "api")
         assert str(svc["environment"]["N"]) == "42"
+
+
+class TestConsolidatedFromAudit:
+    """Unique assertions carried over from the removed test_compose_audit."""
+
+    def test_single_service_port_8080(self):
+        svc = _svc('service api { image: "nginx:1.25" port: 8080 }', "api")
+        assert any("8080" in str(p) for p in svc.get("ports", []))
+
+    def test_db_top_level_volumes(self):
+        data, _ = _compose("database db { type: postgres storage: 5Gi }")
+        assert "volumes" in data
+
+    def test_compose_output_is_valid_yaml_dict(self):
+        result = _compose(
+            'service api { image: "nginx:1.25" }\ndatabase db { type: postgres }\ncache c { type: redis }'
+        )[1]
+        for name, content in result.files.items():
+            if name.endswith((".yml", ".yaml")):
+                assert isinstance(yaml.safe_load(content), dict)
