@@ -133,7 +133,7 @@ server.shutdown = _shutdown_with_cleanup  # type: ignore[method-assign]
 _ERR_SEC = {"SEC001", "SEC002", "SEC004", "SEC007"}
 
 #: Base URL for the hosted language-spec docs, used for diagnostic code links.
-_DOCS_BASE = "https://kakukpl.github.io/infra-lang/language_spec/"
+_DOCS_BASE = "https://TuviDev.github.io/infra-lang/language_spec/"
 
 #: Codes that indicate a duplicate definition -> point at the sibling(s).
 _DUPLICATE_CODES = {"E002", "E001"}

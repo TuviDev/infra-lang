@@ -23,7 +23,7 @@ target you need.
 
     The source code, issues, and discussions live on GitHub.
 
-    [:octicons-arrow-right-24: GitHub repo](https://github.com/kakukpl/infra-lang)
+    [:octicons-arrow-right-24: GitHub repo](https://github.com/TuviDev/infra-lang)
 
 </div>
 
@@ -144,7 +144,7 @@ GitHub Actions workflow.
 1. **Install**
 
     ```bash
-    pip install 'git+https://github.com/kakukpl/infra-lang.git'
+    pip install 'git+https://github.com/TuviDev/infra-lang.git'
     ```
 
 2. **Write a `.infra` file** (see the demo above).
@@ -160,15 +160,15 @@ GitHub Actions workflow.
 
 | Example | What it shows |
 |---------|---------------|
-| [01_hello_world](https://github.com/kakukpl/infra-lang/blob/main/examples/01_hello_world.infra) | The simplest single service |
-| [02_web_app](https://github.com/kakukpl/infra-lang/blob/main/examples/02_web_app.infra) | API + database + cache + secrets |
-| [03_microservices](https://github.com/kakukpl/infra-lang/blob/main/examples/03_microservices.infra) | Three services sharing a DB and a queue |
-| [04_cicd_pipeline](https://github.com/kakukpl/infra-lang/blob/main/examples/04_cicd_pipeline.infra) | A full CI/CD pipeline (GitHub Actions) |
+| [01_hello_world](https://github.com/TuviDev/infra-lang/blob/main/examples/01_hello_world.infra) | The simplest single service |
+| [02_web_app](https://github.com/TuviDev/infra-lang/blob/main/examples/02_web_app.infra) | API + database + cache + secrets |
+| [03_microservices](https://github.com/TuviDev/infra-lang/blob/main/examples/03_microservices.infra) | Three services sharing a DB and a queue |
+| [04_cicd_pipeline](https://github.com/TuviDev/infra-lang/blob/main/examples/04_cicd_pipeline.infra) | A full CI/CD pipeline (GitHub Actions) |
 
 ## Community
 
-- [GitHub repository](https://github.com/kakukpl/infra-lang)
-- [Report an issue](https://github.com/kakukpl/infra-lang/issues)
-- [Discussions](https://github.com/kakukpl/infra-lang/discussions)
+- [GitHub repository](https://github.com/TuviDev/infra-lang)
+- [Report an issue](https://github.com/TuviDev/infra-lang/issues)
+- [Discussions](https://github.com/TuviDev/infra-lang/discussions)
 
 <small>Infra Lang is inspired by the ideas behind Terraform, Score, and Pulumi.</small>

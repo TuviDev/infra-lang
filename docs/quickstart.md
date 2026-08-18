@@ -2,9 +2,9 @@
 
 ## Install
 ```bash
-pip install 'git+https://github.com/kakukpl/infra-lang.git'
+pip install 'git+https://github.com/TuviDev/infra-lang.git'
 # with the language server (recommended for VS Code):
-pip install 'git+https://github.com/kakukpl/infra-lang.git[lsp]'
+pip install 'git+https://github.com/TuviDev/infra-lang.git[lsp]'
 ```
 
 Verify: `infra --version`

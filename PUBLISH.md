@@ -89,7 +89,7 @@ The docs site is built with MkDocs Material and deployed automatically from
 4. Push to `main` (or run the `Deploy Docs` workflow manually via
    **Actions → Deploy Docs → Run workflow**). The first deployment triggers.
 5. Verify the deployment: **Actions → Deploy Docs** shows a green run, and the
-   site is live at **https://kakukpl.github.io/infra-lang/**.
+   site is live at **https://TuviDev.github.io/infra-lang/**.
 6. The workflow sets the Pages environment URL automatically.
 
 > The Pages environment must be allowed. If the repo is still private, GitHub

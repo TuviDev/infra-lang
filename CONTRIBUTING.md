@@ -3,7 +3,7 @@
 ## Quick start
 
 ```bash
-git clone https://github.com/kakukpl/infra-lang
+git clone https://github.com/TuviDev/infra-lang
 cd infra-lang
 pip install -e ".[dev]"
 # pin the LSP stack (the server targets pygls 1.x / lsprotocol 2023.0.1):

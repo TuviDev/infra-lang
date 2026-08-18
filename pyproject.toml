@@ -63,11 +63,11 @@ dev = [
 infra = "infra.cli.main:app"
 
 [project.urls]
-Homepage = "https://github.com/kakukpl/infra-lang"
-Repository = "https://github.com/kakukpl/infra-lang"
-Documentation = "https://github.com/kakukpl/infra-lang#readme"
-"Bug Tracker" = "https://github.com/kakukpl/infra-lang/issues"
-Changelog = "https://github.com/kakukpl/infra-lang/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/TuviDev/infra-lang"
+Repository = "https://github.com/TuviDev/infra-lang"
+Documentation = "https://github.com/TuviDev/infra-lang#readme"
+"Bug Tracker" = "https://github.com/TuviDev/infra-lang/issues"
+Changelog = "https://github.com/TuviDev/infra-lang/blob/main/CHANGELOG.md"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/infra"]

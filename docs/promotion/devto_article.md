@@ -148,13 +148,13 @@ I want to be upfront about what's not done yet:
 ## Getting started
 
 ```bash
-pip install 'git+https://github.com/kakukpl/infra-lang.git[lsp]'
+pip install 'git+https://github.com/TuviDev/infra-lang.git[lsp]'
 
 infra validate app.infra
 infra compile app.infra --target kubernetes
 ```
 
-The [quickstart](https://github.com/kakukpl/infra-lang/blob/main/docs/quickstart.md)
+The [quickstart](https://github.com/TuviDev/infra-lang/blob/main/docs/quickstart.md)
 takes about five minutes, and the repo has commented examples from a hello-world
 service up to a multi-service stack with a CI/CD pipeline.
 
@@ -169,4 +169,4 @@ the language and the target coverage.
 
 ---
 
-*Infra Lang is MIT-licensed and on [GitHub](https://github.com/kakukpl/infra-lang).*
+*Infra Lang is MIT-licensed and on [GitHub](https://github.com/TuviDev/infra-lang).*
