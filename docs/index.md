@@ -1,4 +1,4 @@
----
+﻿---
 hide:
   - navigation
   - toc
@@ -7,8 +7,8 @@ hide:
 # Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions
 
 **Infra Lang** is an Infrastructure-as-Code DSL for DevOps engineers, SREs, and
-platform teams. Describe your application — services, databases, queues,
-secrets, and pipelines — in one declarative `.infra` file, and compile it to the
+platform teams. Describe your application â€” services, databases, queues,
+secrets, and pipelines â€” in one declarative `.infra` file, and compile it to the
 target you need.
 
 <div class="grid cards" markdown>
@@ -33,7 +33,7 @@ target you need.
 
 Infrastructure is maintained in many formats at once: raw Kubernetes YAML, a
 local `docker-compose.yml`, a GitHub Actions workflow, maybe Terraform. Each is
-written and maintained by hand, so they drift apart — and mistakes in the
+written and maintained by hand, so they drift apart â€” and mistakes in the
 Kubernetes manifests only surface at `kubectl apply` time, not when you write
 them.
 
@@ -120,7 +120,7 @@ GitHub Actions workflow.
 
 - :material-shield-check: **Security & reliability linters**
 
-    10 security rules (SEC001–SEC010) and 13 reliability rules (REL001–REL014),
+    10 security rules (SEC001â€“SEC010) and 13 reliability rules (REL001â€“REL014),
     with actionable hints. Error-severity findings block compilation.
 
 - :material-language-server: **A real language server**
@@ -144,7 +144,7 @@ GitHub Actions workflow.
 1. **Install**
 
     ```bash
-    pip install 'git+https://github.com/TuviDev/infra-lang.git'
+    pip install 'infra-lang'
     ```
 
 2. **Write a `.infra` file** (see the demo above).
@@ -172,3 +172,4 @@ GitHub Actions workflow.
 - [Discussions](https://github.com/TuviDev/infra-lang/discussions)
 
 <small>Infra Lang is inspired by the ideas behind Terraform, Score, and Pulumi.</small>
+

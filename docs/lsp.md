@@ -1,10 +1,10 @@
-# Infra Lang Language Server (LSP)
+﻿# Infra Lang Language Server (LSP)
 
 ## What it provides
 - **Diagnostics**: errors and warnings shown inline as you type. No need to
   run `infra validate`.
 - **Hover**: documentation for block keywords and fields.
-- **Completion**: context-aware autocompletion —
+- **Completion**: context-aware autocompletion â€”
   - top-level block keywords (with snippet expansion),
   - per-block fields (`service`, `database`, `cache`, `queue`, ...),
   - enum / bool / quantity value hints after `:`,
@@ -20,12 +20,12 @@
   definition, or from a block name to its definition line. **Cross-file
   (whole project)**: on startup the server scans the workspace root for
   `*.infra` files and indexes their blocks, so definition resolves across any
-  file in the project — open in the editor or not.
+  file in the project â€” open in the editor or not.
 - **Find references**: locate all references to a symbol across the whole
   project, not just the current file.
 - **Rename symbol**: rename a block and all of its references in one action
   (F2 in VS Code). **Cross-file**: rename propagates to every file in the
-  project that references the symbol — including files on disk that are not
+  project that references the symbol â€” including files on disk that are not
   open in the editor (via the workspace index). Comments are left untouched.
   Rename respects word boundaries: `-` and `_` are part of an identifier, so
   renaming `db` does not touch `main-db` or `db-2`. A `prepareRename` step
@@ -34,19 +34,19 @@
   names, field names, type values, strings, numbers, comments) served over the
   standard `textDocument/semanticTokens/full` request. Editors that support
   semantic tokens (VS Code, Neovim, Helix) get highlighting beyond the TextMate
-  grammar. A malformed document still yields whatever tokens are recognizable —
+  grammar. A malformed document still yields whatever tokens are recognizable â€”
   never a crash.
 - **Diagnostics with context**: every diagnostic carries a `code`, the
   `source: "infra-lang"`, and a clickable link (`codeDescription`) to the docs.
   Duplicate-name errors include **related information** pointing at the earlier
-  definition. Severity follows the analyzer: parse/type/security errors →
-  `Error`, reliability warnings → `Warning`.
+  definition. Severity follows the analyzer: parse/type/security errors â†’
+  `Error`, reliability warnings â†’ `Warning`.
 - **Signature help**: when the cursor is inside a block (e.g. `service api { |`),
   the editor shows the fields available for that block with their types and
   short docs; fields already set are marked `(set)`. Triggered by `{`, newline
   and `.`.
 - **Document highlight**: hovering a symbol highlights every occurrence in the
-  current file — `Write` for the definition, `Read` for references — using the
+  current file â€” `Write` for the definition, `Read` for references â€” using the
   same word-boundary rules as rename.
 - **Folding ranges**: every `{}` block (top-level and nested) and runs of
   comment lines are foldable in the editor.
@@ -54,7 +54,7 @@
 ## Whole-project indexing
 
 On the `initialized` notification the server scans the workspace root
-recursively for `*.infra` files and builds a **WorkspaceIndex** (block name →
+recursively for `*.infra` files and builds a **WorkspaceIndex** (block name â†’
 file + line). Design:
 
 - **Non-blocking**: the scan runs on pygls's thread pool, never on the event
@@ -63,20 +63,20 @@ file + line). Design:
   silently; a bad file never breaks navigation for the rest of the project.
 - **Bounded**: caps indexing at 1000 files and 1 MB per file, so a huge
   workspace cannot exhaust memory. Files in hidden directories (`.git`,
-  `.venv`, …) are ignored.
+  `.venv`, â€¦) are ignored.
 - **Live**: `didSave` refreshes the index for the saved file; `didClose`
   restores the on-disk version. The in-memory index is freed on shutdown.
 - The current editor buffers always take precedence over the on-disk copy.
 
 - **Formatting**: `infra fmt` formatting available as document formatting
   (format-on-save via the extension).
-- **Code actions (quick fixes)**: safe, automatic fixes for common findings —
-  e.g. E011 `replicas: 0` → `replicas: 1`, E012 port out of range → a valid
+- **Code actions (quick fixes)**: safe, automatic fixes for common findings â€”
+  e.g. E011 `replicas: 0` â†’ `replicas: 1`, E012 port out of range â†’ a valid
   port. Only deterministic, safe rewrites are offered.
 
 ## Not yet supported
 - Semantic token delta/range variants (`full/delta` and `range`) are not yet
-  served — only `semanticTokens/full`. Editors fall back to full re-tokenization.
+  served â€” only `semanticTokens/full`. Editors fall back to full re-tokenization.
 - Rename conflict detection (renaming onto an existing symbol) is left to the
   client.
 
@@ -85,7 +85,7 @@ file + line). Design:
 ### 1. Install infra-lang with LSP support
 
 ```bash
-pip install 'git+https://github.com/TuviDev/infra-lang.git[lsp]'
+pip install 'infra-lang[lsp]'
 ```
 
 ### 2. Install the VS Code extension
@@ -140,17 +140,17 @@ split as `infra validate`.)
 
 ```
 Editor (VS Code)
-    ↕ JSON-RPC over stdio
+    â†• JSON-RPC over stdio
 infra lsp (Python process)
-    ↓ calls
+    â†“ calls
 infra.parser.parse()
-    ↓ calls
+    â†“ calls
 infra.analyzer.SemanticValidator.validate()
-    ↓ returns
+    â†“ returns
 errors + warnings
-    ↓ converted to
+    â†“ converted to
 LSP Diagnostics
-    ↑ sent to editor
+    â†‘ sent to editor
 publishDiagnostics notification
 ```
 
@@ -175,3 +175,4 @@ feedback:
 or `~/.config/infra/config.yaml`, or with the env var `INFRA_FEEDBACK=1`.
 Set `INFRA_FEEDBACK_OFF=1` to force-disable. A collector or network failure
 never affects the CLI or LSP.
+

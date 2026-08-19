@@ -1,8 +1,8 @@
-# HN Post Draft (Show HN)
+﻿# HN Post Draft (Show HN)
 
 ## Title (max 80 chars)
 
-"Show HN: Infra Lang – write infra once, compile to K8s, Compose, or CI"
+"Show HN: Infra Lang â€“ write infra once, compile to K8s, Compose, or CI"
 
 (74 chars.)
 
@@ -10,9 +10,9 @@
 
 Hi HN,
 
-I've been maintaining the same microservice stack in a few different formats —
+I've been maintaining the same microservice stack in a few different formats â€”
 Kubernetes YAML, docker-compose for local dev, a GitHub Actions workflow for
-CI — and every change had to be made in each of them by hand. They drifted
+CI â€” and every change had to be made in each of them by hand. They drifted
 apart, and mistakes in the K8s YAML only surfaced at `kubectl apply` time.
 
 So I wrote a DSL that keeps one source of truth and compiles it to the target
@@ -42,7 +42,7 @@ What's worth a look:
   image tags, privileged containers) and 13 reliability rules (thundering
   herd, DB without a backup, Kafka with a single replica). Error-severity
   findings block compilation.
-- **An LSP server** for VS Code — live diagnostics, completion, go-to-definition
+- **An LSP server** for VS Code â€” live diagnostics, completion, go-to-definition
   and rename across the whole project on disk, not just the open tab.
 - **A language server protocol client** packaged as a VS Code extension.
 - **The K8s output is validated.** I run a live-E2E suite that actually applies
@@ -52,10 +52,10 @@ What's worth a look:
 Install:
 
 ```bash
-pip install 'git+https://github.com/TuviDev/infra-lang.git[lsp]'
+pip install 'infra-lang[lsp]'
 ```
 
-PyPI publishing is planned for next week.
+Available on PyPI: pip install infra-lang
 
 Honest limitations: Terraform output is structural (no modules yet), GitHub
 Actions doesn't support reusable workflows, and the LSP is single-process.
@@ -64,9 +64,10 @@ Would love feedback on the language design and the target coverage. Thanks!
 
 ## Comments to preempt
 
-- *"Why not just use YAML / Helm?"* — the point is the single source of truth
+- *"Why not just use YAML / Helm?"* â€” the point is the single source of truth
   and validation, not the syntax. You can still emit the YAML you need.
-- *"Why a new language?"* — because I wanted type-checked, lintable
+- *"Why a new language?"* â€” because I wanted type-checked, lintable
   infrastructure, not another templating layer.
-- *"Terraform is incomplete"* — yes; it's structural today, modules are on the
+- *"Terraform is incomplete"* â€” yes; it's structural today, modules are on the
   roadmap.
+

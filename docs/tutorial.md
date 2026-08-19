@@ -1,4 +1,4 @@
-# Infra Lang — Tutorial
+﻿# Infra Lang â€” Tutorial
 
 Ready to go from `pip install` to working infrastructure in about 15 minutes.
 Every `infra` block below is a fully working example.
@@ -9,7 +9,7 @@ Every `infra` block below is a fully working example.
 ## Installation
 
 ```bash
-pip install 'git+https://github.com/TuviDev/infra-lang.git'
+pip install 'infra-lang'
 infra --version
 ```
 
@@ -119,7 +119,7 @@ This way the secret never ends up in your repository.
 The built-in reliability linter points out ways to make your infrastructure
 more robust.
 
-### REL003 — no memory limit
+### REL003 â€” no memory limit
 
 ```infra
 service api {
@@ -129,11 +129,11 @@ service api {
 }
 ```
 
-Warning: the service has `requests` but no memory `limits` → OOM risk.
+Warning: the service has `requests` but no memory `limits` â†’ OOM risk.
 
 **Fix:** add `limits { memory: 256Mi }` to the `resources` block.
 
-### REL006 — database without a backup
+### REL006 â€” database without a backup
 
 ```infra
 database main-db {
@@ -192,9 +192,10 @@ infra compile build.infra --target github
 
 ## What's next
 
-- [Language spec](language_spec.md) — full grammar and structures.
-- [Examples](https://github.com/TuviDev/infra-lang/tree/main/examples) —
+- [Language spec](language_spec.md) â€” full grammar and structures.
+- [Examples](https://github.com/TuviDev/infra-lang/tree/main/examples) â€”
   ready-made projects (`01_hello_world.infra`, `03_microservices.infra`,
   `04_cicd_pipeline.infra`).
-- [README](https://github.com/TuviDev/infra-lang) — overview of features and
+- [README](https://github.com/TuviDev/infra-lang) â€” overview of features and
   backends.
+

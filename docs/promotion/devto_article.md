@@ -1,6 +1,6 @@
-# Dev.to Article Draft — "One infrastructure definition, many targets"
+﻿# Dev.to Article Draft â€” "One infrastructure definition, many targets"
 
-> Target: 900–1100 words. Adjust as needed.
+> Target: 900â€“1100 words. Adjust as needed.
 
 ## The problem
 
@@ -13,7 +13,7 @@ there may also be Terraform.
 Each of these is maintained by hand, and each change is made in several places.
 They drift. The worst part is *when* you find out: a typo in a Kubernetes
 manifest usually fails at `kubectl apply`, not when you write it. A misnamed
-port, an invalid base64 secret, a missing label — all of these are caught by
+port, an invalid base64 secret, a missing label â€” all of these are caught by
 the API server, after you've already committed and maybe deployed.
 
 What if you wrote the infrastructure once, and it was validated as you wrote it?
@@ -53,13 +53,13 @@ A DSL gives you a few things for free:
 
 - **A real parser.** The `.infra` syntax is parsed by a hand-written LALR(1)
   grammar with `{}` blocks. Syntax errors are caught immediately, with a
-  location and a helpful message — not after you've deployed.
+  location and a helpful message â€” not after you've deployed.
 - **Compile-time linting.** The analyzer runs security and reliability checks
   before anything is emitted. Ten security rules catch hardcoded secrets,
   mutable image tags, and privileged containers. Thirteen reliability rules
   catch a database without a backup, a thundering-herd replica count, and a
   single-replica Kafka. `Error`-severity findings block the compile.
-- **One mental model.** Service, database, cache, queue, secret, pipeline —
+- **One mental model.** Service, database, cache, queue, secret, pipeline â€”
   the vocabulary matches what you actually build, not the individual YAML
   documents each platform needs.
 
@@ -123,7 +123,7 @@ Two things keep the output honest:
    schemas with `kubeconform -strict`. All public examples pass.
 2. **Live E2E.** There's an opt-in test suite (`pytest -m live_e2e`) that
    compiles the examples, starts a `kind` cluster, runs `kubectl apply` on the
-   generated YAML, and verifies the contracts — that secrets are valid base64,
+   generated YAML, and verifies the contracts â€” that secrets are valid base64,
    that multi-port services have named ports, that resources carry the right
    labels. This is what caught two real bugs before release.
 
@@ -131,7 +131,7 @@ Two things keep the output honest:
 
 There's a language server and a VS Code extension. You get live diagnostics,
 hover documentation, context-aware completion, go-to-definition, find-
-references, workspace symbols, and rename — across every `.infra` file in the
+references, workspace symbols, and rename â€” across every `.infra` file in the
 project on disk, not just the one you have open.
 
 ## Limitations
@@ -148,7 +148,7 @@ I want to be upfront about what's not done yet:
 ## Getting started
 
 ```bash
-pip install 'git+https://github.com/TuviDev/infra-lang.git[lsp]'
+pip install 'infra-lang[lsp]'
 
 infra validate app.infra
 infra compile app.infra --target kubernetes
@@ -161,8 +161,8 @@ service up to a multi-service stack with a CI/CD pipeline.
 ## Where this could go
 
 The roadmap is editor polish, `kind`/`minikube` helpers (`infra up`,
-`infra verify`), Terraform modules, GitHub reusable workflows, and — based on
-feedback — a plugin system.
+`infra verify`), Terraform modules, GitHub reusable workflows, and â€” based on
+feedback â€” a plugin system.
 
 If you're maintaining the same app in multiple formats, I'd love your take on
 the language and the target coverage.
@@ -170,3 +170,4 @@ the language and the target coverage.
 ---
 
 *Infra Lang is MIT-licensed and on [GitHub](https://github.com/TuviDev/infra-lang).*
+
