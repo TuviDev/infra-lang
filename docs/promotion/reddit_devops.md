@@ -54,4 +54,4 @@ docker-compose and a GitHub Actions job. One file, multiple targets.
 If you maintain infrastructure in multiple formats and are tired of the drift,
 give it a look. Feedback welcome.
 
-Repo: https://github.com/TuviDev/infra-lang
+Repo: https://github.com/kakukpl/infra-lang

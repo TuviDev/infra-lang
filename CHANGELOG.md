@@ -66,6 +66,10 @@ Initial public release.
   cursor (Write for definitions, Read for references), word-boundary aware.
 - **Folding ranges**: foldable `{}` blocks (top-level and nested) and comment
   runs.
+- **Neovim setup guide** (`docs/editors/neovim.md`): copy-paste LSP
+  configuration for the built-in Neovim client — nvim-lspconfig and vanilla
+  variants, filetype detection, semantic-token-driven highlighting, and
+  troubleshooting.
 - **Helm backend** (`-t helm`): compiles to a complete, idiomatic Helm chart
   (`Chart.yaml`, `values.yaml`, `templates/`, `_helpers.tpl`, `.helmignore`)
   that passes `helm lint --strict` and renders with `helm template`. Maps

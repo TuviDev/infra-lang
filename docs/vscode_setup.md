@@ -1,11 +1,11 @@
-﻿# VS Code Setup for Infra Lang
+# VS Code Setup for Infra Lang
 
 ## Quick setup (5 minutes)
 
 ### Step 1: Install Python package
 
 ```bash
-pip install 'infra-lang[lsp]'
+pip install 'git+https://github.com/kakukpl/infra-lang.git[lsp]'
 ```
 
 ### Step 2: Install the extension
@@ -31,7 +31,7 @@ pip show infra-lang
 ```
 
 Check Python path in VS Code settings:
-`Ctrl+Shift+P` â†’ "Python: Select Interpreter"
+`Ctrl+Shift+P` → "Python: Select Interpreter"
 
 Make sure the extension's Python has `infra-lang` (and `pygls` for LSP)
 installed:
@@ -42,4 +42,3 @@ python -m infra.lsp.server   # should not raise ImportError
 
 ### Extension not activating
 Check the `.infra` file extension (not `.inf` or `.infra.txt`).
-
