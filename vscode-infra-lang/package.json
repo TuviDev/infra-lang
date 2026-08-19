@@ -3,7 +3,11 @@
   "displayName": "Infra Lang",
   "description": "Syntax highlighting and language server for .infra files",
   "version": "0.1.0",
-  "publisher": "infra-lang",
+  "publisher": "TuviDev",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TuviDev/infra-lang"
+  },
   "main": "./out/extension.js",
   "engines": {
     "vscode": "^1.85.0"
@@ -52,7 +56,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
-    "@types/vscode": "^1.125.0",
+    "@types/vscode": "^1.85.0",
     "typescript": "^5.0.0"
   }
 }
