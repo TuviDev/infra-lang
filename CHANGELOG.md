@@ -4,10 +4,27 @@ All notable changes to Infra Lang are documented here.
 
 ## [0.1.1]
 
+### Added
+- **`infra import`** — reverse-compiles existing Kubernetes YAML back into
+  readable Infra source. Supports Deployments, StatefulSets, Services, Secrets,
+  ConfigMaps and Ingresses, groups a Service matching a Deployment's pod labels
+  into one `service` block, maps postgres/mysql/mongo StatefulSets to
+  `database` blocks and redis to `cache`, and reads multi-document YAML or whole
+  directories (`infra import manifests/`). Output goes to stdout by default or
+  to a file with `--output`.
+- **`infra doctor`** — checks the local environment (Python version, Docker,
+  kubectl, helm, kind, kubeconform, LSP/pygls) and reports what's installed or
+  missing.
+
 ### Fixed
 - Parser now strips UTF-8 BOM from input files (Windows editors compatibility).
   Previously a file saved by Notepad / `Out-File` with a UTF-8 BOM failed with
   `InfraLexError: Unexpected character '\ufeff'`.
+- Friendlier parse error messages for the three most common mistakes: a missing
+  closing brace ("Missing closing brace. Did you forget to close the block
+  started at line X?"), an unknown keyword (with a "did you mean" suggestion),
+  and a field missing its value ("Expected a value after 'image:'."). The same
+  messages flow through to LSP diagnostics.
 
 ## [0.1.0] - 2026-08-16
 

@@ -48,7 +48,9 @@ def main(
 def register_commands() -> None:
     from infra.cli import check, diff, docs, fmt, graph, init, repl, validate
     from infra.cli import compile as compile_cmd
+    from infra.cli.doctor import doctor
     from infra.cli.feedback_cmd import feedback_cmd
+    from infra.cli.import_cmd import import_cmd
     from infra.cli.lsp_cmd import lsp_cmd
 
     app.command(name="compile", help="Compile .infra files.")(compile_cmd.compile)
@@ -62,12 +64,19 @@ def register_commands() -> None:
     app.command(
         name="feedback", help="Manage opt-in anonymous error reporting."
     )(feedback_cmd)
+    app.command(
+        name="import",
+        help="Import existing Kubernetes YAML and generate .infra source.",
+    )(import_cmd)
     app.command(name="check", help="Quick syntax check (no semantics).")(check.check)
     app.command(name="graph", help="Print the dependency graph.")(graph.graph)
     app.command(name="docs", help="Generate documentation from .infra files.")(
         docs.docs
     )
     app.command(name="diff", help="Compare two .infra files.")(diff.diff_cmd)
+    app.command(name="doctor", help="Check the local environment for needed tools.")(
+        doctor
+    )
 
 
 register_commands()

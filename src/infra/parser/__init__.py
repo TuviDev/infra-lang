@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -11,6 +12,128 @@ from lark.exceptions import UnexpectedCharacters, UnexpectedToken
 from infra.errors.exceptions import InfraLexError, InfraParseError
 from infra.parser import ast_nodes as n
 from infra.parser.transformer import InfraTransformer, _set_file
+
+#: Top-level block keywords used to detect / suggest on unknown keywords.
+_TOP_LEVEL_KEYWORDS = (
+    "service",
+    "database",
+    "cache",
+    "queue",
+    "storage",
+    "network",
+    "secret",
+    "config",
+    "pipeline",
+    "environment",
+    "cluster",
+    "import",
+    "from",
+    "const",
+)
+_TOP_LEVEL_KEYWORD_TOKENS = {
+    "SERVICE",
+    "DATABASE",
+    "CACHE",
+    "QUEUE",
+    "STORAGE",
+    "NETWORK",
+    "SECRET",
+    "CONFIG",
+    "PIPELINE",
+    "ENVIRONMENT",
+    "CLUSTER",
+    "IMPORT",
+    "FROM",
+    "CONST",
+}
+_IDENT_RE_STRICT = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_-]*$")
+
+
+def _source_prefix(source: str, line: Optional[int], column: Optional[int]) -> str:
+    """Return the source text strictly before the given 1-based position."""
+    if not line or not column:
+        return source
+    lines = source.split("\n")
+    head = lines[: max(0, line - 1)]
+    cur = lines[line - 1] if line - 1 < len(lines) else ""
+    return "\n".join(head + [cur[: max(0, column - 1)]])
+
+
+def _find_open_block_line(prefix: str) -> Optional[int]:
+    """Find the line of the innermost unclosed ``{`` in *prefix*."""
+    depth = 0
+    last_open = None
+    for i, ch in enumerate(prefix):
+        if ch == "{":
+            depth += 1
+            last_open = i
+        elif ch == "}":
+            depth = max(0, depth - 1)
+            if depth == 0:
+                last_open = None
+    if last_open is None:
+        return None
+    return prefix.count("\n", 0, last_open) + 1
+
+
+def _field_awaiting_value(prefix: str) -> Optional[str]:
+    """If *prefix* ends with ``field:`` return the field name, else None."""
+    stripped = prefix.rstrip()
+    if not stripped.endswith(":"):
+        return None
+    m = re.search(r"([A-Za-z_][A-Za-z0-9_-]*)\s*:?$", stripped[:-1].rstrip())
+    return m.group(1) if m else None
+
+
+def _friendly_parse_message(exc, source: str) -> Optional[str]:
+    """Build a friendlier message for common parse mistakes, or None."""
+    if not isinstance(exc, (UnexpectedToken, UnexpectedCharacters)):
+        return None
+
+    if isinstance(exc, UnexpectedCharacters):
+        # Unknown/illegal leading character; surface it directly.
+        char = getattr(exc, "char", "") or ""
+        if char == "\ufeff":
+            return "Source begins with a UTF-8 BOM. Re-save the file without a BOM."
+        return None
+
+    expected = sorted(exc.expected or [])
+    got = str(exc.token.value) if exc.token is not None else ""
+    prefix = _source_prefix(source, exc.line, exc.column)
+
+    # 1) Missing closing brace (end-of-input with RBRACE still expected).
+    if got == "" and "RBRACE" in expected:
+        line = _find_open_block_line(prefix)
+        if line is not None:
+            return (
+                f"Missing closing brace. Did you forget to close the block "
+                f"started at line {line}?"
+            )
+
+    # 2) Missing value after a field (`image:` with nothing following).
+    if got in ("}", "") and "IDENTIFIER" in expected:
+        field = _field_awaiting_value(prefix)
+        if field is not None:
+            return f"Expected a value after '{field}:'. Example: {field}: \"...\""
+
+    # 3) Unknown keyword at a statement position.
+    if (
+        _IDENT_RE_STRICT.match(got)
+        and "IDENTIFIER" not in expected
+        and _TOP_LEVEL_KEYWORD_TOKENS.intersection(expected)
+    ):
+        if got not in _TOP_LEVEL_KEYWORDS:
+            from difflib import get_close_matches
+
+            suggestion = get_close_matches(got, _TOP_LEVEL_KEYWORDS, n=1, cutoff=0.6)
+            base = f"Unknown keyword '{got}'."
+            if suggestion:
+                base += f" Did you mean '{suggestion[0]}'?"
+            else:
+                base += " Did you mean 'service', 'database', 'secret', ...?"
+            return base
+
+    return None
 
 #: Path to the bundled Lark grammar.
 DEFAULT_GRAMMAR = Path(__file__).resolve().parent.parent / "lexer" / "grammar.lark"
@@ -52,8 +175,10 @@ class Parser:
         try:
             tree = self._lark.parse(source)
         except UnexpectedCharacters as exc:
+            friendly = _friendly_parse_message(exc, source)
+            message = friendly or f"Unexpected character {exc.char!r}"
             raise InfraLexError(
-                message=f"Unexpected character {exc.char!r}",
+                message=message,
                 source=source,
                 line=exc.line,
                 column=exc.column,
@@ -61,8 +186,10 @@ class Parser:
                 unexpected_char=str(exc.char),
             ) from exc
         except UnexpectedToken as exc:
+            friendly = _friendly_parse_message(exc, source)
+            message = friendly or self._token_message(exc)
             raise InfraParseError(
-                message=self._token_message(exc),
+                message=message,
                 source=source,
                 line=exc.line,
                 column=exc.column,
