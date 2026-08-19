@@ -64,7 +64,7 @@ class TestDiagnosticsEnhancement:
             assert d.code
             assert d.code_description is not None
             assert d.code_description.href.startswith(
-                "https://TuviDev.github.io/infra-lang/language_spec/"
+                "https://kakukpl.github.io/infra-lang/language_spec/"
             )
 
     def test_related_info_for_duplicate_name(self):

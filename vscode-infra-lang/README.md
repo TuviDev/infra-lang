@@ -59,11 +59,11 @@ code --install-extension infra-lang-0.1.0.vsix
 ### Requirements
 - Python 3.11+ with infra-lang installed:
   ```bash
-  pip install infra-lang
+  pip install 'git+https://github.com/kakukpl/infra-lang.git'
   ```
 - Or with LSP support:
   ```bash
-  pip install 'infra-lang[lsp]'
+  pip install 'git+https://github.com/kakukpl/infra-lang.git[lsp]'
   ```
 
 ## Language Server (LSP)

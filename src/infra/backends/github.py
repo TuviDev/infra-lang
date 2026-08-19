@@ -26,8 +26,8 @@ _ACTIONS = {
         },
     ),
     "docker-build-push": ("docker/build-push-action@v5", {}),
-    "upload-artifact": ("actions/upload-artifact@v3", {}),
-    "download-artifact": ("actions/download-artifact@v3", {}),
+    "upload-artifact": ("actions/upload-artifact@v4", {}),
+    "download-artifact": ("actions/download-artifact@v4", {}),
 }
 
 
@@ -202,7 +202,7 @@ class GitHubActionsBackend(Backend, BaseYAMLBackend):
                 job["steps"].append(
                     {
                         "name": f"Upload artifact {path}",
-                        "uses": "actions/upload-artifact@v3",
+                        "uses": "actions/upload-artifact@v4",
                         "with": {"name": "artifact", "path": path},
                     }
                 )
