@@ -46,6 +46,9 @@ class Parser:
 
     def parse(self, source: str, filename: str = "<string>") -> n.Program:
         """Parse *source* and return a :class:`Program` AST."""
+        # Strip UTF-8 BOM if present (Windows editors / PowerShell add it).
+        if source.startswith("\ufeff"):
+            source = source[1:]
         try:
             tree = self._lark.parse(source)
         except UnexpectedCharacters as exc:

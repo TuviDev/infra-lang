@@ -2,7 +2,7 @@
   "name": "infra-lang",
   "displayName": "Infra Lang",
   "description": "Syntax highlighting and language server for .infra files",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "infra-lang",
   "main": "./out/extension.js",
   "engines": {

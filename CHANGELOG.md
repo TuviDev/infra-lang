@@ -2,6 +2,13 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.1.1]
+
+### Fixed
+- Parser now strips UTF-8 BOM from input files (Windows editors compatibility).
+  Previously a file saved by Notepad / `Out-File` with a UTF-8 BOM failed with
+  `InfraLexError: Unexpected character '\ufeff'`.
+
 ## [0.1.0] - 2026-08-16
 
 Initial public release.
