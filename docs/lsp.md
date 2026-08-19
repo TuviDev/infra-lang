@@ -91,7 +91,13 @@ pip install 'git+https://github.com/kakukpl/infra-lang.git[lsp]'
 ### 2. Install the VS Code extension
 (see `vscode-infra-lang/README.md`)
 
-### 3. Configure Python path (if needed)
+### 3. Configure Neovim
+Neovim 0.8+ ships a built-in LSP client, so no external plugin is required.
+See the [Neovim setup guide](editors/neovim.md) for a complete, copy-paste
+configuration (nvim-lspconfig and vanilla variants, filetype detection, syntax
+highlighting, and troubleshooting).
+
+### 4. Configure Python path (if needed)
 VS Code setting:
 
 ```json

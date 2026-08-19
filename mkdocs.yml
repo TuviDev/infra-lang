@@ -81,6 +81,8 @@ nav:
   - LSP & Editor:
       - LSP Server: lsp.md
       - VS Code Setup: vscode_setup.md
+      - Editors:
+          - Neovim: editors/neovim.md
   - Reference:
       - Troubleshooting: troubleshooting.md
       - Versioning: versioning.md
