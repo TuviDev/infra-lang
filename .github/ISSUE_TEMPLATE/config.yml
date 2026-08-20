@@ -1,8 +1,8 @@
 blank_issues_enabled: true
 contact_links:
   - name: Infra Lang Discussions
-    url: https://github.com/kakukpl/infra-lang/discussions
+    url: https://github.com/TuviDev/infra-lang/discussions
     about: Ask questions, share examples, or discuss ideas with the community.
   - name: Documentation
-    url: https://github.com/kakukpl/infra-lang#readme
+    url: https://github.com/TuviDev/infra-lang#readme
     about: Read the language spec, tutorial, and quickstart.

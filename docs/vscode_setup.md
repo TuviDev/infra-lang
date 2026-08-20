@@ -5,7 +5,7 @@
 ### Step 1: Install Python package
 
 ```bash
-pip install 'git+https://github.com/kakukpl/infra-lang.git[lsp]'
+pip install 'git+https://github.com/TuviDev/infra-lang.git[lsp]'
 ```
 
 ### Step 2: Install the extension

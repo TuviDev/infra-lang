@@ -52,7 +52,7 @@ What's worth a look:
 Install:
 
 ```bash
-pip install 'git+https://github.com/kakukpl/infra-lang.git[lsp]'
+pip install 'git+https://github.com/TuviDev/infra-lang.git[lsp]'
 ```
 
 PyPI publishing is planned for next week.

@@ -9,7 +9,7 @@ Every `infra` block below is a fully working example.
 ## Installation
 
 ```bash
-pip install 'git+https://github.com/kakukpl/infra-lang.git'
+pip install 'git+https://github.com/TuviDev/infra-lang.git'
 infra --version
 ```
 
@@ -193,8 +193,8 @@ infra compile build.infra --target github
 ## What's next
 
 - [Language spec](language_spec.md) — full grammar and structures.
-- [Examples](https://github.com/kakukpl/infra-lang/tree/main/examples) —
+- [Examples](https://github.com/TuviDev/infra-lang/tree/main/examples) —
   ready-made projects (`01_hello_world.infra`, `03_microservices.infra`,
   `04_cicd_pipeline.infra`).
-- [README](https://github.com/kakukpl/infra-lang) — overview of features and
+- [README](https://github.com/TuviDev/infra-lang) — overview of features and
   backends.

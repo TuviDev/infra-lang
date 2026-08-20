@@ -1,8 +1,8 @@
 site_name: Infra Lang
 site_description: "Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions"
-site_url: https://kakukpl.github.io/infra-lang/
-repo_url: https://github.com/kakukpl/infra-lang
-repo_name: kakukpl/infra-lang
+site_url: https://TuviDev.github.io/infra-lang/
+repo_url: https://github.com/TuviDev/infra-lang
+repo_name: TuviDev/infra-lang
 edit_uri: edit/main/docs/
 copyright: Copyright &copy; 2026 Infra Lang contributors &mdash; MIT License
 
@@ -65,7 +65,7 @@ markdown_extensions:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/kakukpl/infra-lang
+      link: https://github.com/TuviDev/infra-lang
 
 nav:
   - Home: index.md
@@ -91,4 +91,4 @@ nav:
   - Project:
       - Roadmap: roadmap_v0.2.0.md
       - Release Notes: release_notes_v0.1.0.md
-      - Changelog: https://github.com/kakukpl/infra-lang/blob/main/CHANGELOG.md
+      - Changelog: https://github.com/TuviDev/infra-lang/blob/main/CHANGELOG.md

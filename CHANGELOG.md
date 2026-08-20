@@ -2,7 +2,7 @@
 
 All notable changes to Infra Lang are documented here.
 
-## [0.1.1]
+## [0.1.1] - 2026-08-20
 
 ### Added
 - **`infra import`** — reverse-compiles existing Kubernetes YAML back into

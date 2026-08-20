@@ -2,8 +2,8 @@
 
 **Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions.**
 
-[![CI](https://img.shields.io/github/actions/workflow/status/kakukpl/infra-lang/ci.yml?branch=main)](https://github.com/kakukpl/infra-lang/actions)
-[![Docs](https://img.shields.io/badge/docs-online-blue)](https://kakukpl.github.io/infra-lang/)
+[![CI](https://img.shields.io/github/actions/workflow/status/TuviDev/infra-lang/ci.yml?branch=main)](https://github.com/TuviDev/infra-lang/actions)
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://TuviDev.github.io/infra-lang/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 
@@ -123,7 +123,7 @@ infra compile app.infra --target github
 
 Click the button below to open this project in GitHub Codespaces:
 
-[![Open in Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/kakukpl/infra-lang)
+[![Open in Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/TuviDev/infra-lang)
 
 No local installation needed — full dev environment in about 2 minutes
 (Python 3.12, Docker-in-Docker, kubectl/helm, Ruff/Mypy extensions).
@@ -131,7 +131,7 @@ No local installation needed — full dev environment in about 2 minutes
 ## Installation
 
 ```bash
-pip install git+https://github.com/kakukpl/infra-lang.git
+pip install git+https://github.com/TuviDev/infra-lang.git
 ```
 
 With the language server (recommended for VS Code):
@@ -153,9 +153,9 @@ infra --help
 
 ## Getting started
 
-Full documentation is hosted at **[kakukpl.github.io/infra-lang](https://kakukpl.github.io/infra-lang/)**.
+Full documentation is hosted at **[TuviDev.github.io/infra-lang](https://TuviDev.github.io/infra-lang/)**.
 
-The fastest path is the [5-minute quickstart](https://kakukpl.github.io/infra-lang/quickstart/). In short:
+The fastest path is the [5-minute quickstart](https://TuviDev.github.io/infra-lang/quickstart/). In short:
 
 1. **Write** a `.infra` file (see the demo above).
 2. **Validate** it: `infra validate app.infra`
@@ -163,7 +163,7 @@ The fastest path is the [5-minute quickstart](https://kakukpl.github.io/infra-la
 4. **Inspect** the output in `infra-out/`, or preview with `--dry-run`.
 5. **Iterate** with `infra fmt app.infra` and `infra diff app.infra app2.infra`.
 
-There is also a [guided tutorial](https://kakukpl.github.io/infra-lang/tutorial/) and
+There is also a [guided tutorial](https://TuviDev.github.io/infra-lang/tutorial/) and
 commented [examples](examples/).
 
 ## Supported targets
@@ -178,20 +178,20 @@ commented [examples](examples/).
 
 Not every resource type maps to every target — for example, `pipeline` compiles
 only to GitHub Actions, and `cluster` only to Terraform. See the
-[support matrix](https://kakukpl.github.io/infra-lang/support_matrix/) for the
+[support matrix](https://TuviDev.github.io/infra-lang/support_matrix/) for the
 full mapping.
 
 ## Documentation
 
-The documentation is hosted at **[kakukpl.github.io/infra-lang](https://kakukpl.github.io/infra-lang/)**.
+The documentation is hosted at **[TuviDev.github.io/infra-lang](https://TuviDev.github.io/infra-lang/)**.
 
 | Doc | What it covers |
 |-----|----------------|
-| [Quickstart](https://kakukpl.github.io/infra-lang/quickstart/) | 5-minute first run |
-| [Language spec](https://kakukpl.github.io/infra-lang/language_spec/) | Full DSL reference (blocks, fields, error codes) |
-| [Support matrix](https://kakukpl.github.io/infra-lang/support_matrix/) | Which resources map to which targets |
-| [LSP / editor support](https://kakukpl.github.io/infra-lang/lsp/) | VS Code extension and language server |
-| [Known limitations](https://kakukpl.github.io/infra-lang/known_limitations/) | Honest boundaries of the project |
+| [Quickstart](https://TuviDev.github.io/infra-lang/quickstart/) | 5-minute first run |
+| [Language spec](https://TuviDev.github.io/infra-lang/language_spec/) | Full DSL reference (blocks, fields, error codes) |
+| [Support matrix](https://TuviDev.github.io/infra-lang/support_matrix/) | Which resources map to which targets |
+| [LSP / editor support](https://TuviDev.github.io/infra-lang/lsp/) | VS Code extension and language server |
+| [Known limitations](https://TuviDev.github.io/infra-lang/known_limitations/) | Honest boundaries of the project |
 
 ## Contributing
 
