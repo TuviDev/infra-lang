@@ -2,15 +2,16 @@
 
 ## Install
 ```bash
-pip install 'git+https://github.com/TuviDev/infra-lang.git'
+pip install infra-lang
 # with the language server (recommended for VS Code):
-pip install 'git+https://github.com/TuviDev/infra-lang.git[lsp]'
+pip install 'infra-lang[lsp]'
 ```
 
 Verify: `infra --version`
 
-> PyPI publishing is coming soon; until then install from Git. Requires
-> Python 3.11+.
+> For the latest development version, install from Git:
+> `pip install git+https://github.com/TuviDev/infra-lang.git`
+> Requires Python 3.11+.
 
 ## Create your first .infra file
 Save as `app.infra`:

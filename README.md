@@ -131,7 +131,7 @@ No local installation needed — full dev environment in about 2 minutes
 ## Installation
 
 ```bash
-pip install git+https://github.com/TuviDev/infra-lang.git
+pip install infra-lang
 ```
 
 With the language server (recommended for VS Code):
@@ -147,7 +147,8 @@ infra --version
 infra --help
 ```
 
-> **Note:** PyPI publishing is coming soon. Until then, install from Git.
+> **Note:** For the latest development version, install from Git:
+> `pip install git+https://github.com/TuviDev/infra-lang.git`
 
 **Requirements:** Python 3.11+.
 
