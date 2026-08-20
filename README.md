@@ -2,6 +2,7 @@
 
 **Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions.**
 
+[![PyPI](https://img.shields.io/pypi/v/infra-lang)](https://pypi.org/project/infra-lang/)
 [![CI](https://img.shields.io/github/actions/workflow/status/TuviDev/infra-lang/ci.yml?branch=main)](https://github.com/TuviDev/infra-lang/actions)
 [![Docs](https://img.shields.io/badge/docs-online-blue)](https://TuviDev.github.io/infra-lang/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)

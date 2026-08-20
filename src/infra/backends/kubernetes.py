@@ -21,12 +21,12 @@ from typing import Any, Dict, List, Optional
 from infra.backends._images import CACHE_IMAGES as _CACHE_IMAGES
 from infra.backends._images import QUEUE_IMAGES as _QUEUE_IMAGES
 from infra.backends.base import (
-    GENERATED_HEADER,
     Backend,
     BaseYAMLBackend,
     CompileContext,
     CompileResult,
     evaluate_expression,
+    generated_header,
 )
 from infra.errors.exceptions import InfraCompileError
 from infra.parser import ast_nodes as n
@@ -92,14 +92,14 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
                     kind = manifest.get("kind", "resource").lower()
                     fname = f"{name}-{kind}.yaml"
                     result.files[fname] = (
-                        GENERATED_HEADER + "\n" + self._to_yaml(manifest)
+                        generated_header("kubernetes") + self._to_yaml(manifest)
                     )
                 else:
                     single.append(manifest)
 
         if not self.split and single:
             docs = "\n---\n".join(self._to_yaml(m).rstrip("\n") for m in single)
-            result.files["infra.yaml"] = GENERATED_HEADER + "\n" + docs + "\n"
+            result.files["infra.yaml"] = generated_header("kubernetes") + docs + "\n"
         return result
 
     def _compile_definition(self, stmt: n.ASTNode, ctx: CompileContext):
