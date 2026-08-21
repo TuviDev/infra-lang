@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import abc
 import logging
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -44,18 +45,41 @@ def generated_header(target: str = "kubernetes") -> str:
     )
 
 
-def _new_yaml() -> YAML:
-    """Return a freshly configured ruamel YAML instance.
+class _ThreadLocalYAML:
+    """Per-thread cached ruamel YAML emitter.
 
-    ruamel's YAML is not thread-safe: a shared instance mutated by concurrent
-    ``dump()`` calls corrupts its internal emitter state. Creating one per call
-    keeps concurrent compiles (multi-file, LSP, watch mode) safe.
+    ruamel's ``YAML`` is not thread-safe: a single shared instance mutated by
+    concurrent ``dump()`` calls corrupts its internal emitter state. Recreating
+    one per ``dump()`` is safe but expensive (large charts compile many
+    resources). Caching a separate instance per thread gives us both safety and
+    reuse: within one thread the emitter is reused across dumps, and different
+    threads never share it.
     """
-    y = YAML()
-    y.default_flow_style = False
-    y.sort_base_mapping_type = None  # preserves insertion order
-    y.indent(mapping=2, sequence=4, offset=2)
-    return y
+
+    def __init__(self) -> None:
+        self._local = threading.local()
+
+    def _make(self) -> YAML:
+        y = YAML()
+        y.default_flow_style = False
+        y.sort_base_mapping_type = None  # preserves insertion order
+        y.indent(mapping=2, sequence=4, offset=2)
+        return y
+
+    def get(self) -> YAML:
+        y = getattr(self._local, "yaml", None)
+        if y is None:
+            y = self._make()
+            self._local.yaml = y
+        return y
+
+
+_YAML_CACHE = _ThreadLocalYAML()
+
+
+def _new_yaml() -> YAML:
+    """Return a thread-safe ruamel YAML instance (reused within a thread)."""
+    return _YAML_CACHE.get()
 
 
 @dataclass
