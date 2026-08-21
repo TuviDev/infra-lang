@@ -133,6 +133,31 @@ def _check_drift(
     raise typer.Exit(code=1)
 
 
+def _checks_json() -> dict:
+    """Return environment checks as a JSON-friendly mapping."""
+    from infra.version import __version__
+
+    out = {"version": __version__}
+    for c in _checks():
+        out[c.name.lower().replace(" ", "_")] = {"installed": c.ok, "detail": c.detail}
+    return out
+
+
+def _check_drift_json(infra_path: Path, out_dir: Path, target: str) -> dict:
+    """Run the drift check and return the result as a JSON-serializable dict."""
+    from infra.analyzer.drift import detect_drift
+
+    result = detect_drift(infra_path, out_dir, target=target)
+    return {
+        "has_drift": result.has_drift,
+        "modified_files": [
+            {"path": name, "diff": diff} for name, diff in result.modified_files
+        ],
+        "missing_files": result.missing_files,
+        "target": result.target,
+    }
+
+
 def doctor(
     check_drift: Optional[Path] = typer.Option(
         None,
@@ -155,10 +180,27 @@ def doctor(
             "(kubernetes, compose, terraform, github, helm)."
         ),
     ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Emit structured JSON for CI pipelines."
+    ),
 ) -> None:
     """Check the user's environment, or detect on-disk drift with --check-drift."""
+    import json as _json
+
     if check_drift is not None:
+        if json_output:
+            try:
+                payload = _check_drift_json(check_drift, out_dir, target)
+            except Exception as exc:
+                payload = {"has_drift": True, "error": str(exc),
+                           "modified_files": [], "missing_files": []}
+            typer.echo(_json.dumps(payload, indent=2))
+            raise typer.Exit(code=1 if payload.get("has_drift") else 0)
         _check_drift(check_drift, out_dir, target)
+
+    if json_output:
+        typer.echo(_json.dumps(_checks_json(), indent=2))
+        return
 
     checks = _checks()
     typer.echo(f"Infra Lang v{__version__}")

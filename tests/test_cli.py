@@ -126,6 +126,27 @@ class TestValidateCommand:
                                catch_exceptions=False)
         assert "::error" in result.output
 
+    def test_validate_json_flag_valid(self, simple_service):
+        result = runner.invoke(
+            app, ["validate", str(simple_service), "--json"], catch_exceptions=False
+        )
+        data = json.loads(result.output)
+        assert data["valid"] is True
+        assert data["file"]
+        assert data["errors"] == []
+        assert "severity" in str(data)
+
+    def test_validate_json_flag_invalid(self, invalid_service):
+        result = runner.invoke(
+            app, ["validate", str(invalid_service), "--json"], catch_exceptions=False
+        )
+        data = json.loads(result.output)
+        assert data["valid"] is False
+        assert len(data["errors"]) > 0
+        first = data["errors"][0]
+        for key in ("code", "message", "line", "column", "severity", "hint"):
+            assert key in first
+
     def test_validate_strict_warnings_as_errors(self, tmp_path):
         src = write_infra(tmp_path / "w.infra", 'let unused_var = "hello"\nservice api { image: "nginx:1.0" }')
         result = runner.invoke(app, ["validate", str(src), "--strict"], catch_exceptions=False)

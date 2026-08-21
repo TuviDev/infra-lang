@@ -31,6 +31,9 @@ def validate(
     format: str = typer.Option(
         "text", "--format", help="Output format: text, json, github"
     ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Emit structured JSON for CI pipelines."
+    ),
     var: List[str] = typer.Option([], "--var", help="Variable: --var key=value"),
 ) -> None:
     """Validate .infra files semantically (no compilation)."""
@@ -58,7 +61,35 @@ def validate(
         if not result.is_valid or (strict and result.has_warnings):
             any_invalid = True
 
-    if format == "json":
+    if json_output:
+        payload = {
+            "valid": not any_invalid,
+            "file": str(expanded[0]) if expanded else "",
+            "errors": [
+                {
+                    "code": e.get("code"),
+                    "message": e.get("message"),
+                    "line": e.get("line"),
+                    "column": e.get("column"),
+                    "severity": "error",
+                    "hint": e.get("hint"),
+                }
+                for e in all_errors
+            ],
+            "warnings": [
+                {
+                    "code": w.code,
+                    "message": w.message,
+                    "line": w.location.line if w.location else None,
+                    "column": w.location.column if w.location else None,
+                    "severity": "warning",
+                    "hint": w.hint,
+                }
+                for w in all_warnings
+            ],
+        }
+        typer.echo(json.dumps(payload, indent=2))
+    elif format == "json":
         payload = {
             "valid": not any_invalid,
             "errors": all_errors,

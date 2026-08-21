@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import subprocess
 
 import pytest
@@ -96,3 +97,66 @@ def test_doctor_pygls_installed():
         assert "LSP (pygls): installed ✓" in result.stdout
     else:
         assert "not installed" in result.stdout
+
+
+def test_doctor_json_output():
+    result = runner.invoke(app, ["doctor", "--json"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "python" in data
+    assert "docker" in data
+    assert "kubectl" in data
+    assert data["python"]["installed"] is True  # sandbox runs Python 3.11+
+    assert "version" in data
+
+
+def test_doctor_json_parseable(no_tools):
+    result = runner.invoke(app, ["doctor", "--json"])
+    data = json.loads(result.stdout)
+    assert data["docker"]["installed"] is False
+
+
+def test_doctor_check_drift_json_clean(tmp_path):
+    from infra.parser import parse_file
+    from infra.backends import get_backend
+
+    src = tmp_path / "app.infra"
+    src.write_text('service api { image: "nginx:1.25" port 80 }', encoding="utf-8")
+    out = tmp_path / "out"
+    prog = parse_file(src)
+    for name, content in get_backend("kubernetes").compile(prog).files.items():
+        dest = out / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(content, encoding="utf-8")
+    result = runner.invoke(
+        app, ["doctor", "--check-drift", str(src), "--out-dir", str(out), "--json"]
+    )
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["has_drift"] is False
+    assert data["missing_files"] == []
+
+
+def test_doctor_check_drift_json_modified(tmp_path):
+    from infra.parser import parse_file
+    from infra.backends import get_backend
+
+    src = tmp_path / "app.infra"
+    src.write_text('service api { image: "nginx:1.25" port 80 }', encoding="utf-8")
+    out = tmp_path / "out"
+    prog = parse_file(src)
+    for name, content in get_backend("kubernetes").compile(prog).files.items():
+        dest = out / name
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(content, encoding="utf-8")
+    target = out / "infra.yaml"
+    target.write_text(
+        target.read_text(encoding="utf-8") + "  # drifted\n", encoding="utf-8"
+    )
+    result = runner.invoke(
+        app, ["doctor", "--check-drift", str(src), "--out-dir", str(out), "--json"]
+    )
+    assert result.exit_code == 1
+    data = json.loads(result.stdout)
+    assert data["has_drift"] is True
+    assert any(m["path"] == "infra.yaml" for m in data["modified_files"])
