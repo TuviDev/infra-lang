@@ -45,10 +45,29 @@ Python interpreter; if you use a virtual environment, point VS Code at it:
 
 ## Usage
 
-1. Install the extension from the Marketplace.
+1. Install the extension from the **VS Code Marketplace** or **Open VSX**.
 2. Ensure `pip install 'infra-lang[lsp]'` is available on your `PATH`.
 3. Open a `.infra` file — highlighting applies automatically, and the language
    server provides live diagnostics, completion, and navigation.
+
+## Publishing
+
+The extension is distributed as a `.vsix` via the VS Code Marketplace and Open
+VSX. Maintainers publish with the packaged npm scripts:
+
+```bash
+# Package a .vsix locally
+npm run package
+
+# Publish to the VS Code Marketplace (requires VSCE_PAT)
+npm run publish:marketplace
+
+# Publish to Open VSX (requires OVSX_TOKEN)
+npm run publish:openvsx
+```
+
+The `.github/workflows/marketplace.yml` workflow publishes automatically on
+version tags (`v*`) using the `VSCE_PAT` and `OVSX_TOKEN` repository secrets.
 
 ## Snippets
 

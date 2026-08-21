@@ -5,12 +5,22 @@
 ### Step 1: Install Python package
 
 ```bash
-pip install 'git+https://github.com/TuviDev/infra-lang.git[lsp]'
+pip install 'infra-lang[lsp]'
 ```
 
 ### Step 2: Install the extension
-Currently available as a local install only.
-See `vscode-infra-lang/README.md`.
+
+**From the VS Code Marketplace** (recommended): search for **"Infra Lang"** in
+the Extensions view, or run:
+
+```bash
+code --install-extension infra-lang
+```
+
+**From Open VSX** (e.g. VS Code-OSS / Cursor / Theia): install the `infra-lang`
+extension from the Open VSX registry.
+
+**From source** (development): see `vscode-infra-lang/README.md`.
 
 ### Step 3: Open a .infra file
 Syntax highlighting activates automatically.

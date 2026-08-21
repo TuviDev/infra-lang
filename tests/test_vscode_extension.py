@@ -162,3 +162,26 @@ class TestMarketplaceMetadata:
         content = wf.read_text(encoding="utf-8")
         assert "vsce package" in content
         assert "upload-artifact" in content
+
+
+class TestPublishScripts:
+    def test_publish_scripts_present(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        scripts = data["scripts"]
+        assert "publish:marketplace" in scripts
+        assert "publish:openvsx" in scripts
+        assert "vsce publish" in scripts["publish:marketplace"]
+        assert "ovsx publish" in scripts["publish:openvsx"]
+
+    def test_ovsx_dev_dependency_present(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        assert "ovsx" in data["devDependencies"]
+
+    def test_marketplace_workflow_exists(self):
+        wf = Path(".github/workflows/marketplace.yml")
+        assert wf.exists(), "marketplace.yml workflow missing"
+        content = wf.read_text(encoding="utf-8")
+        assert "vsce publish" in content
+        assert "ovsx publish" in content
+        assert "VSCE_PAT" in content
+        assert "OVSX_TOKEN" in content
