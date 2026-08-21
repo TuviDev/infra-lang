@@ -2,6 +2,31 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.3.0] - 2026-08-20
+
+### Added
+- **Helm `values.schema.json`** — the Helm backend now emits a JSON Schema
+  (Draft-07) alongside `values.yaml` that validates the chart's configurable
+  values (service/secret/configmap structure, workload kinds, image shapes).
+  `helm lint --strict` passes on generated charts with the schema present.
+- **VS Code Marketplace / Open VSX automation** — added `publish:marketplace`
+  and `publish:openvsx` npm scripts, the `ovsx` dev dependency, and a
+  `.github/workflows/marketplace.yml` that publishes the extension to both
+  registries on version tags (via `VSCE_PAT` / `OVSX_TOKEN` secrets).
+- **Friendlier parser hints** — two more common syntax errors now get helpful
+  messages: a missing colon after a field name (`Expected ':' after field name
+  'image'. Did you forget the colon?`) and an unterminated string literal.
+
+### Fixed
+- **Windows CI UTF-8 file encoding** — every `write_text()`/`open()` call across
+  the CLI now passes an explicit `encoding="utf-8"`. Previously files such as
+  the generated Helm `Chart.yaml` / `values.yaml` were written with the Windows
+  default code page (cp1252), producing `yaml: invalid leading UTF-8 octet` when
+  `helm` re-read them.
+- **Docker daemon probe** — `have_docker()` reports `False` when the daemon does
+  not respond (short timeout, Windows/macOS CI), so live Compose E2E correctly
+  skips instead of failing when Docker isn't actually usable.
+
 ## [0.2.0] - 2026-08-20
 
 ### Added

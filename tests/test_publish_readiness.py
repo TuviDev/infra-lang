@@ -115,4 +115,4 @@ class TestPublishReadiness:
             timeout=30,
         )
         assert result.returncode == 0
-        assert "0.2.0" in result.stdout or "infra" in result.stdout.lower()
+        assert "0.3.0" in result.stdout or "infra" in result.stdout.lower()
