@@ -42,7 +42,7 @@ def fmt(
             )
             typer.echo("\n".join(udiff))
         else:
-            Path(f).write_text(formatted)
+            Path(f).write_text(formatted, encoding="utf-8")
     if check:
         typer.echo(f"{changed} file(s) need formatting; {unchanged} already formatted")
         if changed:

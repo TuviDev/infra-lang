@@ -103,7 +103,7 @@ def compile(
             out_dir.mkdir(parents=True, exist_ok=True)
             for name, content in compiled.files.items():
                 dest = out_dir / name
-                dest.write_text(content)
+                dest.write_text(content, encoding="utf-8")
                 total += 1
     if issues:
         for issue in issues:
@@ -169,7 +169,7 @@ def _compile_once_watch(
             for fname, content in compiled.files.items():
                 out = output_dir / fname
                 out.parent.mkdir(parents=True, exist_ok=True)
-                out.write_text(content)
+                out.write_text(content, encoding="utf-8")
         elapsed = (time.perf_counter() - t0) * 1000
         return True, elapsed, watched
     except Exception as exc:
