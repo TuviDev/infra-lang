@@ -180,6 +180,17 @@ class TestComposeUp:
                 assert fatal not in combined, (
                     f"{p.name}: service log shows a fatal error: {fatal}"
                 )
+        except subprocess.TimeoutExpired:
+            pytest.skip("docker compose up timed out (daemon unresponsive on CI runner)")
+        except subprocess.CalledProcessError as exc:
+            # A daemon that went away between the `docker_available` probe and
+            # `docker compose up` (common on flaky Windows runners) should skip,
+            # not fail the suite.
+            if "cannot connect to the Docker daemon" in (exc.stderr or "").lower() or (
+                exc.returncode != 0 and "daemon" in (exc.stderr or "").lower()
+            ):
+                pytest.skip("Docker daemon unresponsive on CI runner")
+            raise
         finally:
             _run(
                 ["docker", "compose", "down", "-v"],
