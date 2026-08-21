@@ -2,6 +2,37 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.3.1] - 2026-08-20
+
+### Performance
+- **Reused the ruamel.yaml emitter per thread** instead of constructing a new
+  `YAML()` instance for every resource during compilation. Compiling a large
+  chart (500 services + 100 databases) is now ~2–3× faster for the Kubernetes
+  backend (6.0s → ~3.0s) and ~1.5× faster for Helm (1.5s → ~1.0s). The reuse is
+  thread-safe via a `threading.local()` cache, so multi-file / LSP / watch-mode
+  concurrent compiles remain safe.
+
+### Security & robustness
+- The anonymous feedback reporter now validates the collector URL scheme
+  (`http`/`https` only) before sending, and keeps a 2s `urlopen` timeout.
+- Verified `ImportCycleError` inherits `InfraError` and is reported by the CLI
+  as a consistent `error[PARSE]` (graceful, not a crash).
+
+### Code quality
+- Reduced `mypy --strict` findings from 58 to ~42 by adding generic type
+  arguments (`dict[str, list[TextEdit]]`, `Dict[str, Dict[str, Any]]`, etc.)
+  across the LSP server and CLI graph modules.
+- Fixed a latent LSP bug: the single-document references fallback returned
+  `Range` objects instead of `Location` (it now wraps them with the document
+  URI, matching the LSP references protocol).
+
+### Tests
+- Added a Windows `file:///C:/...` URI conversion regression test (the
+  `url2pathname` contract for the leading-slash drive form).
+- Added 16 transformer AST tests (service/environment `extends`, port
+  host:target, `envFrom`, affinity, strategy, security, lifecycle, health exec,
+  topology, disruption, autoscale, network policy) to raise branch coverage.
+
 ## [0.3.0] - 2026-08-20
 
 ### Added
