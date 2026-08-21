@@ -2,6 +2,40 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.2.0] - 2026-08-20
+
+### Added
+- **`infra doctor --check-drift`** — detects on-disk drift in generated output.
+  Recompiles a `.infra` file for a target and compares it against generated
+  files (`--out-dir`, default `infra-out`), reporting modified/missing files as
+  unified diffs. Exit code 0 when clean, 1 on drift. Addresses post-launch
+  feedback that users hand-edit generated manifests, silently diverging from
+  the `.infra` source of truth.
+- **`--json` output flag** for `infra validate` and `infra doctor`, for CI/CD
+  integration:
+  - `infra validate <file.infra> --json` → `{valid, file, errors[], warnings[]}`
+    with per-finding `severity` and location.
+  - `infra doctor --json` → structured tool/environment report.
+  - `infra doctor --check-drift <file> --json` → `{has_drift, modified_files[],
+    missing_files[]}`.
+- **VS Code extension Marketplace readiness** — added full `package.json`
+  metadata (publisher, license, repository, homepage, bugs, keywords,
+  categories, icon), a dedicated `vscode-infra-lang/README.md`, a `.vsix`
+  packaging script via `@vscode/vsce`, an `icon.png`, and an
+  `.github/workflows/extension.yml` that builds and uploads the `.vsix`.
+- **Mutation-hardening test suites** — ~40 new contract/boundary tests across
+  the Terraform, Kubernetes, Compose and security-linter backends (provider
+  combinations, missing optional fields, probe thresholds, multi-port services,
+  RBAC/CronJob, base64 secrets, multiple simultaneous SEC findings, and
+  Error-severity blocking compile).
+
+### Fixed
+- Parser now preserves the source filename when the cached prelude is loaded
+  (the prelude re-parse was clobbering the current-file name used by the
+  AUTO-GENERATED output header, making no-drift comparisons nondeterministic).
+- VS Code extension `engines.vscode` aligned with `@types/vscode` so
+  `vsce package` accepts the build.
+
 ## [0.1.1] - 2026-08-20
 
 ### Added
