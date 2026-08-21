@@ -344,3 +344,114 @@ class TestEdgeCasesTransformer:
         prog = parse('import "./other.infra" as other')
         imp = prog.imports[0]
         assert imp.alias == "other"
+
+
+class TestServiceExtendsBranch:
+    def test_service_extends(self):
+        prog = parse(
+            'service base { image: "x" }\n'
+            'service api extends base { replicas: 2 }'
+        )
+        svcs = [s for s in _user(prog) if isinstance(s, n.ServiceDef)]
+        api = next(s for s in svcs if s.name == "api")
+        assert api.extends == "base"
+
+    def test_environment_extends_branch(self):
+        prog = parse(
+            'environment base { }\n'
+            'environment prod extends base { namespace: "prod-ns" }'
+        )
+        envs = [s for s in _user(prog) if isinstance(s, n.EnvironmentDef)]
+        prod = next(e for e in envs if e.name == "prod")
+        assert prod.extends == "base"
+
+
+class TestPortHostTargetBranch:
+    def test_port_host_target(self):
+        svc = first('service api { image: "x" port 8080:80 }')
+        assert svc.ports[0].host == 8080
+        assert svc.ports[0].target == 80
+
+    def test_port_object_target(self):
+        svc = first('service api { image: "x" port { target: 53 } }')
+        assert svc.ports[0].target == 53
+
+
+class TestConfigEnvFromBranch:
+    def test_env_from_block(self):
+        svc = first(
+            'service api { image: "x" '
+            'envFrom: { secrets: "my-secret" } }'
+        )
+        assert hasattr(svc, "env_from")
+        assert len(svc.env_from) == 1
+        assert svc.env_from[0].source == "my-secret"
+
+    def test_affinity_block(self):
+        svc = first(
+            'service api { image: "x" '
+            'affinity { prefer_same: ["zone-a"] avoid_same: ["zone-b"] } }'
+        )
+        assert svc.affinity is not None
+        assert svc.affinity.prefer_same == ("zone-a",)
+        assert svc.affinity.avoid_same == ("zone-b",)
+
+    def test_strategy_blue_green(self):
+        svc = first('service api { image: "x" strategy: blue_green }')
+        assert svc.strategy is not None
+        assert svc.strategy.type == "blue_green"
+
+
+class TestLifecycleSecurityBranch:
+    def test_security_non_root(self):
+        svc = first('service api { image: "x" security { user: 1000 } }')
+        assert svc.security is not None
+        assert svc.security.user == 1000
+
+    def test_lifecycle_present(self):
+        svc = first(
+            'service api { image: "x" '
+            'lifecycle { preStop { exec: ["sleep", "5"] } } }'
+        )
+        assert svc.lifecycle is not None
+
+    def test_health_exec_command(self):
+        svc = first('service api { image: "x" health exec(["cat", "/ok"]) }')
+        assert svc.health is not None
+
+
+class TestMoreBranches:
+    def test_topology_spread(self):
+        svc = first(
+            'service api { image: "x" '
+            'topology { spread_by: "zone" max_skew: 2 } }'
+        )
+        assert svc.topology is not None
+
+    def test_disruption_pdb(self):
+        svc = first('service api { image: "x" disruption { min_available: 50% } }')
+        assert svc.disruption is not None
+
+    def test_autoscale_block(self):
+        svc = first(
+            'service api { image: "x" '
+            'autoscale { min: 1 max: 5 target_cpu: 70 } }'
+        )
+        assert svc.autoscale is not None
+        assert svc.autoscale.max_replicas == 5
+
+    def test_network_policy_deny(self):
+        svc = first(
+            'service api { image: "x" '
+            'network_policy { deny_from: ["*"] allow_from: [gateway] } }'
+        )
+        assert svc.network_policy is not None
+
+    def test_expose_scalar(self):
+        svc = first('service api { image: "x" expose: true }')
+        assert svc.expose is True
+
+    def test_security_privileged_false(self):
+        svc = first('service api { image: "x" security { privileged: false } }')
+        assert svc.security is not None
+        assert svc.security.privileged is False
