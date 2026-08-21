@@ -35,6 +35,7 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
     TEXT_DOCUMENT_SIGNATURE_HELP,
     WORKSPACE_SYMBOL,
+    CodeAction,
     CodeActionParams,
     CodeDescription,
     CompletionList,
@@ -51,7 +52,9 @@ from lsprotocol.types import (
     DocumentHighlight,
     DocumentHighlightKind,
     DocumentHighlightParams,
+    DocumentSymbol,
     DocumentSymbolParams,
+    FoldingRange,
     FoldingRangeParams,
     Hover,
     HoverParams,
@@ -366,7 +369,7 @@ def initialized(ls: LanguageServer, params: InitializedParams) -> None:
 def workspace_symbol(
     ls: LanguageServer,
     params: WorkspaceSymbolParams,
-) -> list:
+) -> list[WorkspaceSymbol]:
     """Return every top-level resource in the whole project (Ctrl+T)."""
     query = (params.query or "").lower()
     symbols = workspace_index.all_symbols()
@@ -429,7 +432,7 @@ def signature_help(
 def document_highlight(
     ls: LanguageServer,
     params: DocumentHighlightParams,
-) -> list:
+) -> list[DocumentHighlight]:
     """Highlight every occurrence of the symbol under the cursor in the file."""
     source = _doc_source(ls, params.text_document.uri)
     line = max(0, params.position.line)
@@ -454,7 +457,7 @@ def document_highlight(
 def folding_range(
     ls: LanguageServer,
     params: FoldingRangeParams,
-) -> list:
+) -> list[FoldingRange]:
     """Return foldable regions (blocks + comment runs) for the document."""
     source = _doc_source(ls, params.text_document.uri)
     from ..lsp.folding import folding_ranges
@@ -538,7 +541,7 @@ def completion(
 def document_symbol(
     ls: LanguageServer,
     params: DocumentSymbolParams,
-) -> list:
+) -> list[DocumentSymbol]:
     """Provide a document outline (top-level blocks)."""
     doc = ls.workspace.get_text_document(params.text_document.uri)
     source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
@@ -580,7 +583,7 @@ def definition(
 def references(
     ls: LanguageServer,
     params: ReferenceParams,
-) -> list:
+) -> list[Location]:
     """Find references to a symbol, including across the open workspace."""
     uri = params.text_document.uri
     source = _doc_source(ls, uri)
@@ -592,11 +595,15 @@ def references(
         return []
     docs = _workspace_documents(ls)
     if not docs:
-        # single-document fallback preserves the original behaviour
-        return reference_ranges(source, name)
+        # single-document fallback: reference_ranges yields Range objects, but
+        # the LSP references result is a list of Location (uri + range), so wrap
+        # each range with the current document's uri.
+        return [
+            Location(uri=uri, range=rng) for rng in reference_ranges(source, name)
+        ]
     # definition sites (so "find references" includes the declaration),
     # derived from the merged (disk + open) source map.
-    locations: list = []
+    locations: list[Location] = []
     for defn in build_index(docs).get(name, []):
         locations.append(
             Location(
@@ -654,7 +661,7 @@ def rename(
     new_name = params.new_name
     if new_name == old_name:
         return WorkspaceEdit(changes={})
-    changes: dict[str, list] = {}
+    changes: dict[str, list[TextEdit]] = {}
     current_edits = [
         TextEdit(range=rng, new_text=text)
         for rng, text in rename_edits(source, old_name, new_name)
@@ -677,7 +684,7 @@ def rename(
 def formatting(
     ls: LanguageServer,
     params: DocumentFormattingParams,
-) -> list:
+) -> list[TextEdit]:
     """Format the whole document via the existing AST pretty-printer."""
     from infra.cli.printer import format_source
 
@@ -705,7 +712,7 @@ def formatting(
 def code_action(
     ls: LanguageServer,
     params: CodeActionParams,
-) -> list:
+) -> list[CodeAction]:
     """Provide quick fixes for diagnostics in the requested range."""
     doc = ls.workspace.get_text_document(params.text_document.uri)
     source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)

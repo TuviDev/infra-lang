@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import typer
 
@@ -18,13 +18,17 @@ _SHAPES = {
 }
 
 
-def _collect(files: List[Path]) -> Tuple[Dict[str, Dict], List[Tuple[str, str]]]:
+def _collect(
+    files: List[Path],
+) -> Tuple[Dict[str, Dict[str, Any]], List[Tuple[str, str]]]:
     """Return {name: {kind, sub, ingress_host}} nodes and depends edges."""
     parser = _parser()
-    nodes: Dict[str, Dict] = {}
+    nodes: Dict[str, Dict[str, Any]] = {}
     edges: Set[Tuple[str, str]] = set()
 
-    def _add(name: str, kind: str, sub: str, ingress_host: Optional[str] = None):
+    def _add(
+        name: str, kind: str, sub: str, ingress_host: Optional[str] = None
+    ) -> None:
         if name not in nodes:
             nodes[name] = {"kind": kind, "sub": sub, "ingress_host": ingress_host}
 
@@ -47,7 +51,9 @@ def _collect(files: List[Path]) -> Tuple[Dict[str, Dict], List[Tuple[str, str]]]
     return nodes, sorted(edges)
 
 
-def _render_ascii(nodes: Dict[str, Dict], edges: List[Tuple[str, str]]) -> str:
+def _render_ascii(
+    nodes: Dict[str, Dict[str, Any]], edges: List[Tuple[str, str]]
+) -> str:
     lines: List[str] = []
 
     def _label(name: str) -> str:
@@ -66,7 +72,7 @@ def _render_ascii(nodes: Dict[str, Dict], edges: List[Tuple[str, str]]) -> str:
     return "\n".join(lines) if lines else "(no dependencies)"
 
 
-def _render_dot(nodes: Dict[str, Dict], edges: List[Tuple[str, str]]) -> str:
+def _render_dot(nodes: Dict[str, Dict[str, Any]], edges: List[Tuple[str, str]]) -> str:
     lines = ["digraph infra {", "    rankdir=LR", ""]
     for name, meta in sorted(nodes.items()):
         shape, _ = _SHAPES.get(meta["kind"], ("box", "node"))
@@ -80,10 +86,12 @@ def _render_dot(nodes: Dict[str, Dict], edges: List[Tuple[str, str]]) -> str:
     return "\n".join(lines)
 
 
-def _render_mermaid(nodes: Dict[str, Dict], edges: List[Tuple[str, str]]) -> str:
+def _render_mermaid(
+    nodes: Dict[str, Dict[str, Any]], edges: List[Tuple[str, str]]
+) -> str:
     lines = ["graph LR"]
 
-    def _node(name: str, meta: Dict) -> str:
+    def _node(name: str, meta: Dict[str, Any]) -> str:
         kind = meta["kind"]
         label = f"{name} - {meta['sub']}"
         if kind == "database" or kind == "cache" or kind == "queue":
