@@ -217,6 +217,11 @@ class Parser:
                 statements=prelude.statements + program.statements,
                 imports=program.imports,
             )
+            # `_load_prelude` re-parses with filename="<prelude>", which
+            # overwrites the current-file tracking; restore it so backends that
+            # read the source name (e.g. the AUTO-GENERATED header) report the
+            # real file, not the prelude.
+            _set_file(filename)
         return program
 
     def parse_file(self, path: Path) -> n.Program:

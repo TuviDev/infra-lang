@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Optional, Tuple
 
 import typer
@@ -95,8 +96,70 @@ def _checks() -> List[Check]:
     return checks
 
 
-def doctor() -> None:
-    """Check the user's environment for tools Infra Lang needs and can use."""
+def _check_drift(
+    infra_path: Path,
+    out_dir: Path,
+    target: str,
+) -> None:
+    """Run the on-disk drift check and exit with the appropriate code."""
+    from rich.console import Console
+
+    console = Console()
+
+    if not infra_path.exists():
+        console.print(f"[red]Source file not found:[/red] {infra_path}")
+        raise typer.Exit(code=1)
+
+    from infra.analyzer.drift import detect_drift, render_drift
+
+    try:
+        result = detect_drift(infra_path, out_dir, target=target)
+    except Exception as exc:  # parse errors / unknown backend
+        console.print(f"[red]Drift check failed:[/red] {exc}")
+        raise typer.Exit(code=1)
+
+    if result.clean:
+        console.print(
+            "[green]No drift detected. On-disk files match source compilation.[/green]"
+        )
+        raise typer.Exit(code=0)
+
+    console.print(render_drift(result))
+    if result.missing_files:
+        console.print(
+            "\n[yellow]Hint: run `infra compile <file> --target "
+            f"{target} --output {out_dir}` to generate the missing files.[/yellow]"
+        )
+    raise typer.Exit(code=1)
+
+
+def doctor(
+    check_drift: Optional[Path] = typer.Option(
+        None,
+        "--check-drift",
+        "-d",
+        help="Path to a .infra file to check for on-disk drift.",
+    ),
+    out_dir: Path = typer.Option(
+        Path("./infra-out"),
+        "--out-dir",
+        "-o",
+        help="Directory containing generated output (for --check-drift).",
+    ),
+    target: str = typer.Option(
+        "kubernetes",
+        "--target",
+        "-t",
+        help=(
+            "Compile target for --check-drift "
+            "(kubernetes, compose, terraform, github, helm)."
+        ),
+    ),
+) -> None:
+    """Check the user's environment, or detect on-disk drift with --check-drift."""
+    if check_drift is not None:
+        _check_drift(check_drift, out_dir, target)
+
     checks = _checks()
     typer.echo(f"Infra Lang v{__version__}")
     for c in checks:
