@@ -85,6 +85,21 @@ def _field_awaiting_value(prefix: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
+def _last_field_word(prefix: str) -> Optional[str]:
+    """Return the last field-name word in *prefix* (for a missing-colon hint).
+
+    Used when the parser expects a COLON right after a keyword/field name (e.g.
+    ``image "x"`` instead of ``image: "x"``). Returns the trailing word if it
+    looks like a field identifier.
+    """
+    stripped = prefix.rstrip()
+    if not stripped:
+        return None
+    # strip trailing punctuation that isn't part of the field name
+    m = re.search(r"([A-Za-z_][A-Za-z0-9_-]*)\s*$", stripped)
+    return m.group(1) if m else None
+
+
 def _friendly_parse_message(exc, source: str) -> Optional[str]:
     """Build a friendlier message for common parse mistakes, or None."""
     if not isinstance(exc, (UnexpectedToken, UnexpectedCharacters)):
@@ -95,6 +110,13 @@ def _friendly_parse_message(exc, source: str) -> Optional[str]:
         char = getattr(exc, "char", "") or ""
         if char == "\ufeff":
             return "Source begins with a UTF-8 BOM. Re-save the file without a BOM."
+        if char == '"':
+            # A quote at this position usually means an unterminated string:
+            # the lexer hit a stray `"` that couldn't start a token.
+            return (
+                "Unterminated string literal. "
+                'Did you forget to close the double quote (")?'
+            )
         return None
 
     expected = sorted(exc.expected or [])
@@ -132,6 +154,15 @@ def _friendly_parse_message(exc, source: str) -> Optional[str]:
             else:
                 base += " Did you mean 'service', 'database', 'secret', ...?"
             return base
+
+    # 4) Missing colon after a field name (`image "x"` instead of `image: "x"`).
+    if expected == ["COLON"]:
+        field = _last_field_word(prefix)
+        if field is not None:
+            return (
+                f"Expected ':' after field name '{field}'. "
+                f"Did you forget the colon? Example: {field}: \"...\""
+            )
 
     return None
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import pytest
 
-from infra.errors.exceptions import InfraParseError
+from infra.errors.exceptions import InfraLexError, InfraParseError
 from infra.parser import parse
 
 
@@ -52,3 +52,24 @@ class TestValidCodeUnaffected:
     def test_valid_service_still_parses(self):
         result = parse('service api { image: "nginx:1.25" port 80 }')
         assert result is not None
+
+
+class TestMissingColon:
+    def test_missing_colon_after_field(self):
+        with pytest.raises(InfraParseError) as ei:
+            parse('service api { image "nginx" }')
+        assert "Expected ':' after field name 'image'" in ei.value.message
+        assert "forget the colon" in ei.value.message
+
+    def test_missing_colon_other_field(self):
+        with pytest.raises(InfraParseError) as ei:
+            parse('service api { image: "nginx" replicas 2 }')
+        assert "Expected ':' after field name 'replicas'" in ei.value.message
+
+
+class TestUnclosedString:
+    def test_unterminated_string_hint(self):
+        with pytest.raises(InfraLexError) as ei:
+            parse('service api { image: "nginx }')
+        assert "Unterminated string literal" in ei.value.message
+        assert "forget to close" in ei.value.message
