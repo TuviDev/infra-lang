@@ -103,6 +103,9 @@ def compile(
             out_dir.mkdir(parents=True, exist_ok=True)
             for name, content in compiled.files.items():
                 dest = out_dir / name
+                # Helm emits nested paths (e.g. <chart>/templates/...); ensure
+                # the parent directory exists before writing.
+                dest.parent.mkdir(parents=True, exist_ok=True)
                 dest.write_text(content, encoding="utf-8")
                 total += 1
     if issues:

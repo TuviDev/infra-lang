@@ -452,3 +452,43 @@ class TestValuesSchema:
         # Helm parses values.schema.json as JSON — a leading # would be invalid
         content = _chart_files(SERVICE_SRC)["values.schema.json"]
         assert not content.startswith("#")
+
+
+class TestHelmUtf8Encoding:
+    """Regression: generated Helm files must be valid UTF-8, no BOM (Windows CI)."""
+
+    def test_helm_output_files_are_valid_utf8(self, tmp_path):
+        # compile a realistic multi-resource chart to disk via the CLI (the same
+        # path that wrote cp1252 files on Windows before the encoding fix)
+        import subprocess
+        import sys
+
+        src = tmp_path / "app.infra"
+        src.write_text(
+            'service api { image: "nginx:1.25" port 80 }\n'
+            "database db { type: postgres }\n"
+            "secret s { k: from env \"K\" }\n",
+            encoding="utf-8",
+        )
+        out = tmp_path / "out"
+        result = subprocess.run(
+            [sys.executable, "-m", "infra", "compile", str(src), "-t", "helm", "-o", str(out)],
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stderr
+
+        # every generated file (Chart.yaml, values.yaml, values.schema.json,
+        # templates/*) must be UTF-8-decodable and start without a BOM
+        generated = [p for p in out.rglob("*") if p.is_file()]
+        assert generated, "no helm files were generated"
+
+        for path in generated:
+            raw = path.read_bytes()
+            # reject UTF-8 BOM (ef bb bf)
+            assert not raw.startswith(b"\xef\xbb\xbf"), (
+                f"{path.name} has a UTF-8 BOM"
+            )
+            # must decode cleanly as UTF-8
+            raw.decode("utf-8")
