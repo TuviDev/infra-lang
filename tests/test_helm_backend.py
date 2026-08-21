@@ -414,3 +414,41 @@ class TestHelmServiceValues:
     def test_service_type_clusterip_default(self):
         vals = _yaml(_chart_files('service api { image: "x" }')["values.yaml"])
         assert vals["service"]["api"]["serviceType"] == "ClusterIP"
+
+
+class TestValuesSchema:
+    def test_schema_json_generated(self):
+        files = _chart_files(SERVICE_SRC)
+        assert "values.schema.json" in files
+
+    def test_schema_is_valid_json(self):
+        import json
+
+        content = _chart_files(SERVICE_SRC)["values.schema.json"]
+        data = json.loads(content)  # no header comment — must be pure JSON
+        assert data["$schema"] == "http://json-schema.org/draft-07/schema#"
+        assert data["type"] == "object"
+        assert "service" in data["properties"]
+        assert "secret" in data["properties"]
+        assert "configmap" in data["properties"]
+
+    def test_schema_allows_service_image_object(self):
+        import json
+
+        content = _chart_files(SERVICE_SRC)["values.schema.json"]
+        data = json.loads(content)
+        image = data["properties"]["service"]["additionalProperties"]["properties"]["image"]
+        assert "oneOf" in image
+
+    def test_schema_lists_workload_kinds(self):
+        import json
+
+        content = _chart_files(SERVICE_SRC)["values.schema.json"]
+        data = json.loads(content)
+        kinds = data["properties"]["service"]["additionalProperties"]["properties"]["kind"]
+        assert kinds["enum"] == ["deployment", "statefulset"]
+
+    def test_schema_no_header_comment(self):
+        # Helm parses values.schema.json as JSON — a leading # would be invalid
+        content = _chart_files(SERVICE_SRC)["values.schema.json"]
+        assert not content.startswith("#")

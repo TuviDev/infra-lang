@@ -19,6 +19,7 @@ Secrets reuse the K8s base64 encoding rule. Multi-port services get the same
 
 from __future__ import annotations
 
+import json
 from typing import Any, Dict, Optional
 
 from infra.backends._images import CACHE_IMAGES as _CACHE_IMAGES
@@ -87,6 +88,7 @@ class HelmBackend(Backend, BaseYAMLBackend):
         files: Dict[str, str] = {}
         files[f"{chart}/Chart.yaml"] = self._chart_yaml(chart)
         files[f"{chart}/values.yaml"] = self._values_yaml(program)
+        files[f"{chart}/values.schema.json"] = self._values_schema_json(program)
         files[f"{chart}/.helmignore"] = _HELMIGNORE
         files[f"{chart}/templates/_helpers.tpl"] = (
             _HELM_TPL_HEADER + self._helpers_tpl(chart)
@@ -137,6 +139,76 @@ class HelmBackend(Backend, BaseYAMLBackend):
     # ------------------------------------------------------------------ #
     # Chart / values
     # ------------------------------------------------------------------ #
+
+    def _values_schema_json(self, program: n.Program) -> str:
+        """Return a JSON Schema (Draft-07) validating the generated values.yaml.
+
+        Helm reads ``values.schema.json`` (when present) and validates any
+        overrides applied via ``--set`` / ``--values`` against it. We describe
+        the service/secret/configmap structure so users get early validation
+        of their override values.
+        """
+        workload = {
+            "type": "object",
+            "additionalProperties": True,
+            "properties": {
+                "kind": {"type": "string", "enum": ["deployment", "statefulset"]},
+                "replicas": {"type": ["integer", "number"], "minimum": 0},
+                # image is either a plain string (database/cache) or an object
+                # with repository+tag (service); accept both.
+                "image": {
+                    "oneOf": [
+                        {"type": "string"},
+                        {
+                            "type": "object",
+                            "additionalProperties": True,
+                            "properties": {
+                                "repository": {"type": "string"},
+                                "tag": {"type": "string"},
+                            },
+                        },
+                    ]
+                },
+                "port": {"type": ["integer", "number"]},
+                "serviceType": {"type": "string"},
+                "engine": {"type": "string"},
+                "storage": {"type": ["string", "number"]},
+            },
+        }
+        schema = {
+            "$schema": "http://json-schema.org/draft-07/schema#",
+            "type": "object",
+            "additionalProperties": True,
+            "properties": {
+                "service": {
+                    "type": "object",
+                    "additionalProperties": workload,
+                },
+                "secret": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                        "properties": {
+                            "values": {
+                                "type": "object",
+                                "additionalProperties": {"type": "string"},
+                            }
+                        },
+                    },
+                },
+                "configmap": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {"type": "string"},
+                    },
+                },
+            },
+        }
+        # NOTE: values.schema.json must be *pure JSON* — Helm parses it as JSON
+        # and a `#` comment header would make it invalid. So no header here.
+        return json.dumps(schema, indent=2) + "\n"
 
     def _chart_yaml(self, chart: str) -> str:
         return (
