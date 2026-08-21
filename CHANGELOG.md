@@ -2,6 +2,21 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.3.2] - 2026-08-20
+
+### Fixed
+- **Helm UTF-8 BOM** — the generated `Chart.yaml`, `values.yaml`, `templates/*`
+  and `values.schema.json` are now defensively stripped of any leading UTF-8
+  BOM (`\ufeff`), both in the Helm backend and in `infra compile` before
+  writing to disk. Helm's Go YAML parser rejects a file that begins with a BOM
+  (`yaml: invalid leading UTF-8 octet`), which broke on Windows CI. All
+  generated files are written with explicit `encoding="utf-8"` and are verified
+  byte-clean (no `\xef\xbb\xbf`) by a regression test.
+- **Docker daemon probe** — `have_docker()` keeps its short `docker info` probe
+  (returns `False` when the daemon is unreachable). `test_compose_up_and_healthy`
+  now also skips (rather than fails) when `docker compose up` hits a daemon that
+  went away between the probe and the run — common on flaky Windows CI runners.
+
 ## [0.3.1] - 2026-08-20
 
 ### Performance
