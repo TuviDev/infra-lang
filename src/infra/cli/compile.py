@@ -106,7 +106,11 @@ def compile(
                 # Helm emits nested paths (e.g. <chart>/templates/...); ensure
                 # the parent directory exists before writing.
                 dest.parent.mkdir(parents=True, exist_ok=True)
-                dest.write_text(content, encoding="utf-8")
+                # Defensive: strip any UTF-8 BOM from the text before writing.
+                # Helm's Go YAML parser rejects a file that starts with a BOM
+                # (`yaml: invalid leading UTF-8 octet`). encoding="utf-8" writes
+                # UTF-8; this guards against a stray \ufeff in generated content.
+                dest.write_text(content.lstrip("\ufeff"), encoding="utf-8")
                 total += 1
     if issues:
         for issue in issues:
@@ -172,7 +176,8 @@ def _compile_once_watch(
             for fname, content in compiled.files.items():
                 out = output_dir / fname
                 out.parent.mkdir(parents=True, exist_ok=True)
-                out.write_text(content, encoding="utf-8")
+                # strip a stray UTF-8 BOM so Go YAML (helm) accepts the file
+                out.write_text(content.lstrip("\ufeff"), encoding="utf-8")
         elapsed = (time.perf_counter() - t0) * 1000
         return True, elapsed, watched
     except Exception as exc:
