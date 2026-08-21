@@ -1,0 +1,45 @@
+name: Extension
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "vscode-infra-lang/**"
+      - ".github/workflows/extension.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "vscode-infra-lang/**"
+      - ".github/workflows/extension.yml"
+
+jobs:
+  package:
+    name: Build & package .vsix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: vscode-infra-lang/package-lock.json
+
+      - name: Install dependencies
+        working-directory: vscode-infra-lang
+        run: npm ci --no-audit --no-fund
+
+      - name: Compile TypeScript
+        working-directory: vscode-infra-lang
+        run: npm run compile
+
+      - name: Package .vsix
+        working-directory: vscode-infra-lang
+        run: npx @vscode/vsce package --no-dependencies
+
+      - name: Upload .vsix artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: infra-lang-vsix
+          path: vscode-infra-lang/*.vsix
+          if-no-files-found: error

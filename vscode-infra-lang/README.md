@@ -1,81 +1,81 @@
 # Infra Lang for Visual Studio Code
 
-Syntax highlighting and snippets for **Infra Language** `.infra` files.
+Syntax highlighting, snippets, and a live language server for **Infra Language**
+`.infra` files — the Infrastructure-as-Code DSL that compiles one file to
+Kubernetes, Docker Compose, Terraform, Helm, and GitHub Actions.
 
 ## Features
 
-- Syntax highlighting for all 11 Infra structures (service, database, cache,
-  queue, storage, network, secret, config, pipeline, environment, cluster).
-- Distinct colors for keywords, built-in types, decorators, template strings,
+- **Syntax highlighting** for all 11 Infra structures (service, database, cache,
+  queue, storage, network, secret, config, pipeline, environment, cluster) with
+  distinct colors for keywords, built-in types, decorators, template strings,
   numbers + units, booleans/null, comments and field names.
-- 12 code snippets to scaffold services, databases, caches, pipelines,
+- **Live diagnostics** — errors and warnings appear inline as you type (powered
+  by the Infra Lang LSP server), no need to run `infra validate`.
+- **Completion & hover** — context-aware suggestions for blocks, fields, values
+  and sub-blocks, plus documentation on hover.
+- **Go to definition / references / rename** — navigate and rename symbols,
+  including across files in the same project.
+- **12 code snippets** to scaffold services, databases, caches, pipelines,
   resources and environments.
 
-## Install
+## Requirements
 
-1. Install the [Visual Studio Code Extension (VSIX)](https://code.visualstudio.com/)
-   or copy the `vscode-infra-lang/` folder into your `.vscode/extensions/`
-   directory.
-2. Restart VS Code.
-3. Open a `.infra` file — highlighting applies automatically.
+- **Python 3.11+** with Infra Lang installed (the language server):
 
-## Snippets
-
-Type the prefix and press Tab:
-
-| Prefix      | Inserts                                       |
-|-------------|-----------------------------------------------|
-| `svc`       | Full service (port/health/resources)          |
-| `svc-full`  | Service + autoscale + security + network policy |
-| `db`        | Database with SSL and backup                  |
-| `cache`     | Redis cache with memory and persistence       |
-| `pipeline`  | CI/CD pipeline (test → build → deploy)        |
-| `secret`    | Secret from env                               |
-| `environment`| Environment that extends another              |
-| `micro`     | 3 services + database + cache                 |
-| `health`    | Health check shorthand                        |
-| `res-s`     | Small resource block                          |
-| `res-m`     | Medium resource block                         |
-| `autoscale` | HPA block                                     |
-
-## Development
-
-- Grammar: `syntaxes/infra.tmLanguage.json`
-- Snippets: `snippets/infra.json`
-- Language config: `language-configuration.json`
-
-## Installation
-
-### Option A: From VS Code Marketplace (coming soon)
-Search "Infra Lang" in Extensions.
-
-### Option B: From source
-```bash
-npm install
-npm run compile
-code --install-extension infra-lang-0.1.0.vsix
-```
-
-### Requirements
-- Python 3.11+ with infra-lang installed:
   ```bash
-  pip install 'git+https://github.com/TuviDev/infra-lang.git'
-  ```
-- Or with LSP support:
-  ```bash
-  pip install 'git+https://github.com/TuviDev/infra-lang.git[lsp]'
+  pip install 'infra-lang[lsp]'
   ```
 
-## Language Server (LSP)
+  (The `[lsp]` extra pulls in `pygls`, which the server needs.)
 
-The extension launches the Infra Lang language server for live diagnostics
-(errors and warnings inline as you type) and keyword hover documentation.
+- **Visual Studio Code** 1.85 or newer.
 
-Make sure the `infra.lsp.server` module is importable from your Python
-interpreter. Configure it in VS Code if needed:
+## Configuration
+
+The extension launches the Infra Lang language server automatically when you
+open a `.infra` file. Make sure the `infra` module is importable from your
+Python interpreter; if you use a virtual environment, point VS Code at it:
 
 ```json
 {
   "python.defaultInterpreterPath": "/path/to/python"
 }
 ```
+
+## Usage
+
+1. Install the extension from the Marketplace.
+2. Ensure `pip install 'infra-lang[lsp]'` is available on your `PATH`.
+3. Open a `.infra` file — highlighting applies automatically, and the language
+   server provides live diagnostics, completion, and navigation.
+
+## Snippets
+
+Type the prefix and press Tab:
+
+| Prefix       | Inserts                                        |
+|--------------|------------------------------------------------|
+| `svc`        | Full service (port/health/resources)           |
+| `svc-full`   | Service + autoscale + security + network policy|
+| `db`         | Database with SSL and backup                   |
+| `cache`      | Redis cache with memory and persistence        |
+| `pipeline`   | CI/CD pipeline (test → build → deploy)         |
+| `secret`     | Secret from env                                |
+| `environment`| Environment that extends another               |
+| `micro`      | 3 services + database + cache                  |
+| `health`     | Health check shorthand                         |
+| `res-s`      | Small resource block                           |
+| `res-m`      | Medium resource block                          |
+| `autoscale`  | HPA block                                      |
+
+## Resources
+
+- [Repository](https://github.com/TuviDev/infra-lang)
+- [Documentation](https://TuviDev.github.io/infra-lang/)
+- [Quickstart](https://TuviDev.github.io/infra-lang/quickstart/)
+- [Issue tracker](https://github.com/TuviDev/infra-lang/issues)
+
+## License
+
+MIT — see the [LICENSE](https://github.com/TuviDev/infra-lang/blob/main/LICENSE).

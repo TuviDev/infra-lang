@@ -106,3 +106,59 @@ class TestExtensionStructure:
         data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
         assert data.get("main") == "./out/extension.js"
         assert (EXT / "out" / "extension.js").exists()
+
+
+class TestMarketplaceMetadata:
+    """Fields required by the VS Code Marketplace to publish a .vsix."""
+
+    def test_publisher_present(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        assert data.get("publisher")
+
+    def test_license_present(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        assert data.get("license") == "MIT"
+
+    def test_repository_present(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        repo = data.get("repository", {})
+        assert repo.get("type") == "git"
+        assert "TuviDev/infra-lang" in repo.get("url", "")
+
+    def test_homepage_and_bugs(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        assert "TuviDev.github.io" in data.get("homepage", "")
+        assert "TuviDev/infra-lang/issues" in data.get("bugs", {}).get("url", "")
+
+    def test_keywords_and_categories(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        assert "infra" in data.get("keywords", [])
+        assert "Programming Languages" in data.get("categories", [])
+
+    def test_icon_exists_and_is_png(self):
+        icon = EXT / "icon.png"
+        assert icon.exists(), "icon.png missing (Marketplace requires a PNG icon)"
+        # PNG magic bytes
+        assert icon.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n"
+
+    def test_package_script_present(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        assert "package" in data.get("scripts", {})
+        assert "vsce" in data["scripts"]["package"]
+
+    def test_vsce_dev_dependency_present(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        deps = data.get("devDependencies", {})
+        assert "@vscode/vsce" in deps
+
+    def test_readme_references_marketplace_install(self):
+        readme = (EXT / "README.md").read_text(encoding="utf-8")
+        assert "Marketplace" in readme
+        assert "pip install 'infra-lang[lsp]'" in readme
+
+    def test_extension_workflow_exists(self):
+        wf = Path(".github/workflows/extension.yml")
+        assert wf.exists(), "extension.yml workflow missing"
+        content = wf.read_text(encoding="utf-8")
+        assert "vsce package" in content
+        assert "upload-artifact" in content
