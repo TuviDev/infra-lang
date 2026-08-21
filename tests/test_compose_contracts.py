@@ -259,3 +259,62 @@ class TestConsolidatedFromAudit:
         for name, content in result.files.items():
             if name.endswith((".yml", ".yaml")):
                 assert isinstance(yaml.safe_load(content), dict)
+
+
+class TestEnvFromFileVsString:
+    def test_env_from_env_var(self):
+        # from env -> runtime variable reference ${VAR}
+        svc = _svc('service api { image: "x" env { A: from env "SECRET_A" } }', "api")
+        assert svc["environment"]["A"] == "${SECRET_A}"
+
+    def test_env_literal_string(self):
+        svc = _svc('service api { image: "x" env { A: "plain" } }', "api")
+        assert svc["environment"]["A"] == "plain"
+
+    def test_env_secret_reference(self):
+        # from secret -> env var reference without embedding the value
+        svc = _svc(
+            'service api { image: "x" env { DB: from secret "db".password } }',
+            "api",
+        )
+        assert "DB" in svc["environment"]
+
+
+class TestVolumesAndPorts:
+    def test_multi_volume_mounts(self):
+        data, _ = _compose(
+            'service api { image: "x" '
+            'volume { name: "a" mount_path: "/a" } '
+            'volume { name: "b" mount_path: "/b" } }'
+        )
+        svc = data["services"]["api"]
+        assert any(v.startswith("a:") for v in svc["volumes"])
+        assert any(v.startswith("b:") for v in svc["volumes"])
+
+    def test_volume_without_mount_path_uses_data(self):
+        svc = _svc('service api { image: "x" volume { name: "v" } }', "api")
+        assert svc["volumes"] == ["v:/data"]
+
+    def test_multi_port_keeps_all(self):
+        svc = _svc('service api { image: "x" port 80 port 443 }', "api")
+        assert len(svc["ports"]) == 2
+
+    def test_port_host_target(self):
+        svc = _svc('service api { image: "x" port 8080:80 }', "api")
+        assert "8080:80" in svc["ports"]
+
+
+class TestComposeTopLevelVolumes:
+    def test_named_volume_auto_declared(self):
+        data, _ = _compose(
+            'service api { image: "x" volume { name: "data" mount_path: "/d" } }'
+        )
+        assert "data" in data["volumes"]
+
+    def test_env_file_generated_from_secret(self):
+        # .env.example is populated from literal secret/config values
+        _, result = _compose(
+            'secret s { password: "v" }\nservice api { image: "x" }'
+        )
+        env_file = result.files.get(".env.example", "")
+        assert "S_PASSWORD=v" in env_file

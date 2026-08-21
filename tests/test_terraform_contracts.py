@@ -108,3 +108,71 @@ class TestDatabaseAndStorage:
         files = _tf("cluster c { provider: aws }")
         assert "aws_region" in files["terraform.tfvars.example"]
         assert "environment" in files["terraform.tfvars.example"]
+
+
+class TestProviderCombinations:
+    def test_gcp_provider_config(self):
+        files = _tf("cluster c { provider: gcp }")
+        providers = files["providers.tf"]
+        assert 'provider "google"' in providers
+        assert "var.gcp_project" in providers
+        assert "var.gcp_region" in providers
+
+    def test_azure_provider_config(self):
+        files = _tf("cluster c { provider: azure }")
+        providers = files["providers.tf"]
+        assert 'provider "azurerm"' in providers
+        assert "features {}" in providers
+
+    def test_provider_detected_from_cluster(self):
+        # no explicit provider -> detected from the ClusterDef
+        files = _tf_with_cluster("provider: gcp")
+        assert 'provider "google"' in files["providers.tf"]
+
+    def test_gcp_variables_declared(self):
+        files = _tf("cluster c { provider: gcp }")
+        assert 'variable "gcp_project"' in files["variables.tf"]
+        assert 'variable "gcp_region"' in files["variables.tf"]
+
+    def test_azure_variables_declared(self):
+        files = _tf("cluster c { provider: azure }")
+        assert 'variable "azure_location"' in files["variables.tf"]
+        assert 'variable "azure_resource_group"' in files["variables.tf"]
+
+    def test_aws_default_region_variable(self):
+        files = _tf("cluster c { provider: aws }")
+        assert 'variable "aws_region" { default = "eu-west-1" }' in files["variables.tf"]
+
+    def test_aws_provider_has_default_tags(self):
+        files = _tf("cluster c { provider: aws }")
+        assert "ManagedBy" in files["providers.tf"]
+        assert "infra-lang" in files["providers.tf"]
+
+
+class TestMissingOptionalFields:
+    def test_cluster_without_nodes(self):
+        # nodes block optional; must not crash, must emit vpc+eks
+        files = _tf("cluster c { provider: aws }")
+        assert 'resource "aws_vpc"' in files["main.tf"]
+        assert 'resource "aws_eks_cluster"' in files["main.tf"]
+
+    def test_database_without_size(self):
+        files = _tf("cluster c { provider: aws }\ndatabase db { type: postgres }")
+        main = files["main.tf"]
+        assert 'resource "aws_db_instance"' in main
+
+    def test_empty_cluster_body(self):
+        files = _tf("cluster c { provider: aws }")
+        assert files["providers.tf"]
+
+
+class TestVariableInterpolation:
+    def test_top_level_database_compiles(self):
+        files = _tf("cluster c { provider: aws }\ndatabase db { type: postgres }")
+        assert files["main.tf"]
+
+    def test_aws_storage_with_bucket_compiles(self):
+        main = _tf(
+            'cluster c { provider: aws }\nstorage s { type: s3 bucket: "b" }'
+        )["main.tf"]
+        assert "aws_s3_bucket" in main

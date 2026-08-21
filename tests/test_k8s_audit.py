@@ -422,3 +422,75 @@ class TestAutoscaleAndDisruption:
             'service api { image: "x" replicas: 3 disruption { max_unavailable: 1 } }'
         ), "PodDisruptionBudget")
         assert pdb["spec"]["maxUnavailable"] == 1
+
+
+class TestProbeThresholds:
+    def _probe_container(self, health_src):
+        src = f'service api {{ image: "nginx:1.25" {health_src} }}'
+        return _container(compile_docs(src))
+
+    def test_http_probe_full_timings(self):
+        c = self._probe_container(
+            'health http("/health") '
+            "{ initialDelay: 5s interval: 10s timeout: 3s retries: 4 }"
+        )
+        probe = c["livenessProbe"]
+        assert probe["httpGet"]["path"] == "/health"
+        assert probe["httpGet"]["port"] == 80
+        assert probe["initialDelaySeconds"] == 5
+        assert probe["periodSeconds"] == 10
+        assert probe["timeoutSeconds"] == 3
+        assert probe["failureThreshold"] == 4
+
+    def test_tcp_probe_with_port(self):
+        c = self._probe_container("health tcp(80) { port: 8080 }")
+        assert c["livenessProbe"]["tcpSocket"] == {"port": 8080}
+
+    def test_grpc_probe_with_port(self):
+        c = self._probe_container("health grpc(80) { port: 50051 }")
+        assert c["livenessProbe"]["grpc"] == {"port": 50051}
+
+    def test_zero_duration_omitted(self):
+        # only set fields are emitted; unset timings must not appear
+        c = self._probe_container('health http("/") { interval: 30s }')
+        probe = c["livenessProbe"]
+        assert probe.get("initialDelaySeconds") is None
+        assert probe.get("timeoutSeconds") is None
+        assert probe["periodSeconds"] == 30
+
+
+class TestMultiPortAndSecrets:
+    def test_multi_port_service_names(self):
+        docs = compile_docs('service api { image: "nginx:1.25" port 80 port 443 }')
+        svc = get_kind(docs, "Service")
+        names = [p["name"] for p in svc["spec"]["ports"]]
+        assert "tcp-80" in names
+        assert "tcp-443" in names
+
+    def test_empty_secret_data_not_crash(self):
+        # a secret with entries emits base64 data; empty is tolerated
+        docs = compile_docs("secret s { }\nservice api { image: \"nginx:1.25\" }")
+        assert docs  # no crash
+
+    def test_secret_data_base64(self):
+        src = 'secret s { k: "v" }\nservice api { image: "nginx:1.25" }'
+        docs = compile_docs(src)
+        import base64
+
+        secret = get_kind(docs, "Secret")
+        assert "k" in secret["data"]
+        decoded = base64.b64decode(secret["data"]["k"]).decode()
+        assert decoded == "v"
+
+
+class TestScheduleRBAC:
+    def test_cronjob_and_rbac_emitted(self):
+        docs = compile_docs(
+            'service api { image: "nginx:1.25" '
+            'schedule { "0 2 * * *": { replicas: 1 } } }'
+        )
+        kinds = {d["kind"] for d in docs}
+        assert "CronJob" in kinds
+        assert "ServiceAccount" in kinds
+        assert "ClusterRole" in kinds
+        assert "ClusterRoleBinding" in kinds
