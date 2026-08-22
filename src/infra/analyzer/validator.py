@@ -80,7 +80,12 @@ class SemanticValidator:
     # ------------------------------------------------------------------ #
 
     def validate(
-        self, program: n.Program, *, reliability: bool = True, security: bool = True
+        self,
+        program: n.Program,
+        *,
+        reliability: bool = True,
+        security: bool = True,
+        max_cost: Optional[float] = None,
     ) -> ValidationResult:
         self.result = ValidationResult()
         self.symbols = SymbolTable()
@@ -114,7 +119,21 @@ class SemanticValidator:
                     self.result.errors.append(finding)
                 else:
                     self.result.warnings.append(finding)
+        if max_cost is not None:
+            self._check_max_cost(program, max_cost)
         return self.result
+
+    def _check_max_cost(self, program: n.Program, max_cost: float) -> None:
+        """Append a COST_EXCEEDED error when the estimate breaches the budget."""
+        from infra.analyzer.cost import (
+            COST_EXCEEDED_CODE,
+            COST_EXCEEDED_HINT,
+            budget_exceeded_message,
+        )
+
+        message = budget_exceeded_message(program, max_cost)
+        if message is not None:
+            self._err(message, None, COST_EXCEEDED_CODE, hint=COST_EXCEEDED_HINT)
 
     # ------------------------------------------------------------------ #
     # Error/warning helpers

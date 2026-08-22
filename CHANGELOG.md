@@ -2,6 +2,61 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.4.3] - 2026-08-22
+
+### Added
+- **Live plan & preview** — `infra diff app.infra --live` turns the diff
+  command into the `terraform plan` equivalent: the desired spec from a
+  single `.infra` file is compared against the **live** state of a Kubernetes
+  namespace (`kubectl get`) or a Docker Compose stack (`docker compose ps` +
+  `docker inspect` — strictly read-only, never mutating), and the planned
+  changes are printed as a colored `rich` preview:
+  `~ service "app":` followed by e.g. `replicas: 2 -> 5` and
+  `image: "myapi:v1.0" -> "myapi:v1.1"`. Services absent in the live state
+  are shown as `+` creations, in-sync ones as `=`, and a `Plan:` summary line
+  closes the report with an `infra up` hint. Exits 0 when the live state
+  already matches the spec, 1 when changes are pending (making it usable as
+  a CI gate), 2 on usage errors. `-t/--target k8s|compose` selects the
+  platform, `-n/--namespace` the k8s namespace, `-e/--env` applies an
+  environment overlay before planning, and `--format json` emits a structural
+  `DriftReport` payload for automation. The classic two-file diff mode is
+  unchanged; the second file argument becomes optional and is rejected
+  exactly when `--live` is used.
+- **FinOps CI/CD guardrail** — `infra validate <file> --max-cost <USD>` and
+  `infra check <file> --max-cost <USD>` compute the static monthly cost
+  estimate (`CostAnalyzer`) and fail the pipeline with a `COST_EXCEEDED`
+  validation error when the estimate breaches the budget, e.g.
+  `Estimated monthly cost $330.00 exceeds the --max-cost budget of $200.00`,
+  including the remediation hint
+  `Hint: Reduce CPU/RAM requests or database instances to fit budget`. The
+  comparison is strict (an estimate exactly equal to the budget passes), the
+  flag composes with `-e/--env` overlays
+  (`infra validate app.infra -e prod --max-cost 500` prices the overlay), and
+  the error flows through all output formats (text, `--json`, `--format
+  json|github`) for machine consumption. New public helpers:
+  `analyzer.cost.budget_exceeded_message()` plus the `COST_EXCEEDED_CODE` /
+  `COST_EXCEEDED_HINT` constants, and `SemanticValidator.validate(max_cost=...)`.
+
+## [0.4.2] - 2026-08-22
+
+### Added
+- **Deep live drift detection** — `infra doctor --check-drift <file> --live`
+  compares the declared `.infra` spec against the **running** infrastructure:
+  Kubernetes (`kubectl get deployment,service -n <ns> -o json`) or Docker
+  Compose (`docker compose ps --format json` + `docker inspect`). Compares
+  replicas, container image, ports and literal environment variables, prints a
+  `rich` In-Sync/Drifted summary table plus
+  `[DRIFT] app: replicas expected 3, live 1 (MODIFIED)` lines, and exits 1 on
+  drift. `--namespace/-n` selects the k8s namespace; `--json` emits a
+  structural `DriftReport` for CI/CD gates. All probes are strictly
+  **read-only** — the check never mutates the cluster or the daemon.
+- **FinOps PR reports** — `infra cost --format/-f table|json|markdown|html`
+  renders the cost estimate as a GitHub/GitLab-ready Markdown table
+  (`CostEstimate.to_markdown()`) or an HTML table with escaped names
+  (`CostEstimate.to_html()`), for pasting into pull-request comments and CI
+  job summaries. `--output/-o <file>` writes the report to a file. The
+  existing `--json` flag is preserved as an alias of `--format json`.
+
 ## [0.4.1] - 2026-08-22
 
 ### Added

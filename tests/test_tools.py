@@ -102,3 +102,72 @@ class TestHaveDocker:
         from tests.tools import have_docker
 
         assert have_docker() is False
+
+
+class TestDockerDaemonOs:
+    """`docker_daemon_os()` must report the daemon's OSType (linux/windows).
+
+    windows-latest CI runners can expose a *running* daemon switched to
+    Windows containers; Compose live E2E must detect that and skip instead of
+    failing on a linux-image platform mismatch.
+    """
+
+    def _fake_info(self, stdout: str, returncode: int = 0):
+        def run(cmd, **kwargs):
+            result = Mock()
+            result.returncode = returncode
+            result.stdout = stdout
+            return result
+
+        return run
+
+    def test_linux_daemon(self, monkeypatch):
+        _patch_docker_which(monkeypatch, present=True)
+        monkeypatch.setattr("subprocess.run", self._fake_info("linux\n"))
+
+        from tests.tools import docker_daemon_os
+
+        assert docker_daemon_os() == "linux"
+
+    def test_windows_daemon(self, monkeypatch):
+        _patch_docker_which(monkeypatch, present=True)
+        monkeypatch.setattr("subprocess.run", self._fake_info("windows\n"))
+
+        from tests.tools import docker_daemon_os
+
+        assert docker_daemon_os() == "windows"
+
+    def test_docker_absent_returns_none(self, monkeypatch):
+        _patch_docker_which(monkeypatch, present=False)
+
+        from tests.tools import docker_daemon_os
+
+        assert docker_daemon_os() is None
+
+    def test_probe_failure_returns_none(self, monkeypatch):
+        _patch_docker_which(monkeypatch, present=True)
+        monkeypatch.setattr("subprocess.run", self._fake_info("", returncode=1))
+
+        from tests.tools import docker_daemon_os
+
+        assert docker_daemon_os() is None
+
+    def test_probe_oserror_returns_none(self, monkeypatch):
+        _patch_docker_which(monkeypatch, present=True)
+
+        def boom(cmd, **kwargs):
+            raise OSError("no docker")
+
+        monkeypatch.setattr("subprocess.run", boom)
+
+        from tests.tools import docker_daemon_os
+
+        assert docker_daemon_os() is None
+
+    def test_empty_output_returns_none(self, monkeypatch):
+        _patch_docker_which(monkeypatch, present=True)
+        monkeypatch.setattr("subprocess.run", self._fake_info("  \n"))
+
+        from tests.tools import docker_daemon_os
+
+        assert docker_daemon_os() is None

@@ -64,6 +64,36 @@ def have_docker() -> bool:
         return False
 
 
+@lru_cache(maxsize=None)
+def docker_daemon_os() -> str | None:
+    """Return the Docker daemon's OSType (``linux`` / ``windows``), or None.
+
+    GitHub's ``windows-latest`` runners can expose a *running* daemon that is
+    switched to Windows containers — ``docker info`` succeeds, but linux
+    images (nginx, postgres, ...) cannot run. Compose live E2E must probe the
+    OSType and skip when it is not ``linux``, instead of failing on an image
+    platform mismatch.
+    """
+    if shutil.which("docker") is None:
+        return None
+    try:
+        result = subprocess.run(
+            ["docker", "info", "--format", "{{.OSType}}"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_TOOL_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    os_type = (result.stdout or "").strip().lower()
+    return os_type or None
+
+
 def have_kind() -> bool:
     return _probe("kind", ("version",))
 

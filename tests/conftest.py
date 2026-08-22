@@ -102,11 +102,20 @@ def live_e2e_tools() -> str | None:
 
 @pytest.fixture(scope="session")
 def compose_tools() -> str | None:
-    """Return 'docker' if the daemon is unavailable, else None (Compose E2E).
+    """Return a skip reason if Compose live E2E cannot run, else None.
 
     Docker Compose live E2E only needs the Docker daemon (not kind/kubectl),
-    so it is gated on Docker alone.
+    so it is gated on Docker alone — plus the daemon must run **linux**
+    containers. GitHub's windows runners expose a running daemon switched to
+    Windows containers (`docker info` succeeds, OSType == "windows"); linux
+    images like nginx cannot start there, so the suite must skip, not fail.
     """
-    from tests.tools import require_tools
+    from tests.tools import docker_daemon_os, require_tools
 
-    return require_tools(("docker",))
+    missing = require_tools(("docker",))
+    if missing is not None:
+        return missing
+    os_type = docker_daemon_os()
+    if os_type != "linux":
+        return f"docker daemon runs {os_type or 'unknown'} containers, need linux"
+    return None

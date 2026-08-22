@@ -133,6 +133,71 @@ def _check_drift(
     raise typer.Exit(code=1)
 
 
+def _check_live_drift(infra_path: Path, target: str, namespace: str) -> None:
+    """Run the live drift check, print a rich summary table, set exit code."""
+    from rich.console import Console
+    from rich.table import Table
+
+    console = Console()
+
+    if not infra_path.exists():
+        console.print(f"[red]Source file not found:[/red] {infra_path}")
+        raise typer.Exit(code=1)
+
+    from infra.analyzer.drift import detect_live_drift
+
+    try:
+        report = detect_live_drift(infra_path, target=target, namespace=namespace)
+    except Exception as exc:  # parse errors
+        console.print(f"[red]Drift check failed:[/red] {exc}")
+        raise typer.Exit(code=1)
+
+    if report.error:
+        console.print(f"[red]Live drift check failed:[/red] {report.error}")
+        raise typer.Exit(code=1)
+
+    table = Table(title=f"Live drift check ({report.target})")
+    table.add_column("Resource", style="cyan")
+    table.add_column("Parameter")
+    table.add_column("Expected")
+    table.add_column("Live")
+    table.add_column("Status")
+
+    for name in report.in_sync:
+        table.add_row(name, "-", "-", "-", "[green]In-Sync[/green]")
+    for item in report.items:
+        table.add_row(
+            item.resource,
+            item.parameter,
+            item.expected,
+            item.live,
+            f"[red]Drifted ({item.status})[/red]",
+        )
+    console.print(table)
+
+    if report.has_drift:
+        for line in report.render_lines():
+            console.print(line)
+        console.print(
+            "\n[yellow]Hint: run `infra up <file>` to re-apply the declared "
+            "state, or update the .infra file to match the live state.[/yellow]"
+        )
+        raise typer.Exit(code=1)
+
+    console.print("[green]No live drift detected. Cluster matches the spec.[/green]")
+    raise typer.Exit(code=0)
+
+
+def _check_live_drift_json(
+    infra_path: Path, target: str, namespace: str
+) -> Dict[str, Any]:
+    """Run the live drift check, return a JSON-serializable report."""
+    from infra.analyzer.drift import detect_live_drift
+
+    report = detect_live_drift(infra_path, target=target, namespace=namespace)
+    return report.to_dict()
+
+
 def _checks_json() -> Dict[str, Any]:
     """Return environment checks as a JSON-friendly mapping."""
     from infra.version import __version__
@@ -177,15 +242,53 @@ def doctor(
         "-t",
         help=(
             "Compile target for --check-drift "
-            "(kubernetes, compose, terraform, github, helm)."
+            "(kubernetes, compose, terraform, github, helm); "
+            "with --live: k8s or compose."
         ),
+    ),
+    live: bool = typer.Option(
+        False,
+        "--live",
+        help=(
+            "With --check-drift: compare the spec against the LIVE state "
+            "(kubectl get / docker compose ps, read-only) instead of "
+            "on-disk generated files."
+        ),
+    ),
+    namespace: str = typer.Option(
+        "default",
+        "--namespace",
+        "-n",
+        help="Kubernetes namespace for the live drift check (--live).",
     ),
     json_output: bool = typer.Option(
         False, "--json", help="Emit structured JSON for CI pipelines."
     ),
 ) -> None:
-    """Check the user's environment, or detect on-disk drift with --check-drift."""
+    """Check the user's environment, or detect drift with --check-drift.
+
+    Without --live the drift check compares the compiled output against
+    on-disk generated files; with --live it compares the spec against the
+    live cluster (k8s) or Docker Compose state (read-only probes).
+    """
     import json as _json
+
+    if check_drift is not None and live:
+        if json_output:
+            try:
+                payload = _check_live_drift_json(check_drift, target, namespace)
+            except Exception as exc:
+                payload = {
+                    "target": target,
+                    "has_drift": True,
+                    "in_sync": [],
+                    "drift": [],
+                    "error": str(exc),
+                }
+            typer.echo(_json.dumps(payload, indent=2))
+            failed = payload.get("has_drift") or payload.get("error")
+            raise typer.Exit(code=1 if failed else 0)
+        _check_live_drift(check_drift, target, namespace)
 
     if check_drift is not None:
         if json_output:
