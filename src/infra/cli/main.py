@@ -48,10 +48,18 @@ def main(
 def register_commands() -> None:
     from infra.cli import check, diff, docs, fmt, graph, init, repl, validate
     from infra.cli import compile as compile_cmd
+    from infra.cli.cost_cmd import cost_cmd
     from infra.cli.doctor import doctor
     from infra.cli.feedback_cmd import feedback_cmd
     from infra.cli.import_cmd import import_cmd
     from infra.cli.lsp_cmd import lsp_cmd
+    from infra.cli.up_cmd import down, up
+
+    app.command(name="up", help="Compile and deploy a .infra file.")(up)
+    app.command(name="down", help="Remove resources applied from a .infra file.")(down)
+    app.command(name="cost", help="Estimate monthly cloud cost of a .infra file.")(
+        cost_cmd
+    )
 
     app.command(name="compile", help="Compile .infra files.")(compile_cmd.compile)
     app.command(name="validate", help="Validate .infra files without compiling.")(
