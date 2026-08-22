@@ -310,9 +310,14 @@ class TestTyperCliOptions:
 
     def test_compile_environment_flag(self, simple_service, tmp_path):
         out = tmp_path / "out"
+        with_env = write_infra(
+            tmp_path / "env.infra",
+            'service api { image: "nginx:1.25" replicas: 2 }\n'
+            'environment "prod" { service api { replicas: 4 } }',
+        )
         result = runner.invoke(
             app,
-            ["compile", str(simple_service), "--environment", "prod", "--output", str(out)],
+            ["compile", str(with_env), "--environment", "prod", "--output", str(out)],
         )
         assert result.exit_code == 0
         assert out.exists()
@@ -328,8 +333,13 @@ class TestTyperCliOptions:
         assert "compile" in result.output
 
     def test_compile_environment_flag_dry_run(self, simple_service):
+        with_env = write_infra(
+            simple_service.parent / "staging.infra",
+            'service api { image: "nginx:1.25" replicas: 2 }\n'
+            'environment "staging" { service api { replicas: 3 } }',
+        )
         result = runner.invoke(
             app,
-            ["compile", str(simple_service), "--environment", "staging", "--dry-run"],
+            ["compile", str(with_env), "--environment", "staging", "--dry-run"],
         )
         assert result.exit_code == 0

@@ -40,7 +40,11 @@ class ImportResolver:
             if resolved:
                 all_stmts.extend(resolved.statements)
         merged_stmts = tuple(all_stmts) + program.statements
-        return n.Program(statements=merged_stmts, imports=program.imports)
+        return n.Program(
+            statements=merged_stmts,
+            imports=program.imports,
+            environments=program.environments,
+        )
 
     def _resolve_import(
         self, imp: n.Import, current_file: Path, depth: int

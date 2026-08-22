@@ -247,6 +247,7 @@ class Parser:
             program = n.Program(
                 statements=prelude.statements + program.statements,
                 imports=program.imports,
+                environments=program.environments,
             )
             # `_load_prelude` re-parses with filename="<prelude>", which
             # overwrites the current-file tracking; restore it so backends that

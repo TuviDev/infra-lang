@@ -133,6 +133,7 @@ definition: service_def
     | config_def
     | pipeline_def
     | environment_def
+    | environment_overlay_def
     | cluster_def
 
 // ---------------------------------------------------------------------------
@@ -744,6 +745,29 @@ MAX_MEMORY.4: "max_memory"
 MAX_PODS.4: "max_pods"
 PROVIDER.4: "provider"
 NAMESPACE.4: "namespace"
+
+// ---------------------------------------------------------------------------
+// Environment overlay (per-service overrides)
+// ---------------------------------------------------------------------------
+// `environment "prod" { service "web" { replicas: 5 } }` — the name is a STRING
+// (not an IDENTIFIER) so it cannot collide with the cluster-style
+// `environment dev { ... }` definition above.
+environment_overlay_def: ENVIRONMENT STRING LBRACE env_overlay_body RBRACE
+env_overlay_body: (env_overlay_item (COMMA? env_overlay_item)*)?
+env_overlay_item: service_overlay
+service_overlay: SERVICE IDENTIFIER LBRACE overlay_field (COMMA? overlay_field)* RBRACE
+overlay_field: REPLICAS COLON expression
+    | IMAGE COLON expression
+    | COMMAND COLON expression
+    | ARGS COLON list_literal
+    | ENV COLON env_block
+    | ENV env_block
+    | LABELS COLON map_literal
+    | ANNOTATIONS COLON map_literal
+    | RESOURCES COLON resources_block
+    | RESOURCES resources_block
+    | EXPOSE COLON expression
+    | scalar_field
 
 // ---------------------------------------------------------------------------
 // Cluster

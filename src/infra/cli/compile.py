@@ -21,7 +21,27 @@ def _parse_var_options(var: List[str]) -> Dict[str, str]:
     return out
 
 
-def compile_program_to_files(path: Path, target: str) -> Dict[str, str]:
+def _apply_environment(program: Any, env_name: str) -> Any:
+    """Apply an environment overlay, raising ``typer.Exit(1)`` on unknown name."""
+    from rich.console import Console
+
+    from infra.analyzer.environments import (
+        EnvironmentNotFoundError,
+        apply_environment_overlay,
+    )
+
+    if not env_name:
+        return program
+    try:
+        return apply_environment_overlay(program, env_name)
+    except EnvironmentNotFoundError as exc:
+        Console().print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+
+def compile_program_to_files(
+    path: Path, target: str, environment: Optional[str] = None
+) -> Dict[str, str]:
     """Parse + validate a single .infra file and return {filename: content}.
 
     Shared by `infra compile` and `infra up`/`infra down` so the compile +
@@ -31,6 +51,7 @@ def compile_program_to_files(path: Path, target: str) -> Dict[str, str]:
     from rich.console import Console
 
     program = _parser().parse_file(path)
+    program = _apply_environment(program, environment or "")
     vresult = SemanticValidator().validate(program)
     if not vresult.is_valid:
         console = Console()
@@ -59,7 +80,11 @@ def compile(
         None, "--namespace", "-n", help="Kubernetes namespace"
     ),
     environment: Optional[str] = typer.Option(
-        None, "--environment", help="Environment name"
+        None,
+        "--environment",
+        "-e",
+        "--env",
+        help="Environment overlay name (e.g. prod). See environment \"name\" blocks.",
     ),
     var: List[str] = typer.Option([], "--var", help="Variable: --var key=value"),
     dry_run: bool = typer.Option(
@@ -93,6 +118,7 @@ def compile(
     issues: List[str] = []
     for f in files:
         program = parser.parse_file(f)
+        program = _apply_environment(program, environment or "")
         vresult = SemanticValidator().validate(program)
         if not vresult.is_valid:
             for e in vresult.errors:

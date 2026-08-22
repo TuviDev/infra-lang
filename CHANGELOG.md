@@ -2,6 +2,20 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.4.1] - 2026-08-22
+
+### Added
+- **Multi-environment overlays** — define `environment "name" { service ... }`
+  blocks that override base service parameters (replicas, image, env, labels,
+  annotations, resources, command, args) per deploy-time environment, without
+  duplicating the base definitions.
+- **`-e` / `--env` / `--environment` flag** on `compile`, `validate`, `up`,
+  `down` and `cost` to select an environment overlay. Applying an unknown
+  environment produces a clear error listing the available ones.
+- **`apply_environment_overlay()`** analyzer API to merge an overlay onto a
+  parsed program (env/labels/annotations are merged; overlay wins on name
+  collisions).
+
 ## [0.4.0] - 2026-08-20
 
 ### Added

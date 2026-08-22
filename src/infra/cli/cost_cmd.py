@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import typer
 
@@ -53,6 +53,9 @@ def cost_cmd(
     file: Path = typer.Argument(..., help=".infra file to estimate"),
     currency: str = typer.Option("USD", "--currency", help="USD | EUR | PLN"),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON"),
+    environment: Optional[str] = typer.Option(
+        None, "--environment", "-e", "--env", help="Environment overlay name"
+    ),
 ) -> None:
     """Estimate the monthly cloud cost of an .infra file."""
     from rich.console import Console
@@ -62,7 +65,9 @@ def cost_cmd(
         console.print(f"[red]Source file not found:[/red] {file}")
         raise typer.Exit(code=1)
 
-    program = parse_file(file)
+    from infra.cli.compile import _apply_environment
+
+    program = _apply_environment(parse_file(file), environment or "")
     est = estimate_cost(program)
 
     if json_output:

@@ -71,7 +71,9 @@ def _run(
     )
 
 
-def _compile_files(infra_path: Path, target: str) -> Dict[str, str]:
+def _compile_files(
+    infra_path: Path, target: str, environment: Optional[str] = None
+) -> Dict[str, str]:
     """Compile *infra_path* to *target* and return {filename: content}.
 
     Delegates to the shared compile+validate helper so the compile path is not
@@ -79,7 +81,7 @@ def _compile_files(infra_path: Path, target: str) -> Dict[str, str]:
     """
     from infra.cli.compile import compile_program_to_files
 
-    return compile_program_to_files(infra_path, target)
+    return compile_program_to_files(infra_path, target, environment=environment)
 
 
 def _write_to_temp(files: Dict[str, str]) -> Path:
@@ -138,6 +140,9 @@ def up(
     ),
     dry_run: bool = typer.Option(False, "--dry-run", help="Print commands only"),
     namespace: Optional[str] = typer.Option(None, "--namespace", "-n"),
+    environment: Optional[str] = typer.Option(
+        None, "--environment", "-e", "--env", help="Environment overlay name"
+    ),
 ) -> None:
     """Compile and apply a .infra file to the target platform."""
     from rich.console import Console
@@ -158,7 +163,7 @@ def up(
         console.print(_tool_hint(tool))
         raise typer.Exit(code=1)
 
-    files = _compile_files(file, target)
+    files = _compile_files(file, target, environment=environment)
     tmp = _write_to_temp(files)
     cmds = _build_commands(target, tmp, file)
     if namespace and target in ("kubernetes", "k8s"):
@@ -201,6 +206,9 @@ def down(
         "kubernetes", "--target", "-t", help="kubernetes | compose | helm"
     ),
     namespace: Optional[str] = typer.Option(None, "--namespace", "-n"),
+    environment: Optional[str] = typer.Option(
+        None, "--environment", "-e", "--env", help="Environment overlay name"
+    ),
 ) -> None:
     """Remove resources previously applied from a .infra file."""
     from rich.console import Console
@@ -221,7 +229,7 @@ def down(
         console.print(_tool_hint(tool))
         raise typer.Exit(code=1)
 
-    files = _compile_files(file, target)
+    files = _compile_files(file, target, environment=environment)
     tmp = _write_to_temp(files)
     cmds = _build_down_commands(target, tmp, file)
     if namespace and target in ("kubernetes", "k8s"):

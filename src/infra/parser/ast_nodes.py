@@ -264,6 +264,9 @@ class Program(ASTNode):
 
     statements: Tuple[Union["Statement", "Definition"], ...] = ()
     imports: Tuple[Import, ...] = ()
+    #: ``environment "name" { ... }`` overlay blocks, collected separately so
+    #: backends can ignore them until an overlay is applied.
+    environments: Tuple["EnvironmentSpec", ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -957,6 +960,45 @@ class EnvironmentDef(ASTNode):
 
 
 @dataclass(frozen=True)
+class ServiceOverlay(ASTNode):
+    """Per-service override carried inside an ``environment "name"`` block.
+
+    Only fields that make sense to override at deploy time are present here.
+    During ``apply_environment_overlay`` these are merged on top of the base
+    :class:`ServiceDef` (overlay wins for scalar fields and for env/label
+    entries that share a name).
+    """
+
+    name: str
+    replicas: Optional[int] = None
+    image: Optional[str] = None
+    command: Tuple[str, ...] = ()
+    args: Tuple[str, ...] = ()
+    env: Tuple[EnvEntry, ...] = ()
+    labels: Tuple[Tuple[str, str], ...] = ()
+    annotations: Tuple[Tuple[str, str], ...] = ()
+    resources: Optional[ResourcesSpec] = None
+    expose: bool = False
+    extra: Tuple[Tuple[str, Expression], ...] = ()
+    decorators: Tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True)
+class EnvironmentSpec(ASTNode):
+    """A top-level ``environment "name" { ... }`` overlay block.
+
+    Unlike :class:`EnvironmentDef` (which configures a target cloud
+    namespace/provider), an ``EnvironmentSpec`` holds per-service *overrides*
+    that are merged onto the base definitions by
+    :func:`infra.analyzer.environments.apply_environment_overlay`.
+    """
+
+    name: str
+    overrides: Tuple[ServiceOverlay, ...] = ()
+    decorators: Tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True)
 class NodePoolSpec(ASTNode):
     """A Kubernetes node pool."""
 
@@ -1060,5 +1102,6 @@ Definition = Union[
     ConfigDef,
     PipelineDef,
     EnvironmentDef,
+    EnvironmentSpec,
     ClusterDef,
 ]

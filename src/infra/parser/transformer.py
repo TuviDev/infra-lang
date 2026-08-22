@@ -174,15 +174,23 @@ class InfraTransformer(Transformer):
     def start(self, meta, children):
         statements = []
         imports = []
+        environments = []
         for c in children:
             if isinstance(c, n.Program):
                 statements.extend(c.statements)
                 imports.extend(c.imports)
+                environments.extend(c.environments)
+            elif isinstance(c, n.EnvironmentSpec):
+                environments.append(c)
             elif isinstance(c, n.Import):
                 imports.append(c)
             elif c is not None:
                 statements.append(c)
-        return n.Program(statements=tuple(statements), imports=tuple(imports))
+        return n.Program(
+            statements=tuple(statements),
+            imports=tuple(imports),
+            environments=tuple(environments),
+        )
 
     def item(self, meta, children):
         defs = [c for c in children if not isinstance(c, n.Decorator)]
@@ -203,6 +211,7 @@ class InfraTransformer(Transformer):
                 n.ConfigDef,
                 n.PipelineDef,
                 n.EnvironmentDef,
+                n.EnvironmentSpec,
                 n.ClusterDef,
             ),
         ):
@@ -1724,6 +1733,58 @@ class InfraTransformer(Transformer):
         if len(children) >= 3 and children[1].type == "COLON":
             return self._field(children)
         return children[0]
+
+    # ------------------------------------------------------------------ #
+    # Environment overlay (`environment "name" { ... }`)
+    # ------------------------------------------------------------------ #
+
+    def environment_overlay_def(self, meta, children):
+        name = _str(children[1])
+        body = children[3] if len(children) > 3 else ()
+        overrides = tuple(c for c in body if isinstance(c, n.ServiceOverlay))
+        return n.EnvironmentSpec(name=name, overrides=overrides, location=_loc(meta))
+
+    def env_overlay_body(self, meta, children):
+        return tuple(children)
+
+    def env_overlay_item(self, meta, children):
+        return children[0]
+
+    def service_overlay(self, meta, children):
+        name = _str(children[1])
+        body = tuple(
+            c
+            for c in children[3:-1]
+            if isinstance(c, (tuple, dict)) or isinstance(c, n.ResourcesSpec)
+        )
+        fields = self._overlay_fields(body)
+        return n.ServiceOverlay(
+            name=name, **_pick(fields, n.ServiceOverlay), location=_loc(meta)
+        )
+
+    def overlay_field(self, meta, children):
+        for c in children:
+            if isinstance(c, n.ResourcesSpec):
+                return ("resources", c)
+            if isinstance(c, tuple) and c and isinstance(c[0], n.EnvEntry):
+                return ("env", c)
+            if isinstance(c, tuple) and len(c) == 2 and isinstance(c[0], str):
+                return c
+        if len(children) >= 3 and children[1].type == "COLON":
+            return self._field(children)
+        return children[-1] if children else None
+
+    def _overlay_fields(self, children) -> dict:
+        """Collapse overlay-field children into a ``{field: value}`` dict."""
+        out: dict = {}
+        for c in children:
+            if isinstance(c, tuple) and len(c) == 2 and isinstance(c[0], str):
+                out[c[0]] = c[1]
+            elif isinstance(c, n.ResourcesSpec):
+                out["resources"] = c
+            elif isinstance(c, dict):
+                out.update(c)
+        return out
 
     def quota_block(self, meta, children):
         max_cpu = None

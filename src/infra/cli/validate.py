@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, List
+from typing import Any, List, Optional
 
 import typer
 
+from infra.analyzer.environments import (
+    EnvironmentNotFoundError,
+    apply_environment_overlay,
+)
 from infra.analyzer.validator import SemanticValidator
 from infra.parser import _parser
 
@@ -35,10 +39,13 @@ def validate(
         False, "--json", help="Emit structured JSON for CI pipelines."
     ),
     var: List[str] = typer.Option([], "--var", help="Variable: --var key=value"),
+    environment: Optional[str] = typer.Option(
+        None, "--environment", "-e", "--env", help="Environment overlay name"
+    ),
 ) -> None:
     """Validate .infra files semantically (no compilation)."""
     parser = _parser()
-    all_errors = []
+    all_errors: list[dict[str, Any]] = []
     all_warnings = []
     any_invalid = False
     expanded: list[Path] = []
@@ -51,6 +58,14 @@ def validate(
     for f in expanded:
         try:
             program = parser.parse_file(f)
+            if environment:
+                program = apply_environment_overlay(program, environment)
+        except EnvironmentNotFoundError as exc:
+            all_errors.append(
+                {"code": "ENV", "message": str(exc), "hint": None, "file": str(f)}
+            )
+            any_invalid = True
+            continue
         except Exception as exc:
             all_errors.append(_error_dict(exc, file=str(f)))
             any_invalid = True

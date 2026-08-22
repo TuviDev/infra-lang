@@ -1,4 +1,4 @@
 """Version information for Infra."""
 
-__version__ = "0.4.0"
-VERSION_INFO = (0, 4, 0)
+__version__ = "0.4.1"
+VERSION_INFO = (0, 4, 1)
