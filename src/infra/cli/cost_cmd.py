@@ -49,10 +49,35 @@ def _render_table(
     console.print(table)
 
 
+#: Valid values for the --format option.
+_FORMATS = ("table", "json", "markdown", "html")
+
+
+def _format_report(est: CostEstimate, fmt: str, currency: str, factor: float) -> str:
+    """Render the estimate in a text format (json | markdown | html)."""
+    if fmt == "json":
+        return json.dumps(est.to_dict(), indent=2)
+    if fmt == "markdown":
+        return est.to_markdown(currency=currency, factor=factor)
+    return est.to_html(currency=currency, factor=factor)
+
+
 def cost_cmd(
     file: Path = typer.Argument(..., help=".infra file to estimate"),
     currency: str = typer.Option("USD", "--currency", help="USD | EUR | PLN"),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON"),
+    output_format: str = typer.Option(
+        "table",
+        "--format",
+        "-f",
+        help="Output format: table | json | markdown | html",
+    ),
+    output_file: Optional[Path] = typer.Option(
+        None,
+        "--output",
+        "-o",
+        help="Write the report to a file instead of stdout (markdown/html/json).",
+    ),
     environment: Optional[str] = typer.Option(
         None, "--environment", "-e", "--env", help="Environment overlay name"
     ),
@@ -65,15 +90,40 @@ def cost_cmd(
         console.print(f"[red]Source file not found:[/red] {file}")
         raise typer.Exit(code=1)
 
+    fmt = output_format.lower()
+    if fmt not in _FORMATS:
+        console.print(
+            f"[red]Unknown format '{output_format}'.[/red] "
+            "Valid formats: table, json, markdown, html"
+        )
+        raise typer.Exit(code=1)
+
     from infra.cli.compile import _apply_environment
 
     program = _apply_environment(parse_file(file), environment or "")
     est = estimate_cost(program)
 
-    if json_output:
-        typer.echo(json.dumps(est.to_dict(), indent=2))
-        return
+    # --json is kept for backward compatibility; it wins over --format table.
+    if json_output and fmt == "table":
+        fmt = "json"
 
     currency_upper = currency.upper()
     factor = _CURRENCY_FACTORS.get(currency_upper, 1.0)
-    _render_table(console, est, factor, currency_upper)
+
+    if fmt == "table":
+        if output_file is not None:
+            console.print(
+                "[red]--output requires a text format:[/red] "
+                "use --format json|markdown|html"
+            )
+            raise typer.Exit(code=1)
+        _render_table(console, est, factor, currency_upper)
+        return
+
+    report = _format_report(est, fmt, currency_upper, factor)
+    if output_file is not None:
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        output_file.write_text(report + "\n", encoding="utf-8")
+        console.print(f"[green]Report written to[/green] {output_file}")
+        return
+    typer.echo(report)
