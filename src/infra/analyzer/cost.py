@@ -41,14 +41,16 @@ class CostItem:
 
     @property
     def monthly_usd(self) -> float:
+        # Defensive: never let a (possibly negative) component shrink the bill
+        # below the managed base fee.
         total = (
-            self.vcpu * VCPU_MONTHLY
-            + self.ram_gb * GB_RAM_MONTHLY
-            + self.storage_gb * GB_STORAGE_MONTHLY
+            max(0.0, self.vcpu) * VCPU_MONTHLY
+            + max(0.0, self.ram_gb) * GB_RAM_MONTHLY
+            + max(0.0, self.storage_gb) * GB_STORAGE_MONTHLY
         )
         if self.managed:
             total += MANAGED_DB_MONTHLY
-        return round(total, 2)
+        return round(max(0.0, total), 2)
 
 
 @dataclass
@@ -80,10 +82,15 @@ class CostEstimate:
 
 
 def _resource_value_to_bytes(rv: n.ResourceValue) -> int:
-    """Return the ResourceValue in bytes (memory) or cpu count."""
+    """Return the ResourceValue in bytes (memory) or cpu count.
+
+    Values are clamped to a non-negative floor so a malformed/negative quantity
+    can never produce a negative cost or shrink a bill.
+    """
+    value = max(0.0, float(rv.value))
     if rv.unit in _BYTE_FACTORS:
-        return int(rv.value * _BYTE_FACTORS[rv.unit])
-    return int(rv.value)
+        return int(value * _BYTE_FACTORS[rv.unit])
+    return int(value)
 
 
 def _resource_map_gb(rm: n.ResourceMap) -> float:
@@ -95,11 +102,12 @@ def _resource_map_gb(rm: n.ResourceMap) -> float:
 
 def _cpu_value(rv: n.ResourceValue) -> float:
     """Estimate vCPU from a cpu ResourceValue (cpus or milli-cpus)."""
+    value = max(0.0, float(rv.value))
     if rv.unit == "m":
-        return rv.value / 1000.0
+        return value / 1000.0
     if rv.unit == "cores":
-        return rv.value
-    return rv.value
+        return value
+    return value
 
 
 def _service_cost(svc: n.ServiceDef) -> CostItem:

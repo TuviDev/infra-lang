@@ -169,3 +169,57 @@ class TestCostCLIAdvanced:
         est = estimate_cost(parse(src))
         assert est.items[0].vcpu == 2.0
         assert est.items[0].monthly_usd >= 2 * VCPU_MONTHLY
+
+
+class TestNegativeValueClamping:
+    """Negative resource values must never produce negative or discounted cost."""
+
+    def test_negative_cpu_clamped(self):
+        # a normal parse always yields non-negative costs
+        est = estimate_cost(parse('service api { image: "x" }'))
+        assert est.total_monthly_usd >= 0
+
+    def test_negative_cpu_via_ast(self):
+        from infra.analyzer.cost import _service_cost
+        from infra.parser import ast_nodes as n
+
+        svc = n.ServiceDef(
+            name="api",
+            resources=n.ResourcesSpec(
+                limits=n.ResourceMap(cpu=n.ResourceValue(value=-100, unit="m"))
+            ),
+        )
+        item = _service_cost(svc)
+        assert item.vcpu == 0.0  # clamped, not negative
+
+    def test_negative_storage_db_not_shrink(self):
+        from infra.analyzer.cost import _database_cost
+        from infra.parser import ast_nodes as n
+
+        db = n.DatabaseDef(
+            name="db", type="postgres",
+            storage=n.ResourceValue(value=-50, unit="Gi"),
+        )
+        item = _database_cost(db)
+        assert item.storage_gb == 0.0  # clamped, not -50
+        # managed base fee still applies; no negative component
+        assert item.monthly_usd >= 25.0
+
+    def test_negative_memory_clamped(self):
+        from infra.analyzer.cost import _service_cost
+        from infra.parser import ast_nodes as n
+
+        svc = n.ServiceDef(
+            name="api",
+            resources=n.ResourcesSpec(
+                limits=n.ResourceMap(memory=n.ResourceValue(value=-5, unit="Gi"))
+            ),
+        )
+        item = _service_cost(svc)
+        assert item.ram_gb == 0.0
+
+    def test_cost_item_monthly_never_negative(self):
+        from infra.analyzer.cost import CostItem
+
+        item = CostItem(name="x", kind="service", vcpu=-2.0, ram_gb=-1.0)
+        assert item.monthly_usd >= 0.0
