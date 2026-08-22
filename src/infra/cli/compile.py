@@ -21,6 +21,28 @@ def _parse_var_options(var: List[str]) -> Dict[str, str]:
     return out
 
 
+def compile_program_to_files(path: Path, target: str) -> Dict[str, str]:
+    """Parse + validate a single .infra file and return {filename: content}.
+
+    Shared by `infra compile` and `infra up`/`infra down` so the compile +
+    semantic-validation path is defined in exactly one place. Raises
+    ``typer.Exit(1)`` on invalid input.
+    """
+    from rich.console import Console
+
+    program = _parser().parse_file(path)
+    vresult = SemanticValidator().validate(program)
+    if not vresult.is_valid:
+        console = Console()
+        for e in vresult.errors:
+            loc = e.location
+            pos = f"{loc.file}:{loc.line}:{loc.column}" if loc else "?"
+            console.print(f"[red]error[{e.code}] {pos}: {e.message}[/red]")
+        raise typer.Exit(code=1)
+    backend = get_backend(target)
+    return backend.compile(program).files
+
+
 def compile(
     files: List[Path] = typer.Argument(..., help=".infra file(s) to compile"),
     target: str = typer.Option(

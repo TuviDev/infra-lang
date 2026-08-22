@@ -16,10 +16,6 @@ from typing import Any, Dict, List, Optional
 
 import typer
 
-from infra.analyzer.validator import SemanticValidator
-from infra.backends import get_backend
-from infra.parser import parse_file
-
 #: Tools required per target, plus how to probe them.
 _TARGET_TOOL = {
     "kubernetes": "kubectl",
@@ -43,10 +39,26 @@ def _tool_hint(binary: str) -> str:
     )
 
 
+#: Subprocess timeout so a hung kubectl/helm/docker never blocks forever.
+_SUBPROCESS_TIMEOUT = 120.0
+
+
+def _run_bounded(
+    cmd: List[str], *, cwd: Optional[Path] = None
+) -> Optional[subprocess.CompletedProcess[Any]]:
+    """Run *cmd*, returning the CompletedProcess or None on timeout/OSError."""
+    try:
+        return _run(cmd, cwd=cwd)
+    except subprocess.TimeoutExpired:
+        return None
+    except OSError:
+        return None
+
+
 def _run(
     cmd: List[str], *, cwd: Optional[Path] = None
 ) -> subprocess.CompletedProcess[Any]:
-    """Run a command, returning the CompletedProcess (utf-8 safe)."""
+    """Run a command, returning the CompletedProcess (utf-8 safe, bounded)."""
     return subprocess.run(
         cmd,
         capture_output=True,
@@ -54,25 +66,20 @@ def _run(
         encoding="utf-8",
         errors="replace",
         check=False,
+        timeout=_SUBPROCESS_TIMEOUT,
         cwd=str(cwd) if cwd else None,
     )
 
 
 def _compile_files(infra_path: Path, target: str) -> Dict[str, str]:
-    """Compile *infra_path* to *target* and return {filename: content}."""
-    from rich.console import Console
+    """Compile *infra_path* to *target* and return {filename: content}.
 
-    console = Console()
-    program = parse_file(infra_path)
-    vresult = SemanticValidator().validate(program)
-    if not vresult.is_valid:
-        for e in vresult.errors:
-            loc = e.location
-            pos = f"{loc.file}:{loc.line}:{loc.column}" if loc else "?"
-            console.print(f"[red]error[{e.code}] {pos}: {e.message}[/red]")
-        raise typer.Exit(code=1)
-    backend = get_backend(target)
-    return backend.compile(program).files
+    Delegates to the shared compile+validate helper so the compile path is not
+    duplicated between `infra compile` and `infra up`/`infra down`.
+    """
+    from infra.cli.compile import compile_program_to_files
+
+    return compile_program_to_files(infra_path, target)
 
 
 def _write_to_temp(files: Dict[str, str]) -> Path:
@@ -161,7 +168,12 @@ def up(
         console.print(f"[dim]$ {' '.join(cmd)}[/dim]")
         if dry_run:
             continue
-        result = _run(cmd)
+        result = _run_bounded(cmd)
+        if result is None:
+            console.print(
+                f"[red]Command timed out or failed to start:[/red] {' '.join(cmd)}"
+            )
+            raise typer.Exit(code=1)
         if result.returncode != 0:
             console.print(
                 f"[red]Command failed (exit {result.returncode}):[/red] {' '.join(cmd)}"
@@ -215,7 +227,12 @@ def down(
 
     for cmd in cmds:
         console.print(f"[dim]$ {' '.join(cmd)}[/dim]")
-        result = _run(cmd)
+        result = _run_bounded(cmd)
+        if result is None:
+            console.print(
+                f"[red]Command timed out or failed to start:[/red] {' '.join(cmd)}"
+            )
+            raise typer.Exit(code=1)
         if result.returncode != 0:
             console.print(
                 f"[red]Command failed (exit {result.returncode}):[/red] {' '.join(cmd)}"
