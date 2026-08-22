@@ -165,7 +165,9 @@ def up(
         cmds = [c + ["-n", namespace] for c in cmds]
 
     for cmd in cmds:
-        console.print(f"[dim]$ {' '.join(cmd)}[/dim]")
+        # Use plain print (not Rich) so long Windows paths are never wrapped
+        # with a stray newline inside the command string.
+        print(f"$ {' '.join(cmd)}")
         if dry_run:
             continue
         result = _run_bounded(cmd)
@@ -226,7 +228,8 @@ def down(
         cmds = [c + ["-n", namespace] for c in cmds]
 
     for cmd in cmds:
-        console.print(f"[dim]$ {' '.join(cmd)}[/dim]")
+        # Plain print for the same reason as `up` (Rich would wrap Windows paths).
+        print(f"$ {' '.join(cmd)}")
         result = _run_bounded(cmd)
         if result is None:
             console.print(
