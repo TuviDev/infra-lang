@@ -55,7 +55,9 @@ class TestCostModule:
 class TestCostCLI:
     def test_cost_json_schema(self, tmp_path):
         p = tmp_path / "app.infra"
-        p.write_text('service api { image: "nginx:1.25" replicas: 2 }', encoding="utf-8")
+        p.write_text(
+            'service api { image: "nginx:1.25" replicas: 2 }', encoding="utf-8"
+        )
         result = runner.invoke(app, ["cost", str(p), "--json"])
         assert result.exit_code == 0
         data = json.loads(result.stdout)
@@ -93,9 +95,7 @@ class TestCostCLI:
 
     def test_cost_from_examples(self):
         # cost on a real bundled example must produce valid JSON with a total
-        from pathlib import Path as P
-
-        ex = P("examples/02_web_app.infra")
+        ex = Path("examples/02_web_app.infra")
         result = runner.invoke(app, ["cost", str(ex), "--json"])
         assert result.exit_code == 0, result.stdout
         data = json.loads(result.stdout)

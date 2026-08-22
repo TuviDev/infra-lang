@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 from typer.testing import CliRunner
 
 from infra.cli.main import app
@@ -108,3 +107,82 @@ class TestDown:
         result = runner.invoke(app, ["down", str(src), "-t", "helm"])
         assert result.exit_code == 0
         assert "helm uninstall" in result.stdout
+
+
+class TestUpExecutionBranches:
+    def test_up_command_fails_nonzero(self, tmp_path, monkeypatch):
+        # real execution path: tool present, subprocess returns error
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+
+        def fake_run(cmd, cwd=None):
+            return type("R", (), {"returncode": 1, "stdout": "", "stderr": "boom"})()
+        monkeypatch.setattr("infra.cli.up_cmd._run", fake_run)
+        result = runner.invoke(app, ["up", str(src), "-t", "compose"])
+        assert result.exit_code == 1
+        assert "Command failed" in result.stdout
+
+    def test_up_command_success_output(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+
+        def fake_run(cmd, cwd=None):
+            return type("R", (), {"returncode": 0, "stdout": "created", "stderr": ""})()
+        monkeypatch.setattr("infra.cli.up_cmd._run", fake_run)
+        result = runner.invoke(app, ["up", str(src), "-t", "compose"])
+        assert result.exit_code == 0
+        assert "Applied" in result.stdout
+
+    def test_up_parse_error(self, tmp_path):
+        # invalid .infra aborts compilation
+        src = write(tmp_path / "bad.infra", "service api { image: }")
+        result = runner.invoke(app, ["up", str(src), "-t", "compose"])
+        assert result.exit_code == 1
+
+    def test_up_kubectl_namespace(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+        captured = {}
+        def fake_run(cmd, cwd=None):
+            captured["cmd"] = cmd
+            return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+        monkeypatch.setattr("infra.cli.up_cmd._run", fake_run)
+        result = runner.invoke(app, ["up", str(src), "-t", "kubernetes", "-n", "prod"])
+        assert result.exit_code == 0
+        assert "prod" in captured["cmd"]
+
+
+class TestDownExecutionBranches:
+    def test_down_kubernetes(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+        monkeypatch.setattr("infra.cli.up_cmd._run", lambda cmd, cwd=None: type(
+            "R", (), {"returncode": 0, "stdout": "", "stderr": ""}
+        )())
+        result = runner.invoke(app, ["down", str(src), "-t", "kubernetes"])
+        assert result.exit_code == 0
+        assert "kubectl delete" in result.stdout
+
+    def test_down_command_fails(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+        monkeypatch.setattr("infra.cli.up_cmd._run", lambda cmd, cwd=None: type(
+            "R", (), {"returncode": 2, "stdout": "", "stderr": "err"}
+        )())
+        result = runner.invoke(app, ["down", str(src), "-t", "compose"])
+        assert result.exit_code == 2
+        assert "Command failed" in result.stdout
+
+    def test_down_missing_tool(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: False)
+        result = runner.invoke(app, ["down", str(src), "-t", "kubernetes"])
+        assert result.exit_code == 1
+        assert "infra doctor" in result.stdout
+
+    def test_down_unsupported_target(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+        result = runner.invoke(app, ["down", str(src), "-t", "terraform"])
+        assert result.exit_code == 1
+        assert "Unsupported target" in result.stdout
