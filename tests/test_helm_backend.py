@@ -293,7 +293,7 @@ class TestHelmBinaryIntegration:
         for path, content in res.files.items():
             fp = tmp_path / path
             fp.parent.mkdir(parents=True, exist_ok=True)
-            fp.write_text(content)
+            fp.write_text(content, encoding="utf-8")
             if "Chart.yaml" in path:
                 chartdir = fp.parent
         return chartdir

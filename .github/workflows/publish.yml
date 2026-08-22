@@ -10,6 +10,9 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Only attempt to publish when a PyPI token is configured, so a tag push
+    # without secrets does not fail the workflow.
+    if: "${{ secrets.PYPI_TOKEN != '' }}"
     steps:
       - uses: actions/checkout@v4
 

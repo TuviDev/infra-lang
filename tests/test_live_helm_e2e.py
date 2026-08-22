@@ -39,7 +39,7 @@ def _write_chart(tmpdir: str, files: dict[str, str]) -> Path:
     for path, content in files.items():
         fp = Path(tmpdir) / path
         fp.parent.mkdir(parents=True, exist_ok=True)
-        fp.write_text(content)
+        fp.write_text(content, encoding="utf-8")
         if "Chart.yaml" in path:
             chartdir = fp.parent
     assert chartdir is not None
