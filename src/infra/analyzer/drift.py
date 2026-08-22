@@ -1,20 +1,35 @@
-"""On-disk drift detection: compare compiled output against generated files.
+"""Drift detection: on-disk (generated files) and live (cluster / daemon).
 
-The core problem this addresses: users edit the generated manifests (e.g.
-``infra-out/infra.yaml``) by hand after compiling, which silently diverges
-from the source ``.infra`` file. ``detect_drift`` recompiles the source in
-memory and compares each expected output file against what is on disk,
-reporting any differences as unified diffs.
+Two complementary checks live here:
+
+* **On-disk drift** (:func:`detect_drift`): users edit the generated manifests
+  (e.g. ``infra-out/infra.yaml``) by hand after compiling, which silently
+  diverges from the source ``.infra`` file. ``detect_drift`` recompiles the
+  source in memory and compares each expected output file against what is on
+  disk, reporting any differences as unified diffs.
+
+* **Live drift** (:func:`detect_live_drift`, v0.4.2): the running
+  infrastructure itself diverges from the specification — someone scaled a
+  Deployment with ``kubectl scale``, hot-patched an image, or restarted a
+  Compose stack with edited settings. ``detect_live_drift`` reads the live
+  state (``kubectl get`` for Kubernetes, ``docker compose ps`` +
+  ``docker inspect`` for Compose — strictly read-only, never mutating) and
+  compares replicas, image, ports and declared environment variables against
+  the ``.infra`` source, returning a structural :class:`DriftReport`.
 """
 
 from __future__ import annotations
 
 import difflib
+import json
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from infra.backends import get_backend
+from infra.parser import ast_nodes as n
 from infra.parser import parse_file
 
 
@@ -103,3 +118,419 @@ def render_drift(result: DriftResult) -> str:
             for dline in diff.splitlines():
                 lines.append(f"    {dline}")
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Live drift detection (v0.4.2)
+# ---------------------------------------------------------------------------
+
+#: Bounded timeout for the read-only live-state probes (kubectl / docker).
+_LIVE_TIMEOUT = 30.0
+
+#: Drift item statuses.
+STATUS_MODIFIED = "MODIFIED"
+STATUS_MISSING = "MISSING"
+
+
+@dataclass
+class DriftItem:
+    """A single detected difference between spec and live state."""
+
+    resource: str
+    parameter: str
+    expected: str
+    live: str
+    status: str = STATUS_MODIFIED
+
+    def render(self) -> str:
+        """Render as ``[DRIFT] app: replicas expected 3, live 1 (MODIFIED)``."""
+        return (
+            f"[DRIFT] {self.resource}: {self.parameter} expected "
+            f"{self.expected}, live {self.live} ({self.status})"
+        )
+
+    def to_dict(self) -> Dict[str, str]:
+        return {
+            "resource": self.resource,
+            "parameter": self.parameter,
+            "expected": self.expected,
+            "live": self.live,
+            "status": self.status,
+        }
+
+
+@dataclass
+class DriftReport:
+    """Structural report of a live drift check."""
+
+    target: str
+    items: List[DriftItem] = field(default_factory=list)
+    #: Resource names verified as in sync with the specification.
+    in_sync: List[str] = field(default_factory=list)
+    #: Non-fatal probe error (missing tool, unreachable daemon, bad JSON).
+    error: Optional[str] = None
+
+    @property
+    def has_drift(self) -> bool:
+        return bool(self.items)
+
+    @property
+    def clean(self) -> bool:
+        return not self.items and self.error is None
+
+    def render_lines(self) -> List[str]:
+        """Human-readable ``[DRIFT] ...`` lines for every detected item."""
+        return [item.render() for item in self.items]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "target": self.target,
+            "has_drift": self.has_drift,
+            "in_sync": list(self.in_sync),
+            "drift": [item.to_dict() for item in self.items],
+            "error": self.error,
+        }
+
+
+@dataclass
+class _LiveState:
+    """Normalized live state of a single workload."""
+
+    replicas: Optional[int] = None
+    image: Optional[str] = None
+    ports: Optional[List[int]] = None
+    env: Optional[Dict[str, str]] = None
+
+
+@dataclass
+class _ExpectedState:
+    """Normalized expected state of a service declared in a .infra file."""
+
+    name: str
+    replicas: int
+    image: Optional[str]
+    ports: List[int]
+    env: Dict[str, str]
+
+
+def _run_readonly(cmd: List[str]) -> Optional[str]:
+    """Run a read-only probe command; return stdout on success, else None."""
+    try:
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=_LIVE_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout or ""
+
+
+def _expected_services(program: n.Program) -> List[_ExpectedState]:
+    """Extract the comparable expected state of every declared service."""
+    expected: List[_ExpectedState] = []
+    for stmt in program.statements:
+        if not isinstance(stmt, n.ServiceDef):
+            continue
+        ports = [
+            int(port)
+            for port in (p.target or p.host for p in stmt.ports)
+            if port is not None
+        ]
+        env: Dict[str, str] = {}
+        for e in stmt.env:
+            # Only plain literal values are comparable against live state;
+            # secret/config/field references resolve cluster-side.
+            if e.value is not None and isinstance(e.value, n.Literal):
+                env[e.name] = str(e.value.value)
+        expected.append(
+            _ExpectedState(
+                name=stmt.name,
+                replicas=max(1, int(stmt.replicas or 1)),
+                image=stmt.image,
+                ports=sorted(ports),
+                env=env,
+            )
+        )
+    return expected
+
+
+# -- Kubernetes live state ---------------------------------------------------
+
+
+def _kubectl_live_state(namespace: str) -> Optional[Dict[str, _LiveState]]:
+    """Fetch live Deployment state from the cluster (read-only).
+
+    Returns a mapping of deployment name -> :class:`_LiveState`, or None when
+    kubectl is unavailable or the cluster query fails.
+    """
+    if shutil.which("kubectl") is None:
+        return None
+    out = _run_readonly(
+        ["kubectl", "get", "deployment,service", "-n", namespace, "-o", "json"]
+    )
+    if out is None:
+        return None
+    try:
+        payload = json.loads(out)
+    except json.JSONDecodeError:
+        return None
+    live: Dict[str, _LiveState] = {}
+    for item in payload.get("items", []):
+        if not isinstance(item, dict):
+            continue
+        if item.get("kind") != "Deployment":
+            continue
+        name = str(item.get("metadata", {}).get("name", ""))
+        if not name:
+            continue
+        spec = item.get("spec", {}) or {}
+        replicas = spec.get("replicas")
+        containers = (
+            spec.get("template", {}).get("spec", {}).get("containers", []) or []
+        )
+        image: Optional[str] = None
+        ports: List[int] = []
+        env: Dict[str, str] = {}
+        if containers:
+            first = containers[0] or {}
+            image = first.get("image")
+            for p in first.get("ports", []) or []:
+                cp = p.get("containerPort")
+                if cp is not None:
+                    ports.append(int(cp))
+            for entry in first.get("env", []) or []:
+                # Only literal `value` entries are comparable (valueFrom
+                # resolves cluster-side and is not part of the spec contract).
+                if "value" in entry and entry.get("name"):
+                    env[str(entry["name"])] = str(entry["value"])
+        live[name] = _LiveState(
+            replicas=int(replicas) if replicas is not None else None,
+            image=image,
+            ports=sorted(ports),
+            env=env,
+        )
+    return live
+
+
+# -- Docker Compose live state ------------------------------------------------
+
+
+def _parse_compose_ps(output: str) -> List[Dict[str, Any]]:
+    """Parse `docker compose ps --format json` output.
+
+    Newer Docker emits NDJSON (one object per line); older versions emit a
+    single JSON array. Handle both, skipping malformed lines.
+    """
+    text = output.strip()
+    if not text:
+        return []
+    if text.startswith("["):
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError:
+            return []
+        return [d for d in data if isinstance(d, dict)]
+    rows: List[Dict[str, Any]] = []
+    for line in text.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            rows.append(obj)
+    return rows
+
+
+def _docker_inspect(container_id: str) -> Optional[Dict[str, Any]]:
+    """Return the first `docker inspect` object for *container_id*, or None."""
+    out = _run_readonly(["docker", "inspect", container_id])
+    if out is None:
+        return None
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        return None
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        return data[0]
+    return None
+
+
+def _compose_live_state() -> Optional[Dict[str, _LiveState]]:
+    """Fetch live Compose service state via `docker compose ps` (read-only).
+
+    Returns a mapping of compose service name -> :class:`_LiveState`, or None
+    when docker is unavailable or the probe fails.
+    """
+    if shutil.which("docker") is None:
+        return None
+    out = _run_readonly(["docker", "compose", "ps", "--format", "json"])
+    if out is None:
+        return None
+    rows = _parse_compose_ps(out)
+    live: Dict[str, _LiveState] = {}
+    for row in rows:
+        service = str(row.get("Service") or row.get("Name") or "")
+        if not service:
+            continue
+        # ports/env start as None (= unknown); they are only filled in when a
+        # successful `docker inspect` provides them, so a failed inspect never
+        # produces false "missing env/port" drift.
+        state = live.setdefault(
+            service, _LiveState(replicas=0, image=None, ports=None, env=None)
+        )
+        state.replicas = (state.replicas or 0) + 1
+        image = row.get("Image")
+        if image and not state.image:
+            state.image = str(image)
+        container_id = str(row.get("ID") or row.get("Id") or "")
+        if container_id:
+            inspected = _docker_inspect(container_id)
+            if inspected:
+                config = inspected.get("Config", {}) or {}
+                if not state.image and config.get("Image"):
+                    state.image = str(config["Image"])
+                env_map: Dict[str, str] = {}
+                for pair in config.get("Env", []) or []:
+                    key, sep, value = str(pair).partition("=")
+                    if sep:
+                        env_map[key] = value
+                state.env = env_map
+                ports: List[int] = []
+                for spec_key in (config.get("ExposedPorts", {}) or {}):
+                    port_str = str(spec_key).split("/", 1)[0]
+                    if port_str.isdigit():
+                        ports.append(int(port_str))
+                state.ports = sorted(ports)
+    return live
+
+
+# -- Comparison ----------------------------------------------------------------
+
+
+def _compare_service(
+    expected: _ExpectedState, live: Optional[_LiveState], items: List[DriftItem]
+) -> bool:
+    """Compare one expected service against live state; append drift items.
+
+    Returns True when the service is fully in sync.
+    """
+    if live is None:
+        items.append(
+            DriftItem(
+                resource=expected.name,
+                parameter="resource",
+                expected="present",
+                live="absent",
+                status=STATUS_MISSING,
+            )
+        )
+        return False
+
+    clean = True
+    if live.replicas is not None and live.replicas != expected.replicas:
+        items.append(
+            DriftItem(
+                resource=expected.name,
+                parameter="replicas",
+                expected=str(expected.replicas),
+                live=str(live.replicas),
+            )
+        )
+        clean = False
+    if expected.image and live.image and live.image != expected.image:
+        items.append(
+            DriftItem(
+                resource=expected.name,
+                parameter="image",
+                expected=expected.image,
+                live=live.image,
+            )
+        )
+        clean = False
+    if expected.ports and live.ports is not None and live.ports != expected.ports:
+        items.append(
+            DriftItem(
+                resource=expected.name,
+                parameter="ports",
+                expected=",".join(str(p) for p in expected.ports),
+                live=",".join(str(p) for p in live.ports) or "none",
+            )
+        )
+        clean = False
+    if expected.env and live.env is not None:
+        for key, value in sorted(expected.env.items()):
+            live_value = live.env.get(key)
+            if live_value is None:
+                items.append(
+                    DriftItem(
+                        resource=expected.name,
+                        parameter=f"env:{key}",
+                        expected=value,
+                        live="unset",
+                        status=STATUS_MISSING,
+                    )
+                )
+                clean = False
+            elif live_value != value:
+                items.append(
+                    DriftItem(
+                        resource=expected.name,
+                        parameter=f"env:{key}",
+                        expected=value,
+                        live=live_value,
+                    )
+                )
+                clean = False
+    return clean
+
+
+def detect_live_drift(
+    infra_path: Path,
+    target: str = "k8s",
+    namespace: str = "default",
+) -> DriftReport:
+    """Compare the declared spec in *infra_path* against the live state.
+
+    Strictly read-only: only ``kubectl get`` / ``docker compose ps`` /
+    ``docker inspect`` probes are executed — never a mutation.
+
+    ``target`` is ``k8s``/``kubernetes`` or ``compose``/``docker``. Raises on
+    parse errors (propagated); probe failures (missing tool, unreachable
+    daemon) are reported via :attr:`DriftReport.error`, never as an exception.
+    """
+    program = parse_file(Path(infra_path))
+    expected = _expected_services(program)
+
+    normalized = target.lower()
+    if normalized in ("k8s", "kubernetes"):
+        live = _kubectl_live_state(namespace)
+        tool_hint = "kubectl is not available or the cluster is unreachable"
+        report_target = "k8s"
+    elif normalized in ("compose", "docker"):
+        live = _compose_live_state()
+        tool_hint = "docker is not available or the daemon is not running"
+        report_target = "compose"
+    else:
+        return DriftReport(
+            target=normalized,
+            error=f"Unknown drift target '{target}'. Valid targets: k8s, compose",
+        )
+
+    if live is None:
+        return DriftReport(target=report_target, error=tool_hint)
+
+    report = DriftReport(target=report_target)
+    for exp in expected:
+        if _compare_service(exp, live.get(exp.name), report.items):
+            report.in_sync.append(exp.name)
+    return report
