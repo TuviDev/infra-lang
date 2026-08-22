@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import yaml
 
@@ -94,7 +94,7 @@ class KubernetesOutputValidator:
 
     # ------------------------------------------------------------------ #
 
-    def _check_document(self, doc: dict) -> List[K8sValidationIssue]:
+    def _check_document(self, doc: Dict[str, Any]) -> List[K8sValidationIssue]:
         issues: List[K8sValidationIssue] = []
         api_version = doc.get("apiVersion")
         kind = doc.get("kind")
@@ -152,16 +152,16 @@ class KubernetesOutputValidator:
         return issues
 
     @staticmethod
-    def _doc_name(doc: dict) -> str:
+    def _doc_name(doc: Dict[str, Any]) -> str:
         meta = doc.get("metadata")
         if isinstance(meta, dict) and isinstance(meta.get("name"), str):
-            return meta["name"]
+            return str(meta["name"])
         return ""
 
     # ------------------------------------------------------------------ #
 
     def _check_kind(
-        self, doc: dict, kind: str, doc_name: str
+        self, doc: Dict[str, Any], kind: str, doc_name: str
     ) -> List[K8sValidationIssue]:
         issues: List[K8sValidationIssue] = []
         spec = doc.get("spec")
@@ -240,7 +240,7 @@ class KubernetesOutputValidator:
         return issues
 
     def _check_resources(
-        self, container: dict, kind: str, doc_name: str
+        self, container: Dict[str, Any], kind: str, doc_name: str
     ) -> List[K8sValidationIssue]:
         issues: List[K8sValidationIssue] = []
         resources = container.get("resources")

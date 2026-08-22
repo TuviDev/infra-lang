@@ -299,3 +299,37 @@ class TestTokensModule:
         from infra.lexer.tokens import TokenType
 
         assert len(list(TokenType)) >= 20
+
+
+class TestTyperCliOptions:
+    """Regression: Typer option params (`--environment`, `--project`,
+    `--no-color`) are part of the CLI surface and must not be removed as
+    "dead code". Vulture flags them because it doesn't understand Typer; these
+    tests assert the flags actually work.
+    """
+
+    def test_compile_environment_flag(self, simple_service, tmp_path):
+        out = tmp_path / "out"
+        result = runner.invoke(
+            app,
+            ["compile", str(simple_service), "--environment", "prod", "--output", str(out)],
+        )
+        assert result.exit_code == 0
+        assert out.exists()
+
+    def test_feedback_project_flag(self):
+        result = runner.invoke(app, ["feedback", "--project"])
+        assert result.exit_code == 0
+        assert "feedback" in result.output.lower() or "config" in result.output.lower()
+
+    def test_no_color_flag(self):
+        result = runner.invoke(app, ["--no-color", "--help"])
+        assert result.exit_code == 0
+        assert "compile" in result.output
+
+    def test_compile_environment_flag_dry_run(self, simple_service):
+        result = runner.invoke(
+            app,
+            ["compile", str(simple_service), "--environment", "staging", "--dry-run"],
+        )
+        assert result.exit_code == 0

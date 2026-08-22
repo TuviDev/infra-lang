@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 import typer
 
@@ -86,8 +86,8 @@ def compile(
 
             validator = KubernetesOutputValidator()
             for name, content in compiled.files.items():
-                for issue in validator.validate(content):
-                    issues.append(f"{f.name}/{name}: {issue}")
+                for vissue in validator.validate(content):
+                    issues.append(f"{f.name}/{name}: {vissue}")
             for sissue in validate_compiled_output(compiled.files):
                 if sissue.severity == "error":
                     issues.append(
@@ -126,7 +126,7 @@ def compile(
 # --------------------------------------------------------------------------- #
 
 
-def _collect_watched_files(source_path: Path, program) -> Set[Path]:
+def _collect_watched_files(source_path: Path, program: Any) -> Set[Path]:
     files: Set[Path] = {source_path.resolve()}
     try:
         from infra.parser import ast_nodes as n
@@ -150,7 +150,7 @@ def _compile_once_watch(
     split: bool,
     cli_vars: Dict[str, str],
     dry_run: bool,
-    console,
+    console: Any,
 ) -> tuple[bool, float, Set[Path]]:
     import time
 
@@ -206,7 +206,7 @@ def run_watch(
     watched: Set[Path] = {source_path.resolve()}
 
     class Handler(FileSystemEventHandler):
-        def on_modified(self, event):
+        def on_modified(self, event: Any) -> None:
             if isinstance(event, FileModifiedEvent):
                 src = event.src_path
                 if isinstance(src, bytes):

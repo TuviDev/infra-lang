@@ -690,7 +690,7 @@ class K8sImporter:
         return ["service %s {" % name, *["    " + line for line in body], "}"]
 
 
-def import_kubernetes(source) -> str:
+def import_kubernetes(source: Any) -> str:
     """Import Kubernetes YAML from a file or directory and return Infra source.
 
     ``source`` may be a path to a single YAML file or to a directory of YAML

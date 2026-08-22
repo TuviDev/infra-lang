@@ -12,14 +12,12 @@ from __future__ import annotations
 
 import threading
 from dataclasses import replace
-from typing import Any, Optional, Tuple
+from typing import Any, Optional, Tuple, cast
 
 from lark import Token, Transformer, v_args
 
 from infra.parser import ast_nodes as n
-from infra.parser.ast_nodes import (  # noqa: F401  (re-export convenience)
-    SourceLocation,
-)
+from infra.parser.location import SourceLocation
 
 # Map a Lark terminal *name* to the canonical AST field name, used when the
 # token value differs from the desired attribute (mostly camelCase).
@@ -53,14 +51,17 @@ _FIELD = {
 }
 
 
-def _loc(meta: Any) -> Optional[n.SourceLocation]:
+def _loc(meta: Any) -> Optional[SourceLocation]:
     try:
-        return n.SourceLocation(
-            file=getattr(meta, "file", None) or getattr(_CUR_FILE, "value", "<string>"),
-            line=getattr(meta, "line", 1) or 1,
-            column=getattr(meta, "column", 1) or 1,
-            end_line=getattr(meta, "end_line", 0) or 0,
-            end_column=getattr(meta, "end_column", 0) or 0,
+        return SourceLocation(
+            file=str(
+                getattr(meta, "file", None)
+                or getattr(_CUR_FILE, "value", "<string>")
+            ),
+            line=int(getattr(meta, "line", 1) or 1),
+            column=int(getattr(meta, "column", 1) or 1),
+            end_line=int(getattr(meta, "end_line", 0) or 0),
+            end_column=int(getattr(meta, "end_column", 0) or 0),
         )
     except Exception:
         return None
@@ -128,7 +129,7 @@ def _lit_list(v) -> Tuple[str, ...]:
 
 def _num(v: Any) -> float:
     if isinstance(v, n.Literal):
-        return float(v.value)
+        return float(cast(Any, v.value))
     return float(v)
 
 
@@ -354,7 +355,7 @@ class InfraTransformer(Transformer):
         if isinstance(c, Token) and c.type == "IDENTIFIER":
             return n.Identifier(name=c.value, location=_loc(meta))
         if isinstance(c, n.Literal):
-            return n.ResourceValue(value=float(c.value), unit="")
+            return n.ResourceValue(value=float(cast(Any, c.value)), unit="")
         return n.ResourceValue(value=float(_num(c)), unit="")
 
     def percentage(self, meta, children):
@@ -888,7 +889,7 @@ class InfraTransformer(Transformer):
 
     def _volume_from_fields(self, fields: dict) -> n.VolumeSpec:
         return n.VolumeSpec(
-            name=_lit(fields.get("name", "")),
+            name=_lit(fields.get("name", "")) or "",
             mount_path=_lit(fields.get("mount_path")),
             host_path=_lit(fields.get("host_path")),
             claim=_lit(fields.get("claim")),
@@ -903,7 +904,7 @@ class InfraTransformer(Transformer):
             return n.StrategySpec(type=children[0])
         fields = children[0]
         return n.StrategySpec(
-            type=_lit(fields.get("type", "rolling")),
+            type=_lit(fields.get("type", "rolling")) or "rolling",
             **_pick(fields, n.StrategySpec, exclude=("type",)),
         )
 
@@ -1156,7 +1157,9 @@ class InfraTransformer(Transformer):
             min_av = min_av.value
         if isinstance(max_un, n.Literal):
             max_un = max_un.value
-        return n.DisruptionSpec(min_available=min_av, max_unavailable=max_un)
+        return n.DisruptionSpec(
+            min_available=cast(Any, min_av), max_unavailable=cast(Any, max_un)
+        )
 
     def disruption_item(self, meta, children):
         if isinstance(children[0], Token) and children[0].type in (

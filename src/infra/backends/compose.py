@@ -225,7 +225,9 @@ class DockerComposeBackend(Backend, BaseYAMLBackend):
                     "MYSQL_DATABASE": node.name,
                     "MYSQL_USER": node.name,
                     "MYSQL_PASSWORD": (
-                        node.users[0].password if node.users else "change-me"
+                        (node.users[0].password or "change-me")
+                        if node.users
+                        else "change-me"
                     ),
                     "MYSQL_ROOT_PASSWORD": "root",
                 }

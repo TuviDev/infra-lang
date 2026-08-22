@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, cast
 
 from lark import Lark
 from lark.exceptions import UnexpectedCharacters, UnexpectedToken
@@ -100,7 +100,7 @@ def _last_field_word(prefix: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-def _friendly_parse_message(exc, source: str) -> Optional[str]:
+def _friendly_parse_message(exc: Any, source: str) -> Optional[str]:
     """Build a friendlier message for common parse mistakes, or None."""
     if not isinstance(exc, (UnexpectedToken, UnexpectedCharacters)):
         return None
@@ -286,7 +286,7 @@ class Parser:
         )
         tree = parser.parse(source)
         transformed = InfraTransformer().transform(tree)
-        return transformed
+        return cast(n.Expression, transformed)
 
     @staticmethod
     def _token_message(exc: UnexpectedToken) -> str:

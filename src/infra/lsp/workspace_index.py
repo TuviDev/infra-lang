@@ -165,7 +165,7 @@ class WorkspaceIndex:
     def all_symbols(self) -> list[IndexedSymbol]:
         """Return every indexed block symbol (for workspace/symbol)."""
         with self._lock:
-            seen: dict[tuple, IndexedSymbol] = {}
+            seen: dict[tuple[str, str, int], IndexedSymbol] = {}
             for defs in self._symbols.values():
                 for d in defs:
                     seen[(d.name, d.uri, d.line)] = d

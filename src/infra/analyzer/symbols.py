@@ -140,8 +140,12 @@ class SymbolTable:
         from infra.stdlib.functions import STDLIB
 
         for fn in STDLIB.all_names():
+            builtin = STDLIB.get(fn)
+            if builtin is None:
+                # defensive: all_names() is authoritative, but guard anyway
+                continue
             self.global_scope.symbols[fn] = Symbol(
-                fn, STDLIB.get(fn).return_type, kind=SymbolKind.BUILTIN, mutable=False
+                fn, builtin.return_type, kind=SymbolKind.BUILTIN, mutable=False
             )
         for extra in ("secret", "config", "version"):
             self.global_scope.symbols[extra] = Symbol(

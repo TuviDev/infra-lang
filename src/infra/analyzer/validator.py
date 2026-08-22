@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from difflib import get_close_matches
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple, cast
 
 from infra.analyzer import types as T
 from infra.analyzer.symbols import (
@@ -258,9 +258,9 @@ class SemanticValidator:
                 "E010",
             )
         # image may be a variable reference -> check it is defined
-        self._check_expression(node.image)
+        self._check_expression(cast(Any, node.image))
         if node.build is not None and node.build.context is not None:
-            self._check_expression(node.build.context)
+            self._check_expression(cast(Any, node.build.context))
         self._check_ports(node)
         if node.replicas is not None and node.replicas < 1:
             self._err(
@@ -302,6 +302,8 @@ class SemanticValidator:
 
     def _check_network_policy(self, node: n.ServiceDef) -> None:
         np_ = node.network_policy
+        if np_ is None:
+            return
         known = self._defined_names
         for ref in list(np_.allow_from) + list(np_.allow_egress):
             if ref != "*" and ref not in known:

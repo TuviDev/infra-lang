@@ -8,7 +8,7 @@ to the rest of the program.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 from lark import Lark
 from lark.exceptions import UnexpectedInput
@@ -18,7 +18,7 @@ from infra.parser import ast_nodes as n
 from infra.parser.transformer import InfraTransformer
 
 
-class ImportCycleError(InfraError):  # type: ignore[misc]
+class ImportCycleError(InfraError):
     """Raised when imports form a cycle."""
 
     def __init__(self, cycle: list[str]) -> None:
@@ -34,7 +34,7 @@ class ImportResolver:
         self._cache: dict[Path, n.Program] = {}
 
     def resolve(self, program: n.Program, current_file: Path) -> n.Program:
-        all_stmts = []
+        all_stmts: list[Union[n.Statement, n.Definition]] = []
         for imp in program.imports:
             resolved = self._resolve_import(imp, current_file, depth=0)
             if resolved:

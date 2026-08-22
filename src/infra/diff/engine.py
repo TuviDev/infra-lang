@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional, Union
 
 from infra.parser import ast_nodes as n
+from infra.parser.location import SourceLocation
 
 Definition = Union[
     n.ServiceDef,
@@ -61,7 +62,7 @@ class FieldChange:
 class DiffItem:
     kind: str
     name: str
-    location: Optional[n.SourceLocation] = None
+    location: Optional[SourceLocation] = None
 
 
 @dataclass

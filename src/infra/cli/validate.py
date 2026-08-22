@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 import typer
 
@@ -12,7 +12,7 @@ from infra.analyzer.validator import SemanticValidator
 from infra.parser import _parser
 
 
-def _error_dict(e, file: str = "?") -> dict:
+def _error_dict(e: Any, file: str = "?") -> dict[str, Any]:
     """Normalize a ValidationError or a raw parse exception into a dict."""
     loc = getattr(e, "location", None)
     return {

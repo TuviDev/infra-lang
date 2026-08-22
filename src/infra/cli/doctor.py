@@ -7,7 +7,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import typer
 
@@ -133,17 +133,17 @@ def _check_drift(
     raise typer.Exit(code=1)
 
 
-def _checks_json() -> dict:
+def _checks_json() -> Dict[str, Any]:
     """Return environment checks as a JSON-friendly mapping."""
     from infra.version import __version__
 
-    out = {"version": __version__}
+    out: Dict[str, Any] = {"version": __version__}
     for c in _checks():
         out[c.name.lower().replace(" ", "_")] = {"installed": c.ok, "detail": c.detail}
     return out
 
 
-def _check_drift_json(infra_path: Path, out_dir: Path, target: str) -> dict:
+def _check_drift_json(infra_path: Path, out_dir: Path, target: str) -> Dict[str, Any]:
     """Run the drift check and return the result as a JSON-serializable dict."""
     from infra.analyzer.drift import detect_drift
 

@@ -30,7 +30,7 @@ def import_kubernetes_from_docs(
     docs: Sequence[object], source_name: str = "k8s.yaml"
 ) -> str:
     """Convert a sequence of parsed YAML documents into Infra source."""
-    return K8sImporter().import_documents(docs, source_name=source_name)
+    return K8sImporter().import_documents(list(docs), source_name=source_name)
 
 
 def import_kubernetes_file(path: PathLike) -> str:

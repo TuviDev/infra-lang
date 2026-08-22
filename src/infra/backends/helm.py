@@ -83,7 +83,13 @@ class HelmBackend(Backend, BaseYAMLBackend):
                 return _slug(name)
         return "app"
 
-    def compile(self, program: n.Program, *, cli_vars=None, **kwargs) -> CompileResult:
+    def compile(
+        self,
+        program: n.Program,
+        *,
+        cli_vars: Optional[Dict[str, Any]] = None,
+        **kwargs: Any,
+    ) -> CompileResult:
         chart = _slug(self._chart_name(program))
         files: Dict[str, str] = {}
         files[f"{chart}/Chart.yaml"] = self._chart_yaml(chart)
@@ -229,7 +235,10 @@ class HelmBackend(Backend, BaseYAMLBackend):
     def _values_yaml(self, program: n.Program) -> str:
         values: Dict[str, Any] = {}
         for stmt in program.statements:
-            name = _slug(stmt.name)
+            stmt_name = getattr(stmt, "name", None)
+            if stmt_name is None:
+                continue
+            name = _slug(stmt_name)
             if isinstance(stmt, n.ServiceDef):
                 values.setdefault("service", {})[name] = self._service_values(stmt)
             elif isinstance(stmt, n.DatabaseDef):
@@ -315,7 +324,7 @@ class HelmBackend(Backend, BaseYAMLBackend):
                 data[e.name] = _lit(e.value)
         return {"data": data}
 
-    def _resources_values(self, resources) -> Dict[str, Any]:
+    def _resources_values(self, resources: Any) -> Dict[str, Any]:
         out: Dict[str, Any] = {}
         for section in ("requests", "limits"):
             spec = getattr(resources, section, None)
@@ -330,12 +339,12 @@ class HelmBackend(Backend, BaseYAMLBackend):
         return out
 
     @staticmethod
-    def _quant(value) -> str:
+    def _quant(value: Any) -> str:
         """Render a CPU/memory quantity to a string."""
         if value is None:
             return ""
         if hasattr(value, "to_kubernetes"):
-            return value.to_kubernetes()
+            return str(value.to_kubernetes())
         return str(value)
 
     @staticmethod
@@ -346,7 +355,7 @@ class HelmBackend(Backend, BaseYAMLBackend):
             return node.size.to_kubernetes()
         return "10Gi"
 
-    def _health_values(self, h) -> Dict[str, Any]:
+    def _health_values(self, h: Any) -> Dict[str, Any]:
         return {
             "path": getattr(h, "path", None) or "/health",
             "port": getattr(h, "port", None) or 80,
@@ -431,13 +440,13 @@ def _subst_chart(template: str, chart: str) -> str:
     ).replace("chart.selectorLabels", f"{chart}.selectorLabels")
 
 
-def _port_name(p) -> str:
+def _port_name(p: Any) -> str:
     proto = (p.protocol or "tcp").lower()
     eff = p.host or p.target or 80
     return f"{proto}-{eff}"
 
 
-def _lit(v) -> Optional[str]:
+def _lit(v: Any) -> Optional[str]:
     if isinstance(v, n.Literal):
         return str(v.value)
     return None

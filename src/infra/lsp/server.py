@@ -13,7 +13,7 @@ Protocol: JSON-RPC over stdio (standard LSP transport).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from lsprotocol.types import (
     INITIALIZED,
@@ -71,6 +71,7 @@ from lsprotocol.types import (
     SemanticTokens,
     SemanticTokensLegend,
     SemanticTokensParams,
+    SignatureHelp,
     SignatureHelpOptions,
     SignatureHelpParams,
     SymbolKind,
@@ -101,7 +102,7 @@ from ..lsp.workspace_index import (
     iterable_symbol_locations,
 )
 from ..lsp.workspace_symbols import block_definitions, build_index, resolve_location
-from ..parser.ast_nodes import SourceLocation
+from ..parser.location import SourceLocation
 
 server = LanguageServer(
     name="infra-lang",
@@ -121,7 +122,7 @@ def _shutdown_release_index() -> None:
 
 # Wrap pygls's own shutdown so the in-memory index is freed on exit, without
 # interfering with pygls's protocol-level shutdown handling.
-_orig_shutdown = server.shutdown
+_orig_shutdown: Callable[[], None] = server.shutdown
 
 
 def _shutdown_with_cleanup() -> None:
@@ -355,7 +356,7 @@ def initialized(ls: LanguageServer, params: InitializedParams) -> None:
         executor = ls.thread_pool_executor
     except Exception:  # noqa: BLE001
         executor = None
-    scan = lambda: workspace_index.scan_directory(root)  # noqa: E731
+    scan: Callable[[], None] = lambda: workspace_index.scan_directory(root)  # noqa: E731
     if executor is not None:
         executor.submit(scan)
     else:
@@ -416,7 +417,7 @@ def semantic_tokens_full(
 def signature_help(
     ls: LanguageServer,
     params: SignatureHelpParams,
-):
+) -> Optional[SignatureHelp]:
     """Show the fields available inside the block the cursor is in."""
     source = _doc_source(ls, params.text_document.uri)
     from ..lsp.signature import signature_help_at

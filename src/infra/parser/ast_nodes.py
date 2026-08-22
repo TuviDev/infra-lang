@@ -613,7 +613,7 @@ class DatabaseDef(ASTNode):
     ha: bool = False
     ssl: Optional[bool] = None
     size: Optional[ResourceValue] = None
-    storage: Optional[str] = None
+    storage: Optional[ResourceValue] = None
     backup: Optional[BackupSpec] = None
     users: Tuple[DbUserSpec, ...] = ()
     extra: Tuple[Tuple[str, Expression], ...] = ()

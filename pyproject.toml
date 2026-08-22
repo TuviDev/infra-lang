@@ -119,3 +119,8 @@ show_missing = true
 source_paths = ["src/infra"]
 pytest_add_cli_args = ["-q", "-p", "no:cacheprovider", "-o", "addopts=", "-k", "not live_e2e"]
 pytest_add_cli_args_test_selection = ["tests/test_security_checker.py", "tests/test_security_advanced.py"]
+
+[tool.vulture]
+paths = ["src/infra"]
+min_confidence = 80
+ignore_names = ["environment", "project", "no_color"]

@@ -9,7 +9,7 @@ literals is preserved; structural formatting is normalized.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 from infra.parser import _parser
 from infra.parser import ast_nodes as n
@@ -52,7 +52,7 @@ class InfraPrinter:
         self.depth -= 1
         self._w("}")
 
-    def _join(self, items: list[str]) -> str:
+    def _join(self, items: Sequence[str]) -> str:
         return ", ".join(items)
 
     # ------------------------------------------------------------------ #

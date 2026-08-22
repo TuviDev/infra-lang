@@ -847,7 +847,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         return manifests
 
     def _db_env(self, node: n.DatabaseDef) -> List[Dict[str, Any]]:
-        env = [
+        env: List[Dict[str, Any]] = [
             {"name": "POSTGRES_DB", "value": node.name},
             {"name": "POSTGRES_USER", "value": node.name},
         ]
