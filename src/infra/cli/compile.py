@@ -140,7 +140,7 @@ def compile(
         typer.echo(f"Validation failed with {len(issues)} issue(s)")
         raise typer.Exit(code=1)
     if not dry_run:
-        typer.echo(f"✅ Compiled {total} files to {output}/")
+        typer.echo(f"[OK] Compiled {total} files to {output}/")
 
 
 # --------------------------------------------------------------------------- #
@@ -248,7 +248,7 @@ def run_watch(
         source_path, target, output_dir, split, cli_vars, dry_run, console
     )
     ts = time.strftime("%H:%M:%S")
-    icon = "✅" if ok else "❌"
+    icon = "[OK]" if ok else "[FAIL]"
     console.print(
         f"[dim]{ts}[/dim] {icon} "
         f"{'Compiled' if ok else 'Error'} "
@@ -269,7 +269,7 @@ def run_watch(
                     source_path, target, output_dir, split, cli_vars, dry_run, console
                 )
                 ts = time.strftime("%H:%M:%S")
-                icon = "✅" if ok else "❌"
+                icon = "[OK]" if ok else "[FAIL]"
                 console.print(
                     f"[dim]{ts}[/dim] {icon} "
                     f"Recompiled [dim]({ms:.0f}ms)[/dim]"

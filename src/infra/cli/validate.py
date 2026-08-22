@@ -127,7 +127,7 @@ def validate(
         elif all_warnings:
             typer.echo(f"Found {len(all_warnings)} warnings")
         else:
-            typer.echo("✅ No errors found")
+            typer.echo("[OK] No errors found")
 
     if any_invalid:
         raise typer.Exit(code=1)

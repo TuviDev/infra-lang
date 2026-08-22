@@ -59,18 +59,18 @@ def test_doctor_exit_zero_when_missing_tools(no_tools):
 def test_doctor_lists_python_version():
     result = runner.invoke(app, ["doctor"])
     assert "Python" in result.stdout
-    assert "✓" in result.stdout  # 3.11+ passes
+    assert "[OK]" in result.stdout  # 3.11+ passes
 
 
 def test_doctor_docker_not_found(no_tools):
     result = runner.invoke(app, ["doctor"])
-    assert "Docker: not found ✗" in result.stdout
+    assert "Docker: not found [FAIL]" in result.stdout
 
 
 def test_doctor_docker_running(all_tools):
     result = runner.invoke(app, ["doctor"])
     assert "Docker: running" in result.stdout
-    assert "✓" in result.stdout
+    assert "[OK]" in result.stdout
 
 
 def test_doctor_kubectl_version_present(all_tools):
@@ -94,7 +94,7 @@ def test_doctor_pygls_installed():
         present = False
     result = runner.invoke(app, ["doctor"])
     if present:
-        assert "LSP (pygls): installed ✓" in result.stdout
+        assert "LSP (pygls): installed [OK]" in result.stdout
     else:
         assert "not installed" in result.stdout
 

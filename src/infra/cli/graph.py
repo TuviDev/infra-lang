@@ -125,6 +125,6 @@ def graph(
 
     if output is not None:
         output.write_text(body + "\n", encoding="utf-8")
-        typer.echo(f"✅ Graph written to {output}")
+        typer.echo(f"[OK] Graph written to {output}")
     else:
         typer.echo(body)

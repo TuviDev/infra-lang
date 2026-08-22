@@ -32,6 +32,6 @@ def import_cmd(
     if output:
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(text, encoding="utf-8")
-        typer.echo(f"✅ Imported to {output}")
+        typer.echo(f"[OK] Imported to {output}")
     else:
         typer.echo(text, nl=False)

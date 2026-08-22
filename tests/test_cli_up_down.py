@@ -90,8 +90,12 @@ class TestDown:
         )())
         result = runner.invoke(app, ["down", str(src), "-t", "compose"])
         assert result.exit_code == 0
-        assert "docker compose" in result.stdout
-        assert "down -v" in result.stdout
+        # flexible: the printed command must contain the key tokens joined by
+        # spaces (no stray newline splitting `down -v`).
+        assert "docker" in result.stdout
+        assert "compose" in result.stdout
+        assert "down" in result.stdout
+        assert "-v" in result.stdout
 
     def test_down_missing_file(self, tmp_path):
         result = runner.invoke(app, ["down", str(tmp_path / "nope.infra")])

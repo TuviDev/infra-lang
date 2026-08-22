@@ -225,5 +225,5 @@ def init(
         except Exception:  # pragma: no cover
             pass
 
-    typer.echo(f"✅ Created project {name}/ (template: {template})")
+    typer.echo(f"[OK] Created project {name}/ (template: {template})")
     typer.echo(f"   Run: cd {name} && infra validate infra/")

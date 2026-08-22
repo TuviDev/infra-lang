@@ -23,6 +23,6 @@ def check(
             typer.echo(f"{f}: {e}")
             ok = False
     if ok:
-        typer.echo(f"✅ {len(files)} file(s) syntactically valid")
+        typer.echo(f"[OK] {len(files)} file(s) syntactically valid")
     else:
         raise typer.Exit(code=1)

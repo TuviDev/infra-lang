@@ -31,7 +31,7 @@ def docs(
     text = "\n".join(lines) + "\n"
     if output:
         Path(output).write_text(text, encoding="utf-8")
-        typer.echo(f"✅ Wrote docs to {output}")
+        typer.echo(f"[OK] Wrote docs to {output}")
     else:
         typer.echo(text)
 

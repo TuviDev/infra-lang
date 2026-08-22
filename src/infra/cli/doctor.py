@@ -205,7 +205,7 @@ def doctor(
     checks = _checks()
     typer.echo(f"Infra Lang v{__version__}")
     for c in checks:
-        marker = "✓" if c.ok else "✗"
+        marker = "[OK]" if c.ok else "[FAIL]"
         typer.echo(f"{c.name}: {c.detail} {marker}")
 
     missing = [c.name for c in checks if not c.ok]
