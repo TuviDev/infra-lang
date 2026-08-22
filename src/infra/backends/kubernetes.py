@@ -98,7 +98,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
                     single.append(manifest)
 
         if not self.split and single:
-            docs = "\n---\n".join(self._to_yaml(m).rstrip("\n") for m in single)
+            docs = self._to_yaml_multi(single)
             result.files["infra.yaml"] = generated_header("kubernetes") + docs + "\n"
         return result
 

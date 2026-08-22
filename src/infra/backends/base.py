@@ -167,6 +167,22 @@ class BaseYAMLBackend:
         _new_yaml().dump(data, buf)
         return buf.getvalue().rstrip("\n") + "\n"
 
+    def _to_yaml_multi(self, docs: List[Any]) -> str:
+        """Serialize several YAML documents in a single emitter pass.
+
+        Uses ruamel's ``dump_all`` so all documents are written to one stream
+        (separated by ``---``) with a single serializer/emitter pass. This is
+        faster for large workloads than calling ``_to_yaml`` per resource, where
+        the per-call serializer construction dominates.
+        """
+        if not docs:
+            return ""
+        import io
+
+        buf = io.StringIO()
+        _new_yaml().dump_all(docs, buf)
+        return buf.getvalue().rstrip("\n") + "\n"
+
     def _clean_none(self, data: Any) -> Any:
         """Recursively remove keys whose value is None (or empty)."""
         if isinstance(data, dict):
