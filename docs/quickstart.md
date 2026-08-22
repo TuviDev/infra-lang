@@ -67,6 +67,38 @@ cp app.infra app_v2.infra
 infra diff app.infra app_v2.infra
 ```
 
+## Deploy it directly
+
+Apply the compiled resources to a live platform (Kubernetes, Compose, or Helm)
+with `infra up`, and remove them with `infra down`:
+
+```bash
+# Deploy to a Kubernetes cluster (requires kubectl on PATH)
+infra up app.infra --target kubernetes
+
+# Preview the commands without executing them
+infra up app.infra --target kubernetes --dry-run
+
+# Bring up a Docker Compose stack (requires the Docker daemon)
+infra up app.infra --target compose
+
+# Tear everything back down
+infra down app.infra --target compose
+```
+
+Missing a tool? `infra up`/`infra down` tell you what's missing and point you
+at `infra doctor`.
+
+## Estimate the cost
+
+Get a rough monthly cost estimate for your infrastructure:
+
+```bash
+infra cost app.infra                    # rich table
+infra cost app.infra --json             # structured JSON for CI gates
+infra cost app.infra --currency PLN     # other currencies
+```
+
 ## What's next
 - Read the tutorial: `docs/tutorial.md`
 - See examples: `examples/`

@@ -116,6 +116,12 @@ infra compile app.infra --target github
   `.infra` file on disk.
 - **A formatter, REPL, and diff engine** — `infra fmt`, `infra repl`, and
   `infra diff` for reviewing changes.
+- **Direct execution** — `infra up` / `infra down` apply and remove resources
+  on a live cluster (`kubectl apply/delete`), Docker Compose
+  (`docker compose up/down`), or Helm (`helm upgrade --install`/`uninstall`),
+  with a `--dry-run` to preview commands.
+- **Cost estimation** — `infra cost` estimates the monthly cloud cost of a
+  `.infra` file (per-resource table, `--json` for CI gates, `--currency`).
 - **Reusable pieces** — template-string interpolation, `import` with cycle
   detection, `extends` inheritance, 25+ stdlib functions and a prelude of
   shared constants.

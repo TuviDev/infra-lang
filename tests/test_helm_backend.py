@@ -70,7 +70,7 @@ class TestChartStructure:
         assert data["apiVersion"] == "v2"
         assert data["name"]
         assert data["type"] == "application"
-        assert data["version"] == "0.3.2"
+        assert data["version"] == "0.4.0"
         assert "appVersion" in data
 
     def test_values_yaml_is_valid_yaml(self):

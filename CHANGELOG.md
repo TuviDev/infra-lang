@@ -2,6 +2,22 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.4.0] - 2026-08-20
+
+### Added
+- **`infra up`** — direct execution: compiles a `.infra` file to a target and
+  applies it. Supports `-t kubernetes` (`kubectl apply -f`), `-t compose`
+  (`docker compose up -d`) and `-t helm` (`helm upgrade --install`). A
+  `--dry-run` flag prints the commands without executing them; missing tools
+  produce a clear error pointing at `infra doctor`.
+- **`infra down`** — removes resources applied from a `.infra` file via the
+  matching tool (`kubectl delete`, `docker compose down -v`, `helm uninstall`).
+- **`infra cost`** — static monthly cloud cost estimation. Walks the AST and
+  estimates per-resource cost using documented per-unit rates (vCPU, RAM,
+  storage, managed DB/cache). Prints a `rich` table or structured JSON
+  (`{"total_monthly_usd": float, "breakdown": [...]}`) for CI/CD cost gates.
+  Supports `--currency USD|EUR|PLN` and `--json`.
+
 ## [0.3.2] - 2026-08-20
 
 ### Fixed
