@@ -99,6 +99,58 @@ infra cost app.infra --json             # structured JSON for CI gates
 infra cost app.infra --currency PLN     # other currencies
 ```
 
+### FinOps reports for pull requests
+
+Render the estimate as Markdown or HTML — ready to paste into a PR comment or
+a CI job summary:
+
+```bash
+# Markdown table for a GitHub/GitLab PR comment
+infra cost app.infra --format markdown
+
+# HTML table (e.g. for a GitHub Actions job summary)
+infra cost app.infra --format html
+
+# Write the report straight to a file
+infra cost app.infra --format markdown --output cost-report.md
+```
+
+In a GitHub Actions workflow you can post the report on every PR:
+
+```yaml
+- run: infra cost app.infra --format markdown --output cost.md
+- uses: marocchino/sticky-pull-request-comment@v2
+  with:
+    path: cost.md
+```
+
+## Detect drift against the live infrastructure
+
+After deploying, someone may `kubectl scale` a Deployment or hot-patch an
+image — silently diverging from your `.infra` spec. Catch it with the live
+drift check (read-only; it never mutates the cluster):
+
+```bash
+# Compare the spec against a live Kubernetes namespace
+infra doctor --check-drift app.infra --live --target k8s --namespace default
+
+# Compare against a running Docker Compose stack
+infra doctor --check-drift app.infra --live --target compose
+
+# Structured JSON for CI/CD gates (exit code 1 on drift)
+infra doctor --check-drift app.infra --live --json
+```
+
+The check compares replicas, container image, ports and environment variables
+and prints an In-Sync/Drifted table plus explicit drift lines:
+
+```
+[DRIFT] api: replicas expected 3, live 1 (MODIFIED)
+```
+
+Without `--live`, `infra doctor --check-drift` keeps its original behavior:
+comparing the compiled output against on-disk generated files (`--out-dir`).
+
 ## What's next
 - Read the tutorial: `docs/tutorial.md`
 - See examples: `examples/`

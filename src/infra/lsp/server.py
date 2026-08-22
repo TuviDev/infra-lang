@@ -106,7 +106,7 @@ from ..parser.location import SourceLocation
 
 server = LanguageServer(
     name="infra-lang",
-    version="0.4.1",
+    version="0.4.2",
 )
 
 #: Project-wide on-disk symbol index. Scanned after initialization; consulted by

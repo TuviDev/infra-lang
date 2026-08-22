@@ -2,6 +2,26 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.4.2] - 2026-08-22
+
+### Added
+- **Deep live drift detection** — `infra doctor --check-drift <file> --live`
+  compares the declared `.infra` spec against the **running** infrastructure:
+  Kubernetes (`kubectl get deployment,service -n <ns> -o json`) or Docker
+  Compose (`docker compose ps --format json` + `docker inspect`). Compares
+  replicas, container image, ports and literal environment variables, prints a
+  `rich` In-Sync/Drifted summary table plus
+  `[DRIFT] app: replicas expected 3, live 1 (MODIFIED)` lines, and exits 1 on
+  drift. `--namespace/-n` selects the k8s namespace; `--json` emits a
+  structural `DriftReport` for CI/CD gates. All probes are strictly
+  **read-only** — the check never mutates the cluster or the daemon.
+- **FinOps PR reports** — `infra cost --format/-f table|json|markdown|html`
+  renders the cost estimate as a GitHub/GitLab-ready Markdown table
+  (`CostEstimate.to_markdown()`) or an HTML table with escaped names
+  (`CostEstimate.to_html()`), for pasting into pull-request comments and CI
+  job summaries. `--output/-o <file>` writes the report to a file. The
+  existing `--json` flag is preserved as an alias of `--format json`.
+
 ## [0.4.1] - 2026-08-22
 
 ### Added
