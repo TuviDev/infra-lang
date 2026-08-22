@@ -836,3 +836,61 @@ spec:
         assert "nginx:1.25" in compiled  # image
         assert "replicas: 3" in compiled  # replicas
         assert "80" in compiled  # service port
+
+
+class TestImportEdgeCases:
+    def test_service_with_no_fields(self, tmp_path):
+        yaml = """\
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: empty
+spec:
+  selector:
+    matchLabels: {app: empty}
+  template:
+    metadata:
+      labels: {app: empty}
+    spec:
+      containers:
+        - name: empty
+"""
+        out = import_text(tmp_path, yaml)
+        assert "service empty {" in out
+        assert "no runnable fields" in out
+
+    def test_statefulset_db_multireplica(self, tmp_path):
+        yaml = """\
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pg
+spec:
+  replicas: 3
+  selector:
+    matchLabels: {app: pg}
+  template:
+    metadata:
+      labels: {app: pg}
+    spec:
+      containers:
+        - name: pg
+          image: postgres:15
+"""
+        out = import_text(tmp_path, yaml)
+        assert "database pg {" in out
+        assert "replicas: 3" in out
+
+    def test_ingress_non_dict_rule_skipped(self, tmp_path):
+        # ingress rule that is not a dict -> gracefully skipped
+        yaml = """\
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ing
+spec:
+  rules:
+    - bad_rule
+"""
+        out = import_text(tmp_path, yaml)
+        assert out  # no crash

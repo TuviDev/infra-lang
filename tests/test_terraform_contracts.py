@@ -176,3 +176,22 @@ class TestVariableInterpolation:
             'cluster c { provider: aws }\nstorage s { type: s3 bucket: "b" }'
         )["main.tf"]
         assert "aws_s3_bucket" in main
+
+
+class TestTerraformNetworkSecretQueue:
+    def test_network_vpc_subnets(self):
+        main = _tf(
+            'network n { cidr: "10.0.0.0/16" '
+            'subnets { a: { cidr: "10.0.1.0/24" } } }'
+        )["main.tf"]
+        assert 'resource "aws_vpc" "n"' in main
+        assert 'resource "aws_subnet" "n_a"' in main
+
+    def test_secret_secretsmanager(self):
+        files = _tf("secret s { k: 'v' }")
+        assert "aws_secretsmanager_secret" in files["main.tf"]
+        assert "variable" in files["variables.tf"]
+
+    def test_queue_rabbitmq_no_sqs(self):
+        main = _tf("queue q { type: rabbitmq }")["main.tf"]
+        assert "aws_sqs" not in main

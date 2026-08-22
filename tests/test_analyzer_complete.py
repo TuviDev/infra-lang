@@ -131,3 +131,47 @@ class TestLinterInternals:
 
         findings = SecurityChecker().check(parse('service a { image: "x:latest" env { PASSWORD: "bad" } }'))
         assert any(getattr(f, "code", "") == "SEC001" for f in findings)
+
+
+class TestExpressionRecursion:
+    """Cover `_check_expression` recursive branches for various expr node types."""
+
+    def _err_codes(self, src):
+        from infra import parse, validate
+        return {e.code for e in validate(parse(src)).errors}
+
+    def test_binary_op_expression(self):
+        # 1 + 2 references nothing undefined -> no E001
+        assert "E001" not in self._err_codes(
+            "let a = 1 + 2\nservice s { image: \"x\" }"
+        )
+
+    def test_unary_op_expression(self):
+        assert "E001" not in self._err_codes(
+            "let a = !false\nservice s { image: \"x\" }"
+        )
+
+    def test_list_expression(self):
+        assert "E001" not in self._err_codes(
+            "let a = [1,2,3]\nservice s { image: \"x\" }"
+        )
+
+    def test_call_expression(self):
+        assert "E001" not in self._err_codes(
+            'let a = upper("x")\nservice s { image: "x" }'
+        )
+
+    def test_if_expr_expression(self):
+        assert "E001" not in self._err_codes(
+            'let cond = true\nservice s { image: "x" env { A: if cond then "a" else "b" } }'
+        )
+
+    def test_undefined_identifier_flagged(self):
+        assert "E001" in self._err_codes(
+            "let a = missing_var\nservice s { image: \"x\" }"
+        )
+
+    def test_call_with_undefined_arg_flagged(self):
+        assert "E001" in self._err_codes(
+            'let a = upper(nope)\nservice s { image: "x" }'
+        )

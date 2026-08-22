@@ -318,3 +318,31 @@ class TestComposeTopLevelVolumes:
         )
         env_file = result.files.get(".env.example", "")
         assert "S_PASSWORD=v" in env_file
+
+
+class TestComposeSingleAndMinio:
+    def test_compile_service_single(self):
+        from infra.parser import ast_nodes as n
+        from infra.backends.compose import DockerComposeBackend
+
+        prog = parse('service api { image: "nginx:1" }')
+        svc = [s for s in prog.statements if isinstance(s, n.ServiceDef)][0]
+        out = DockerComposeBackend().compile_service(svc)
+        assert "nginx:1" in out
+        assert "image:" in out
+
+    def test_compile_database_single(self):
+        from infra.parser import ast_nodes as n
+        from infra.backends.compose import DockerComposeBackend
+
+        prog = parse("database db { type: postgres }")
+        db = [s for s in prog.statements if isinstance(s, n.DatabaseDef)][0]
+        out = DockerComposeBackend().compile_database(db)
+        assert "image: postgres" in out
+        assert "POSTGRES_DB: db" in out
+
+    def test_minio_storage(self):
+        data, _ = _compose('storage s { type: minio }')
+        assert "s" in data["services"]
+        svc = data["services"]["s"]
+        assert "MINIO_ROOT_USER" in svc["environment"]

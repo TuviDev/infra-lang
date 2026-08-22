@@ -186,3 +186,27 @@ class TestDownExecutionBranches:
         result = runner.invoke(app, ["down", str(src), "-t", "terraform"])
         assert result.exit_code == 1
         assert "Unsupported target" in result.stdout
+
+
+class TestUpDownTimeouts:
+    def test_up_timeout_handled(self, tmp_path, monkeypatch):
+        import subprocess
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+
+        def raiser(cmd, cwd=None):
+            raise subprocess.TimeoutExpired(cmd, timeout=1)
+        monkeypatch.setattr("infra.cli.up_cmd._run", raiser)
+        result = runner.invoke(app, ["up", str(src), "-t", "compose"])
+        assert result.exit_code == 1
+        assert "timed out" in result.stdout
+
+    def test_up_run_oserror(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+
+        def raiser(cmd, cwd=None):
+            raise OSError("boom")
+        monkeypatch.setattr("infra.cli.up_cmd._run", raiser)
+        result = runner.invoke(app, ["up", str(src), "-t", "compose"])
+        assert result.exit_code == 1

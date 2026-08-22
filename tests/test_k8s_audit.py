@@ -6,6 +6,8 @@ apiVersion. Fixing these is a contract guarantee for users.
 
 from __future__ import annotations
 
+import base64
+
 import yaml
 
 from infra import parse
@@ -494,3 +496,193 @@ class TestScheduleRBAC:
         assert "ServiceAccount" in kinds
         assert "ClusterRole" in kinds
         assert "ClusterRoleBinding" in kinds
+
+
+class TestStorageContracts:
+    def test_s3_storage_secret(self):
+        docs = compile_docs(
+            'storage s { type: s3 bucket: "mybkt" region: "eu-west-1" }'
+        )
+        sec = get_kind(docs, "Secret")
+        assert sec is not None
+        assert sec["metadata"]["name"] == "s-credentials"
+        assert sec["stringData"]["bucket"] == "mybkt"
+        assert sec["stringData"]["region"] == "eu-west-1"
+
+    def test_s3_bucket_defaults_to_name(self):
+        docs = compile_docs('storage s { type: s3 }')
+        sec = get_kind(docs, "Secret")
+        assert sec["stringData"]["bucket"] == "s"
+
+    def test_pvc_storage_with_size(self):
+        docs = compile_docs('storage s { type: gcs size: 50Gi }')
+        pvc = get_kind(docs, "PersistentVolumeClaim")
+        assert pvc["spec"]["resources"]["requests"]["storage"] == "50Gi"
+
+    def test_pvc_default_size(self):
+        docs = compile_docs('storage s { type: gcs }')
+        pvc = get_kind(docs, "PersistentVolumeClaim")
+        assert pvc["spec"]["resources"]["requests"]["storage"] == "10Gi"
+
+    def test_pvc_access_mode(self):
+        docs = compile_docs('storage s { type: gcs accessMode: ReadWriteMany }')
+        pvc = get_kind(docs, "PersistentVolumeClaim")
+        assert pvc["spec"]["accessModes"] == ["ReadWriteMany"]
+
+
+class TestNetworkPolicyContracts:
+    def test_network_policy_with_from_and_ports(self):
+        docs = compile_docs(
+            'network n { policy { allow: { from: "10.0.0.0/8" ports: [80,443] } } }'
+        )
+        np = get_kind(docs, "NetworkPolicy")
+        assert np is not None
+        ingress = np["spec"]["ingress"]
+        assert ingress[0]["spec"]["from"] == [{"ipBlock": {"cidr": "10.0.0.0/8"}}]
+        assert ingress[0]["spec"]["ports"] == [{"port": 80}, {"port": 443}]
+
+    def test_network_policy_empty_policy(self):
+        # empty policy: _clean_none drops the empty spec, NP still emitted
+        docs = compile_docs('network n { policy { } }')
+        np = get_kind(docs, "NetworkPolicy")
+        assert np is not None
+        assert np["metadata"]["name"] == "n"
+        assert np.get("spec") is None or np["spec"].get("ingress") == []
+
+
+class TestSingleResourceCompile:
+    """The single-resource compile_service/compile_database entry points."""
+
+    def test_compile_service_single(self):
+        from infra.parser import ast_nodes as n
+
+        prog = parse('service api { image: "nginx:1" port 80 }')
+        svc = [s for s in prog.statements if isinstance(s, n.ServiceDef)][0]
+        out = KubernetesBackend().compile_service(svc)
+        assert "Deployment" in out
+        assert "apiVersion: apps/v1" in out
+
+    def test_compile_database_single(self):
+        from infra.parser import ast_nodes as n
+
+        prog = parse("database db { type: postgres }")
+        db = [s for s in prog.statements if isinstance(s, n.DatabaseDef)][0]
+        out = KubernetesBackend().compile_database(db)
+        assert "StatefulSet" in out
+
+
+class TestImageAndEnvResolution:
+    def test_identifier_image_resolved(self):
+        docs = compile_docs(
+            'const APP_IMG = "nginx:1"\nservice api { image: APP_IMG }'
+        )
+        c = _container(docs)
+        assert c["image"] == "nginx:1"
+
+    def test_env_from_config(self):
+        docs = compile_docs(
+            'config c { A: "1" }\nservice api { image: "x" env { X: from config "c".A } }'
+        )
+        c = _container(docs)
+        assert c["env"][0]["valueFrom"]["configMapKeyRef"] == {
+            "name": "c",
+            "key": "A",
+        }
+
+    def test_env_from_field(self):
+        docs = compile_docs(
+            'service api { image: "x" env { POD: from field "metadata.name" } }'
+        )
+        c = _container(docs)
+        assert c["env"][0]["valueFrom"]["fieldRef"]["fieldPath"] == "metadata.name"
+
+
+class TestSecretSources:
+    def test_secret_from_vault(self):
+        docs = compile_docs('secret s { k: from vault "v" }')
+        sec = get_kind(docs, "Secret")
+        assert base64.b64decode(sec["data"]["k"]).decode() == "from-vault:v"
+
+    def test_secret_from_env(self):
+        docs = compile_docs('secret s { k: from env "K" }')
+        sec = get_kind(docs, "Secret")
+        assert base64.b64decode(sec["data"]["k"]).decode() == "from-env:K"
+
+    def test_secret_from_file(self):
+        docs = compile_docs('secret s { k: from file "f.txt" }')
+        sec = get_kind(docs, "Secret")
+        assert sec["data"]["k"] == ""
+
+
+class TestDatabaseUsersSecret:
+    def test_database_users_emits_secret(self):
+        docs = compile_docs(
+            'database db { type: postgres users { u1: { password: "p" } } }'
+        )
+        sec = get_kind(docs, "Secret")
+        assert sec is not None
+        assert sec["metadata"]["name"] == "db-credentials"
+
+
+class TestLifecycleHooks:
+    def test_pre_stop_post_start(self):
+        docs = compile_docs(
+            'service api { image: "x" '
+            'lifecycle { preStop { exec: ["sleep", "5"] } '
+            'postStart { exec: ["echo", "hi"] } } }'
+        )
+        c = _container(docs)
+        lc = c["lifecycle"]
+        assert lc["preStop"]["exec"]["command"] == ["sleep", "5"]
+        assert lc["postStart"]["exec"]["command"] == ["echo", "hi"]
+
+
+class TestBuildAndArgs:
+    def test_build_service_image_and_args(self):
+        docs = compile_docs(
+            'service api { build { context: "." } args: ["--x"] }'
+        )
+        c = _container(docs)
+        assert c["image"] == "built-from-dockerfile"
+        assert c["args"] == ["--x"]
+
+    def test_percentage_value(self):
+        docs = compile_docs(
+            'service api { image: "x" disruption { min_available: 50% } }'
+        )
+        assert any(d.get("kind") == "PodDisruptionBudget" for d in docs)
+
+
+class TestK8sErrorPaths:
+    def test_service_no_image_no_build_raises(self):
+        from infra.parser import ast_nodes as n
+        from infra.backends.kubernetes import KubernetesBackend
+        from infra.errors.exceptions import InfraCompileError
+
+        svc = n.ServiceDef(name="x")
+        try:
+            KubernetesBackend().compile_service(svc)
+            assert False, "expected InfraCompileError"
+        except InfraCompileError:
+            pass
+
+    def test_env_value_non_literal_resolved(self):
+        docs = compile_docs(
+            'let APP_PORT = "8080"\nservice api { image: "x" env { P: APP_PORT } }'
+        )
+        c = _container(docs)
+        assert c["env"][0]["value"] == "8080"
+
+
+class TestEnvFromEnvField:
+    def test_env_from_env(self):
+        docs = compile_docs(
+            'service api { image: "x" env { POD: from env "POD_NAME" } }'
+        )
+        c = _container(docs)
+        assert c["env"][0]["valueFrom"]["fieldRef"]["fieldPath"] == "POD_NAME"
+
+    def test_secret_from_file(self):
+        docs = compile_docs('secret s { k: from file "f.txt" }')
+        sec = get_kind(docs, "Secret")
+        assert "k" in sec["data"]
