@@ -181,15 +181,28 @@ class TestComposeUp:
                     f"{p.name}: service log shows a fatal error: {fatal}"
                 )
         except subprocess.TimeoutExpired:
-            pytest.skip("docker compose up timed out (daemon unresponsive on CI runner)")
+            pytest.skip(
+                "docker compose up timed out (daemon unresponsive on CI runner)"
+            )
         except subprocess.CalledProcessError as exc:
             # A daemon that went away between the `docker_available` probe and
-            # `docker compose up` (common on flaky Windows runners) should skip,
-            # not fail the suite.
-            if "cannot connect to the Docker daemon" in (exc.stderr or "").lower() or (
-                exc.returncode != 0 and "daemon" in (exc.stderr or "").lower()
-            ):
-                pytest.skip("Docker daemon unresponsive on CI runner")
+            # `docker compose up`, or a daemon switched to Windows containers
+            # (common on flaky windows-latest runners), should skip, not fail
+            # the suite — neither is a generator bug.
+            stderr_lower = (exc.stderr or "").lower()
+            infra_errors = (
+                "cannot connect to the docker daemon",
+                "daemon",
+                "no matching manifest",
+                "operating system is not supported",
+                "cannot be used on this platform",
+                "connection refused",
+            )
+            if any(term in stderr_lower for term in infra_errors):
+                pytest.skip(
+                    f"Docker infrastructure failure on CI runner: "
+                    f"{(exc.stderr or '').strip()[:200]}"
+                )
             raise
         except Exception as exc:
             # Any other subprocess failure (e.g. daemon connection refused) on a
