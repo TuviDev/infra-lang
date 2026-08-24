@@ -554,6 +554,8 @@ class ServiceDef(ASTNode):
     probes: Optional[ProbesSpec] = None
     volumes: Tuple[VolumeSpec, ...] = ()
     depends: Tuple[str, ...] = ()
+    #: Compose-style dependency list (v0.4.5): `depends_on: [db, redis]`.
+    depends_on: Tuple[str, ...] = ()
     labels: Tuple[Tuple[str, str], ...] = ()
     annotations: Tuple[Tuple[str, str], ...] = ()
     strategy: Optional[StrategySpec] = None
@@ -571,6 +573,12 @@ class ServiceDef(ASTNode):
     #: Extra fields that don't map to a known attribute (kept for formatter).
     extra: Tuple[Tuple[str, Expression], ...] = ()
     decorators: Tuple[Decorator, ...] = ()
+
+    @property
+    def dependencies(self) -> Tuple[str, ...]:
+        """All declared dependencies (``depends`` + ``depends_on``),
+        order-preserving and de-duplicated (v0.4.5)."""
+        return tuple(dict.fromkeys((*self.depends, *self.depends_on)))
 
 
 # ---------------------------------------------------------------------------

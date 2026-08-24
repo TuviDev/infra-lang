@@ -40,7 +40,7 @@ def _collect(
                 if stmt.ingress is not None:
                     host = stmt.ingress.host or stmt.ingress.domain or None
                 _add(stmt.name, "service", "service", host)
-                for dep in stmt.depends:
+                for dep in stmt.dependencies:
                     edges.add((stmt.name, dep))
             elif isinstance(stmt, n.DatabaseDef):
                 _add(stmt.name, "database", stmt.type or "database")

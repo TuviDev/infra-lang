@@ -103,6 +103,7 @@ class ExtendsResolver:
             probes=svc.probes or parent.probes,
             volumes=svc.volumes or parent.volumes,
             depends=svc.depends or parent.depends,
+            depends_on=svc.depends_on or parent.depends_on,
             labels=_merge_labels(parent.labels, svc.labels),
             annotations=_merge_labels(parent.annotations, svc.annotations),
             strategy=svc.strategy or parent.strategy,

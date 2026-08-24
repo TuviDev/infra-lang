@@ -40,10 +40,57 @@ secret db-creds {
 }
 ```
 
+### Declare service dependencies (since 0.4.5)
+
+Services can declare start-up ordering with `depends_on` (bracketed or
+bare). Targets may be other services **or** resources such as databases,
+caches and queues:
+
+```infra
+service api {
+    image: "myapp:1.0"
+    port: 8080
+    depends_on: [db, cache]
+}
+
+service worker {
+    image: "worker:2.0"
+    depends_on: db          # bare form for a single dependency
+}
+```
+
+An undeclared target is a hard error (`DEPENDENCY_NOT_FOUND`), and
+dependency cycles (`A -> B -> A`) fail validation with `DEPENDENCY_CYCLE`.
+The legacy `depends: [...]` list keeps working alongside it. Each backend
+renders the ordering natively — Compose `depends_on`, Kubernetes/Helm
+`initContainers` that wait on `<dep>:<port>`, and Terraform
+`depends_on = [...]` references on generated `kubernetes_deployment`
+resources. `infra graph app.infra` draws one edge per dependency.
+
 ## Validate
 ```bash
 infra validate app.infra
 ```
+
+### Check the whole workspace at once (since 0.4.5)
+
+`infra check`, `infra validate`, `infra cost`, `infra doctor` and
+`infra fmt` all accept `--all` (`-a`): every `.infra` file under the
+current directory is processed recursively (hidden folders and
+`node_modules` are skipped), rendered as a status table with a one-line
+summary:
+
+```bash
+infra validate --all
+```
+
+```
+Validated 8 files: 8 valid, 0 errors
+```
+
+For CI/CD, `--json` emits an aggregate document with per-file results (and
+`total_monthly_usd` for `infra cost --all`). The exit code is 1 when any
+file fails, so a pipeline can gate on a single command.
 
 ### Budget guardrail for CI/CD
 

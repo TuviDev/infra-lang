@@ -8,7 +8,7 @@ terraform.tfvars.example from Infra definitions.
 
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from infra.backends.base import Backend, CompileResult, generated_header
 from infra.parser import ast_nodes as n
@@ -72,9 +72,20 @@ class TerraformBackend(Backend):
             variables.append('variable "azure_resource_group" { default = "rg-infra" }')
             variables.append('variable "environment" { default = "dev" }')
 
+        # v0.4.5: only when at least one service declares `depends_on` do we
+        # materialize services as kubernetes_deployment resources, so that
+        # Terraform can express the ordering. Programs without depends_on
+        # produce byte-identical output to previous versions.
+        deps_active = any(
+            isinstance(s, n.ServiceDef) and s.depends_on for s in program.statements
+        )
+
         for stmt in program.statements:
             if isinstance(stmt, n.ClusterDef):
                 resources.extend(self._cluster(stmt))
+            elif isinstance(stmt, n.ServiceDef):
+                if deps_active:
+                    resources.append(self._service_deployment(stmt, program))
             elif isinstance(stmt, n.DatabaseDef):
                 resources.extend(self._database(stmt))
                 outputs.extend(self._database_outputs(stmt))
@@ -92,10 +103,17 @@ class TerraformBackend(Backend):
         hdr = generated_header("terraform")
         main = hdr + "\n".join(resources) + "\n"
         result.files["main.tf"] = main
+        if deps_active:
+            provider_conf += 'provider "kubernetes" {}\n'
         result.files["providers.tf"] = hdr + provider_conf
         result.files["variables.tf"] = hdr + "\n".join(variables) + "\n"
         result.files["outputs.tf"] = hdr + "\n".join(outputs) + "\n"
         required = self._required_providers()
+        if deps_active:
+            required += (
+                '    kubernetes = { source = "hashicorp/kubernetes",'
+                ' version = "~> 2.0" }\n'
+            )
         result.files["versions.tf"] = (
             hdr
             + "terraform {\n"
@@ -123,6 +141,94 @@ class TerraformBackend(Backend):
     # ------------------------------------------------------------------ #
     def compile_service(self, node: n.ServiceDef) -> str:
         return "# services are deployed via Kubernetes in this backend\n"
+
+    def _service_deployment(self, node: n.ServiceDef, program: n.Program) -> str:
+        """Render a ``kubernetes_deployment`` resource for *node* (v0.4.5).
+
+        Emitted only when the program declares at least one ``depends_on``
+        edge, so Terraform can express the ordering. Service targets become
+        ``kubernetes_deployment.<name>`` references, database targets map to
+        the provider's database resource; targets without a Terraform
+        resource in this backend are preserved as comments.
+        """
+        if isinstance(node.image, str):
+            image = node.image
+        elif node.build is not None:
+            image = "built-from-dockerfile"
+        else:
+            image = "unknown"
+        replicas = node.replicas if isinstance(node.replicas, int) else 1
+        lines = [
+            f'resource "kubernetes_deployment" "{node.name}" {{',
+            "  metadata {",
+            f'    name = "{node.name}"',
+            "  }",
+            "  spec {",
+            f"    replicas = {replicas}",
+            "    selector {",
+            "      match_labels = {",
+            f'        app = "{node.name}"',
+            "      }",
+            "    }",
+            "    template {",
+            "      metadata {",
+            "        labels = {",
+            f'          app = "{node.name}"',
+            "        }",
+            "      }",
+            "      spec {",
+            "        container {",
+            f'          name  = "{node.name}"',
+            f'          image = "{image}"',
+            "        }",
+            "      }",
+            "    }",
+            "  }",
+        ]
+        defs = {getattr(s, "name", ""): s for s in program.statements}
+        refs: List[str] = []
+        comments: List[str] = []
+        for dep in node.dependencies:
+            target = defs.get(dep)
+            if isinstance(target, n.ServiceDef):
+                refs.append(f"kubernetes_deployment.{dep}")
+            elif isinstance(target, n.DatabaseDef):
+                ref = self._database_tf_ref(target)
+                if ref:
+                    refs.append(ref)
+                else:
+                    comments.append(
+                        f"depends_on target '{dep}' (database '{target.type}') "
+                        f"has no Terraform resource for provider '{self.provider}'"
+                    )
+            elif target is not None:
+                comments.append(
+                    f"depends_on target '{dep}' has no Terraform resource "
+                    "in this backend"
+                )
+            else:
+                comments.append(f"depends_on target '{dep}' is not declared")
+        if refs:
+            lines.append("  depends_on = [")
+            lines.extend(f"    {r}," for r in refs)
+            lines.append("  ]")
+        lines.extend(f"  # {c}" for c in comments)
+        lines.append("}")
+        return "\n".join(lines) + "\n"
+
+    def _database_tf_ref(self, node: n.DatabaseDef) -> Optional[str]:
+        """Terraform address of the provider resource backing *node*."""
+        if self.provider == "gcp":
+            if node.type in ("postgres", "mysql"):
+                return f"google_sql_database_instance.{node.name}"
+            return None
+        if self.provider == "azure":
+            if node.type == "postgres":
+                return f"azurerm_postgresql_server.{node.name}"
+            return None
+        if node.type == "mongodb":
+            return f"aws_docdb_cluster.{node.name}"
+        return f"aws_db_instance.{node.name}"
 
     def compile_database(self, node: n.DatabaseDef) -> str:
         return "\n".join(self._database(node)) + "\n"

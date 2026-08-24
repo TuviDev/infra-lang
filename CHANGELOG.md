@@ -2,6 +2,50 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.4.5] - 2026-08-24
+
+### Added
+- **Service dependencies with `depends_on`** — declare start-up ordering
+  directly in a service block, either bracketed (`depends_on: [db, redis]`)
+  or bare (`depends_on: db`). The merged dependency view
+  (`ServiceDef.dependencies`) combines the new field with the legacy
+  `depends` list (de-duplicated, order-stable) so both forms compile
+  identically, and `extends` inheritance carries the field over when the
+  child does not override it. `infra fmt` round-trips the block and
+  `infra graph` draws one edge per dependency.
+- **Validator hard errors for broken dependency contracts** — a
+  `depends_on` target that is not declared anywhere in the file (services
+  *and* resources such as databases, caches and queues count; forward
+  references are fine) fails validation with `DEPENDENCY_NOT_FOUND` and the
+  hint `Declare service 'X' or fix spelling in depends_on`. Cycles
+  (`A -> B -> A`, any length, self-loops included) are reported as
+  `DEPENDENCY_CYCLE` with the offending path spelled out. The legacy
+  `depends` list keeps its advisory `W001` warning for backward
+  compatibility.
+- **`depends_on` code generation in every backend** —
+  Compose gains/keeps a `depends_on` mapping with
+  `condition: service_healthy` per dependency; Kubernetes emits one
+  `wait-for-<dep>` initContainer per edge (busybox `nc -z <dep> <port>`,
+  ports resolved from the referenced definition: first service port, 5432
+  for databases, 6379 for caches, 5672 for queues); Terraform materializes
+  services as `kubernetes_deployment` resources with a matching
+  `depends_on = [...]` reference list — plus the `kubernetes` provider —
+  when (and only when) a program declares `depends_on`, mapping database
+  targets to the provider's database resource and keeping unmappable
+  targets as comments; Helm renders the same init-container waits driven by
+  a new per-service `dependsOn` values key. Programs without `depends_on`
+  produce byte-identical output to 0.4.4.
+- **Batch workspace processing with `--all` / `-a`** — `infra check`,
+  `infra validate`, `infra cost`, `infra doctor` and `infra fmt` gain a
+  recursive workspace scan: every `*.infra` file under the current
+  directory is processed (hidden directories and vendor folders such as
+  `node_modules` are skipped), results render as a per-file status table
+  with a one-line summary (`Checked 8 files: 8 valid, 0 errors`), and
+  `--json` emits an aggregate document (`files`, `valid`, `errors`,
+  `warnings`, per-file results; `cost` adds `total_monthly_usd`) for CI/CD
+  pipelines. Exit codes: 1 when any file fails, 0 otherwise; invoking a
+  command with neither files nor `--all` is a usage error (exit 2).
+
 ## [0.4.4] - 2026-08-23
 
 ### Fixed

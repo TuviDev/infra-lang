@@ -186,7 +186,10 @@ class DockerComposeBackend(Backend, BaseYAMLBackend):
             svc["volumes"] = [
                 f"{v.name}:{v.mount_path or '/data'}" for v in node.volumes
             ]
-        depends = _string_list(node.depends)
+        # v0.4.5: merged view (legacy `depends` + new `depends_on`),
+        # de-duplicated and order-stable; contract for both kinds keeps the
+        # long-standing `service_healthy` condition.
+        depends = _string_list(node.dependencies)
         if depends:
             svc["depends_on"] = {d: {"condition": "service_healthy"} for d in depends}
         if node.health:

@@ -257,6 +257,9 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
                 },
             },
         }
+        init_containers = self._dependency_init_containers(node, ctx)
+        if init_containers:
+            deployment["spec"]["template"]["spec"]["initContainers"] = init_containers
         if node.strategy and node.strategy.type == "recreate":
             deployment["spec"]["strategy"] = {"type": "Recreate"}
         elif node.strategy and node.strategy.type in (
@@ -314,6 +317,53 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         if node.network_policy:
             manifests.append(self._clean_none(self._compile_network_policy(node)))
         return manifests
+
+    def _dependency_init_containers(
+        self, node: n.ServiceDef, ctx: CompileContext
+    ) -> List[Dict[str, Any]]:
+        """One ``wait-for-<dep>`` init container per declared dependency.
+
+        The init loop blocks the pod until TCP ``<dep>:<port>`` accepts a
+        connection, giving deterministic start-up ordering for
+        ``depends_on`` without relying on crash-loop retries (v0.4.5).
+        Targets that are not network-reachable (or undeclared — the
+        validator reports those via DEPENDENCY_NOT_FOUND) are skipped.
+        """
+        defs: Dict[str, n.ASTNode] = {}
+        for stmt in ctx.program.statements:
+            name = getattr(stmt, "name", "")
+            if name:
+                defs.setdefault(name, stmt)
+
+        containers: List[Dict[str, Any]] = []
+        for dep in node.dependencies:
+            target = defs.get(dep)
+            port: Optional[int]
+            if isinstance(target, n.ServiceDef):
+                # mirror the Service port mapping: host or target or 80
+                first = target.ports[0] if target.ports else None
+                port = (first.host or first.target or 80) if first else 80
+            elif isinstance(target, n.DatabaseDef):
+                port = 5432
+            elif isinstance(target, n.CacheDef):
+                port = 6379
+            elif isinstance(target, n.QueueDef):
+                port = 5672
+            else:
+                continue
+            containers.append(
+                {
+                    "name": f"wait-for-{dep}",
+                    "image": "busybox:1.36",
+                    "command": [
+                        "sh",
+                        "-c",
+                        f"until nc -z {dep} {port}; do "
+                        f'echo "waiting for {dep}:{port}"; sleep 2; done',
+                    ],
+                }
+            )
+        return containers
 
     def _compile_network_policy(self, node: n.ServiceDef) -> Dict[str, Any]:
         """Generate a per-service NetworkPolicy."""

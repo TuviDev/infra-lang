@@ -30,7 +30,9 @@ def _error_dict(e: Any, file: str = "?") -> dict[str, Any]:
 
 
 def validate(
-    files: List[Path] = typer.Argument(..., help=".infra file(s) to validate"),
+    files: Optional[List[Path]] = typer.Argument(
+        None, help=".infra file(s) to validate"
+    ),
     strict: bool = typer.Option(False, "--strict", help="Treat warnings as errors"),
     format: str = typer.Option(
         "text", "--format", help="Output format: text, json, github"
@@ -48,9 +50,56 @@ def validate(
         help="FinOps guardrail: fail with a COST_EXCEEDED error when the "
         "estimated monthly cost exceeds this budget (in USD).",
     ),
+    all_files: bool = typer.Option(
+        False,
+        "--all",
+        "-a",
+        help="Recursively validate every .infra file under the current directory.",
+    ),
 ) -> None:
     """Validate .infra files semantically (no compilation)."""
+    from infra.cli import batch as _batch
+
     parser = _parser()
+    if all_files:
+        root = Path.cwd()
+        rows = []
+        for f in _batch.discover_infra_files(root):
+            rel = _batch.display_path(f, root)
+            try:
+                program = parser.parse_file(f)
+                if environment:
+                    program = apply_environment_overlay(program, environment)
+            except Exception as exc:
+                detail = str(exc).splitlines()[0] if str(exc) else "parse error"
+                rows.append(_batch.BatchRow(rel, ok=False, errors=1, detail=detail))
+                continue
+            result = SemanticValidator().validate(program, max_cost=max_cost)
+            detail = result.errors[0].message if result.errors else ""
+            failed = not result.is_valid or (strict and result.has_warnings)
+            rows.append(
+                _batch.BatchRow(
+                    rel,
+                    ok=not failed,
+                    errors=len(result.errors),
+                    warnings=len(result.warnings),
+                    detail=detail,
+                )
+            )
+        _batch.emit_batch(
+            "validate",
+            rows,
+            title="infra validate --all",
+            verb="Validated",
+            json_output=json_output,
+        )
+        if _batch.any_failed(rows):
+            raise typer.Exit(code=1)
+        return
+
+    if not files:
+        raise _batch.usage_error("validate")
+
     all_errors: list[dict[str, Any]] = []
     all_warnings = []
     any_invalid = False

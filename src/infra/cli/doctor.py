@@ -198,6 +198,55 @@ def _check_live_drift_json(
     return report.to_dict()
 
 
+def _doctor_all(json_output: bool) -> None:
+    """Diagnose the environment AND every .infra file in the workspace."""
+    from infra.cli import batch as _batch
+    from infra.parser import _parser
+
+    root = Path.cwd()
+    parser = _parser()
+    rows: List[_batch.BatchRow] = []
+    for f in _batch.discover_infra_files(root):
+        rel = _batch.display_path(f, root)
+        try:
+            program = parser.parse_file(f)
+        except Exception as exc:
+            detail = str(exc).splitlines()[0] if str(exc) else "parse error"
+            rows.append(_batch.BatchRow(rel, ok=False, errors=1, detail=detail))
+            continue
+        from infra.analyzer.validator import SemanticValidator
+
+        result = SemanticValidator().validate(program)
+        rows.append(
+            _batch.BatchRow(
+                rel,
+                ok=result.is_valid,
+                errors=len(result.errors),
+                warnings=len(result.warnings),
+                detail=result.errors[0].message if result.errors else "",
+            )
+        )
+
+    if json_output:
+        import json as _json
+
+        payload = _checks_json()
+        payload["workspace"] = _batch.batch_payload("doctor", rows)
+        typer.echo(_json.dumps(payload, indent=2))
+    else:
+        checks = _checks()
+        typer.echo(f"Infra Lang v{__version__}")
+        for c in checks:
+            marker = "[OK]" if c.ok else "[FAIL]"
+            typer.echo(f"{c.name}: {c.detail} {marker}")
+        typer.echo("")
+        _batch.emit_batch(
+            "doctor", rows, title="infra doctor --all", verb="Diagnosed"
+        )
+    if _batch.any_failed(rows):
+        raise typer.Exit(code=1)
+
+
 def _checks_json() -> Dict[str, Any]:
     """Return environment checks as a JSON-friendly mapping."""
     from infra.version import __version__
@@ -264,6 +313,12 @@ def doctor(
     json_output: bool = typer.Option(
         False, "--json", help="Emit structured JSON for CI pipelines."
     ),
+    all_files: bool = typer.Option(
+        False,
+        "--all",
+        "-a",
+        help="Recursively diagnose every .infra file in the workspace.",
+    ),
 ) -> None:
     """Check the user's environment, or detect drift with --check-drift.
 
@@ -272,6 +327,10 @@ def doctor(
     live cluster (k8s) or Docker Compose state (read-only probes).
     """
     import json as _json
+
+    if all_files:
+        _doctor_all(json_output)
+        return
 
     if check_drift is not None and live:
         if json_output:

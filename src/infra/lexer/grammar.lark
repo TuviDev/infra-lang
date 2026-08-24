@@ -116,6 +116,11 @@ import_stmt: IMPORT STRING (AS IDENTIFIER)?
 
 import_names: IDENTIFIER (COMMA IDENTIFIER)* (AS IDENTIFIER)?
 
+// Service dependencies (v0.4.5): `depends_on: db, redis` (bare identifiers)
+// or `depends_on: [db, redis]` (bracketed list).
+depends_on_names: LBRACKET IDENTIFIER (COMMA IDENTIFIER)* RBRACKET
+                | IDENTIFIER (COMMA IDENTIFIER)*
+
 variable_decl: decl_kind IDENTIFIER OP_ASSIGN expression
 decl_kind: LET | CONST
 
@@ -167,6 +172,7 @@ service_item: IMAGE COLON expression
     | VOLUMES volume_block
     | VOLUME volume_spec
     | DEPENDS COLON list_literal
+    | DEPENDS_ON COLON depends_on_names
     | LABELS COLON map_literal
     | ANNOTATIONS COLON map_literal
     | STRATEGY COLON strategy_block
@@ -272,6 +278,7 @@ PROBES.4: "probes"
 VOLUMES.4: "volumes"
 VOLUME.4: "volume"
 DEPENDS.4: "depends"
+DEPENDS_ON.4: "depends_on"
 LABELS.4: "labels"
 ANNOTATIONS.4: "annotations"
 STRATEGY.4: "strategy"

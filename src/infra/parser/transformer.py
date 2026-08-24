@@ -267,6 +267,15 @@ class InfraTransformer(Transformer):
     def import_names(self, meta, children):
         return [_str(c) for c in children if not (isinstance(c, Token) and c.type == "COMMA")]
 
+    def depends_on_names(self, meta, children):
+        # `[db, redis]` and `db, redis` both arrive here; only IDENTIFIER
+        # tokens are kept (brackets and commas are structural noise). The
+        # List mirrors list_literal so _pick coerces it to Tuple[str, ...].
+        names = [
+            c for c in children if isinstance(c, Token) and c.type == "IDENTIFIER"
+        ]
+        return n.List(items=tuple(n.Literal(value=str(c.value)) for c in names))
+
     def decl_kind(self, meta, children):
         return _str(children[0])
 

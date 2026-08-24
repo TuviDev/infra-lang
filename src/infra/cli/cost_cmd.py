@@ -53,6 +53,62 @@ def _render_table(
 _FORMATS = ("table", "json", "markdown", "html")
 
 
+def _cost_all(
+    currency: str,
+    json_output: bool,
+    output_format: str,
+    output_file: Optional[Path],
+    environment: Optional[str],
+) -> None:
+    """Estimate every .infra file in the workspace and render a summary."""
+    from infra.cli import batch as _batch
+    from infra.cli.compile import _apply_environment
+
+    if output_file is not None or output_format.lower() not in ("table", "json"):
+        typer.echo(
+            "Error: --output and --format markdown/html are not supported "
+            "with --all; use --json for machine-readable output.",
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    currency_upper = currency.upper()
+    factor = _CURRENCY_FACTORS.get(currency_upper, 1.0)
+
+    root = Path.cwd()
+    rows: list[_batch.BatchRow] = []
+    total_usd = 0.0
+    for f in _batch.discover_infra_files(root):
+        rel = _batch.display_path(f, root)
+        try:
+            program = parse_file(f)
+            program = _apply_environment(program, environment or "")
+            est = estimate_cost(program)
+        except Exception as exc:
+            detail = str(exc).splitlines()[0] if str(exc) else "parse error"
+            rows.append(_batch.BatchRow(rel, ok=False, errors=1, detail=detail))
+            continue
+        total_usd += est.total_monthly_usd
+        rows.append(
+            _batch.BatchRow(
+                rel,
+                ok=True,
+                detail=f"{est.total_monthly_usd * factor:.2f} {currency_upper}/mo",
+                extra={"monthly_usd": round(est.total_monthly_usd, 2)},
+            )
+        )
+    _batch.emit_batch(
+        "cost",
+        rows,
+        title="infra cost --all",
+        verb="Estimated",
+        json_output=json_output,
+        extra={"total_monthly_usd": round(total_usd, 2), "currency": "USD"},
+    )
+    if _batch.any_failed(rows):
+        raise typer.Exit(code=1)
+
+
 def _format_report(est: CostEstimate, fmt: str, currency: str, factor: float) -> str:
     """Render the estimate in a text format (json | markdown | html)."""
     if fmt == "json":
@@ -63,7 +119,7 @@ def _format_report(est: CostEstimate, fmt: str, currency: str, factor: float) ->
 
 
 def cost_cmd(
-    file: Path = typer.Argument(..., help=".infra file to estimate"),
+    file: Optional[Path] = typer.Argument(None, help=".infra file to estimate"),
     currency: str = typer.Option("USD", "--currency", help="USD | EUR | PLN"),
     json_output: bool = typer.Option(False, "--json", help="Emit structured JSON"),
     output_format: str = typer.Option(
@@ -81,11 +137,26 @@ def cost_cmd(
     environment: Optional[str] = typer.Option(
         None, "--environment", "-e", "--env", help="Environment overlay name"
     ),
+    all_files: bool = typer.Option(
+        False,
+        "--all",
+        "-a",
+        help="Recursively estimate every .infra file under the current directory.",
+    ),
 ) -> None:
     """Estimate the monthly cloud cost of an .infra file."""
     from rich.console import Console
 
     console = Console()
+
+    if all_files:
+        _cost_all(currency, json_output, output_format, output_file, environment)
+        return
+
+    if file is None:
+        from infra.cli import batch as _batch
+
+        raise _batch.usage_error("cost")
     if not file.exists():
         console.print(f"[red]Source file not found:[/red] {file}")
         raise typer.Exit(code=1)

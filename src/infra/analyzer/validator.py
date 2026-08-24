@@ -74,6 +74,10 @@ class SemanticValidator:
         self.result = ValidationResult()
         self.symbols = SymbolTable()
         self._defined_names: Set[str] = set()
+        # All top-level definition names in the program (services and
+        # resources), collected up-front so depends_on accepts forward
+        # references and non-service targets such as databases or caches.
+        self._program_defs: Set[str] = set()
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -90,6 +94,11 @@ class SemanticValidator:
         self.result = ValidationResult()
         self.symbols = SymbolTable()
         self._defined_names = set()
+        self._program_defs = {
+            name
+            for name in (getattr(s, "name", "") for s in program.statements)
+            if name
+        }
 
         for imp in program.imports:
             self._check_import(imp)
@@ -97,6 +106,7 @@ class SemanticValidator:
         for stmt in program.statements:
             self._visit(stmt)
 
+        self._check_dependency_cycles(program)
         self._check_unused()
 
         if reliability:
@@ -122,6 +132,50 @@ class SemanticValidator:
         if max_cost is not None:
             self._check_max_cost(program, max_cost)
         return self.result
+
+    def _check_dependency_cycles(self, program: n.Program) -> None:
+        """Report a service-dependency cycle (``A -> B -> A``) as an error.
+
+        Runs on the merged edge set (``depends`` + ``depends_on``) over
+        declared services only — undeclared targets are already reported by
+        DEPENDENCY_NOT_FOUND / W001 and are ignored here.
+        """
+        services = {
+            s.name: s for s in program.statements if isinstance(s, n.ServiceDef)
+        }
+        white, gray, black = 0, 1, 2
+        color: Dict[str, int] = {}
+        reported: set[tuple[str, ...]] = set()
+
+        def dfs(name: str, path: List[str]) -> None:
+            color[name] = gray
+            for dep in services[name].dependencies:
+                if dep not in services:
+                    continue
+                state = color.get(dep, white)
+                if state == gray:
+                    # found a cycle: rotate so it starts at the dep
+                    start = path.index(dep) if dep in path else 0
+                    cycle = tuple(path[start:] + [dep])
+                    if cycle not in reported:
+                        reported.add(cycle)
+                        svc = services[name]
+                        self._err(
+                            "Service dependency cycle detected: "
+                            + " -> ".join(cycle),
+                            svc,
+                            "DEPENDENCY_CYCLE",
+                            hint="Break the cycle by removing one of the "
+                            "depends_on entries",
+                        )
+                    continue
+                if state == white:
+                    dfs(dep, path + [dep])
+            color[name] = black
+
+        for name in services:
+            if color.get(name, white) == white:
+                dfs(name, [name])
 
     def _check_max_cost(self, program: n.Program, max_cost: float) -> None:
         """Append a COST_EXCEEDED error when the estimate breaches the budget."""
@@ -298,6 +352,18 @@ class SemanticValidator:
                     f"Service '{node.name}' depends on undefined service '{dep}'",
                     node,
                     "W001",
+                )
+        # v0.4.5: depends_on is a hard contract — an undeclared target is an
+        # error (the legacy `depends` list keeps its W001 warning above for
+        # backward compatibility).
+        for dep in _string_list(node.depends_on):
+            if dep not in self._program_defs:
+                self._err(
+                    f"Service '{node.name}' depends on '{dep}' via depends_on, "
+                    f"but '{dep}' is not declared in this file",
+                    node,
+                    "DEPENDENCY_NOT_FOUND",
+                    hint=f"Declare service '{dep}' or fix spelling in depends_on",
                 )
         if node.network_policy:
             self._check_network_policy(node)

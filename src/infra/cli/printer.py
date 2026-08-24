@@ -234,6 +234,8 @@ class InfraPrinter:
             body.append("}")
         if s.depends:
             body.append(f"depends: [{self._join(self._str_list(s.depends))}]")
+        if s.depends_on:
+            body.append(f"depends_on: [{self._join(self._str_list(s.depends_on))}]")
         if s.resources:
             body.append("resources {")
             if s.resources.requests:
