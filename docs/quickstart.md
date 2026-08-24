@@ -45,6 +45,29 @@ secret db-creds {
 infra validate app.infra
 ```
 
+### Budget guardrail for CI/CD
+
+Fail the pipeline when the estimated monthly cost exceeds your budget
+(FinOps gate). On breach, validation exits 1 with a `COST_EXCEEDED` error:
+
+```bash
+# exit 1 when the estimate exceeds $200/month
+infra validate app.infra --max-cost 200
+
+# combines with environment overlays — prices the "prod" variant
+infra validate app.infra -e prod --max-cost 500
+
+# the same guardrail exists on the syntax-only check command
+infra check app.infra --max-cost 200
+```
+
+Output on breach:
+
+```
+error[COST_EXCEEDED] app.infra: Estimated monthly cost $330.00 exceeds the --max-cost budget of $200.00
+  Hint: Reduce CPU/RAM requests or database instances to fit budget
+```
+
 ## Compile to Kubernetes
 ```bash
 infra compile app.infra --target kubernetes
@@ -66,6 +89,44 @@ cp app.infra app_v2.infra
 # change replicas to 5 in api
 infra diff app.infra app_v2.infra
 ```
+
+## Preview changes against the live infrastructure
+
+Like `terraform plan`: `infra diff --live` compares your `.infra` spec with
+the **live** state of a Kubernetes namespace or a running Docker Compose
+stack and shows the planned changes *before* you deploy. The probes are
+strictly read-only — nothing on the cluster is ever modified.
+
+```bash
+# Plan against a Kubernetes namespace (default target)
+infra diff app.infra --live --namespace default
+
+# Plan against a running Docker Compose stack
+infra diff app.infra --live --target compose
+
+# Plan for a specific environment overlay
+infra diff app.infra --live -e prod
+```
+
+Example output:
+
+```
+~ service "app":
+    replicas: 2 -> 5
+    image: "myapi:v1.0" -> "myapi:v1.1"
+
+Plan: 0 to create, 1 to change (2 field change(s) across 1 service(s)); 2 unchanged.
+Hint: run `infra up <file>` to apply the planned changes.
+```
+
+The command exits 0 when the live state already matches the spec and 1 when
+changes are pending, so it doubles as a CI/CD gate. Add `--format json` for
+a structural report instead of the colored preview.
+
+> **Slow or hung Docker daemon?** Since 0.4.4 the Compose probes run under a
+> global 10-second time budget: instead of stalling the terminal with one
+> 30-second timeout per container, the command finishes promptly with a
+> readable error (and reports whatever state it did manage to gather).
 
 ## Deploy it directly
 

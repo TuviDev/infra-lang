@@ -42,6 +42,12 @@ def validate(
     environment: Optional[str] = typer.Option(
         None, "--environment", "-e", "--env", help="Environment overlay name"
     ),
+    max_cost: Optional[float] = typer.Option(
+        None,
+        "--max-cost",
+        help="FinOps guardrail: fail with a COST_EXCEEDED error when the "
+        "estimated monthly cost exceeds this budget (in USD).",
+    ),
 ) -> None:
     """Validate .infra files semantically (no compilation)."""
     parser = _parser()
@@ -70,7 +76,7 @@ def validate(
             all_errors.append(_error_dict(exc, file=str(f)))
             any_invalid = True
             continue
-        result = SemanticValidator().validate(program)
+        result = SemanticValidator().validate(program, max_cost=max_cost)
         all_errors.extend(_error_dict(e, file=str(f)) for e in result.errors)
         all_warnings.extend(result.warnings)
         if not result.is_valid or (strict and result.has_warnings):
@@ -131,6 +137,8 @@ def validate(
                 col = e.get("column")
                 pos = f"{file}:{line}:{col}" if line else file
                 typer.echo(f"error[{e['code']}] {pos}: {e['message']}")
+                if e.get("hint"):
+                    typer.echo(f"  Hint: {e['hint']}")
             for w in all_warnings:
                 if strict:
                     loc = w.location

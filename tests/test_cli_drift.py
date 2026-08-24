@@ -648,3 +648,171 @@ class TestDoctorLiveDriftCLI:
         )
         assert result.exit_code == 1
         assert "Missing generated files" in result.stdout
+
+
+class TestComposeProbeBudget:
+    """Hardening contracts for the live Compose probes (v0.4.4).
+
+    A slow / hung Docker daemon must end the scan (and the CLI command)
+    promptly with a readable :attr:`DriftReport.error` — never stall the
+    loop for N containers x per-probe timeout and never leave zombies
+    (``subprocess.run`` kills and reaps timed-out children).
+    """
+
+    @staticmethod
+    def _ps_rows(count: int, service: str = "api") -> str:
+        return "\n".join(
+            json.dumps({"Service": service, "Image": "nginx:1.25", "ID": f"cid{i}"})
+            for i in range(count)
+        )
+
+    _INSPECT = json.dumps(
+        [
+            {
+                "Config": {
+                    "Image": "nginx:1.25",
+                    "Env": [],
+                    "ExposedPorts": {"8080/tcp": {}},
+                }
+            }
+        ]
+    )
+
+    def test_budget_exhaustion_stops_probing_and_reports(
+        self, tmp_path, monkeypatch, tools_on_path
+    ):
+        """5 containers, 4s per subprocess call, 10s budget -> 3 unprobed.
+
+        ps (t=4) -> inspect svc0 (t=8) -> inspect svc1 (t=12) -> the
+        remaining 3 containers are skipped without spawning any process.
+        """
+        src = write_spec(
+            tmp_path, 'service api { image: "nginx:1.25" replicas: 3 }'
+        )
+        clock = [0.0]
+        calls: list = []
+
+        monkeypatch.setattr(drift_mod.time, "monotonic", lambda: clock[0])
+
+        def slow_run(cmd, **kwargs):
+            clock[0] += 4.0
+            calls.append(cmd)
+            out = self._ps_rows(5) if "ps" in cmd else self._INSPECT
+            return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+        monkeypatch.setattr(drift_mod.subprocess, "run", slow_run)
+        report = detect_live_drift(src, target="compose")
+
+        assert report.error is not None
+        assert "3 container(s)" in report.error
+        assert "budget" in report.error
+        # ps + exactly 2 inspects: the loop never probed the other 3.
+        inspects = [c for c in calls if "inspect" in c]
+        assert len(calls) == 3 and len(inspects) == 2
+        # ps-level data was still aggregated: 5 running replicas are visible.
+        assert report.items and report.items[0].parameter == "replicas"
+        assert report.items[0].live == "5"
+
+    def test_inspect_timeout_is_reported_and_scan_continues(
+        self, tmp_path, monkeypatch, tools_on_path
+    ):
+        """A hung `docker inspect` raises TimeoutExpired, is reported in the
+        report's error, and does not abort the scan of other containers."""
+        src = write_spec(
+            tmp_path, 'service ok { image: "nginx:1.25" replicas: 1 }'
+        )
+        ps = "\n".join(
+            [
+                json.dumps({"Service": "hung", "Image": "x:1", "ID": "hung1"}),
+                json.dumps({"Service": "ok", "Image": "nginx:1.25", "ID": "ok1"}),
+            ]
+        )
+
+        def run_with_hung_inspect(cmd, **kwargs):
+            if "inspect" in cmd and "hung1" in cmd:
+                raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 30.0))
+            out = ps if "ps" in cmd else self._INSPECT
+            return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+        monkeypatch.setattr(drift_mod.subprocess, "run", run_with_hung_inspect)
+        report = detect_live_drift(src, target="compose")
+
+        assert report.error is not None
+        assert "timed out" in report.error
+        assert "inspect" in report.error
+        # the well-behaved container was still compared successfully
+        assert "ok" in report.in_sync
+
+    def test_inspect_called_process_error_is_reported(
+        self, tmp_path, monkeypatch, tools_on_path
+    ):
+        src = write_spec(
+            tmp_path, 'service api { image: "nginx:1.25" replicas: 1 }'
+        )
+
+        def run_with_cpe(cmd, **kwargs):
+            if "inspect" in cmd:
+                raise subprocess.CalledProcessError(1, cmd, stderr="boom")
+            return subprocess.CompletedProcess(
+                cmd, 0, stdout=self._ps_rows(1), stderr=""
+            )
+
+        monkeypatch.setattr(drift_mod.subprocess, "run", run_with_cpe)
+        report = detect_live_drift(src, target="compose")
+
+        assert report.error is not None
+        assert "failed" in report.error
+
+    def test_ps_probe_timeout_maps_to_tool_hint(
+        self, tmp_path, monkeypatch, tools_on_path
+    ):
+        """Timeout on the initial `compose ps` probe keeps the historical
+        'daemon unavailable' contract (no state at all -> hint, not crash)."""
+        src = write_spec(tmp_path)
+
+        def hung_ps(cmd, **kwargs):
+            raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout", 30.0))
+
+        monkeypatch.setattr(drift_mod.subprocess, "run", hung_ps)
+        report = detect_live_drift(src, target="compose")
+
+        assert report.error == "docker is not available or the daemon is not running"
+
+    def test_generic_subprocess_error_is_caught(
+        self, tmp_path, monkeypatch, tools_on_path
+    ):
+        src = write_spec(tmp_path)
+
+        def broken(cmd, **kwargs):
+            raise subprocess.SubprocessError("weird")
+
+        monkeypatch.setattr(drift_mod.subprocess, "run", broken)
+        report = detect_live_drift(src, target="compose")
+
+        assert report.error == "docker is not available or the daemon is not running"
+
+    def test_cli_diff_live_fails_fast_with_readable_error(
+        self, tmp_path, monkeypatch, tools_on_path
+    ):
+        """`infra diff --live` against a hung daemon ends promptly, exit 1,
+        with the probe error printed — no stall, no traceback."""
+        src = write_spec(tmp_path)
+        clock = [0.0]
+
+        monkeypatch.setattr(drift_mod.time, "monotonic", lambda: clock[0])
+
+        def slow_run(cmd, **kwargs):
+            clock[0] += 4.0
+            out = self._ps_rows(5) if "ps" in cmd else self._INSPECT
+            return subprocess.CompletedProcess(cmd, 0, stdout=out, stderr="")
+
+        monkeypatch.setattr(drift_mod.subprocess, "run", slow_run)
+        result = runner.invoke(app, ["diff", str(src), "--live", "-t", "compose"])
+
+        assert result.exit_code == 1
+        assert "budget" in result.stdout
+
+    def test_default_budget_is_tighter_than_single_probe_timeout(self):
+        """The global compose budget guards the whole scan, so it must not
+        exceed the per-probe timeout of a single hung probe."""
+        assert drift_mod._COMPOSE_PROBE_BUDGET <= drift_mod._LIVE_TIMEOUT

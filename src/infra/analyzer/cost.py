@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import html as _html
 from dataclasses import dataclass, field
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from infra.parser import ast_nodes as n
 
@@ -256,3 +256,35 @@ def estimate_cost(program: n.Program) -> CostEstimate:
         elif isinstance(stmt, n.StorageDef):
             items.append(_storage_cost(stmt))
     return CostEstimate(items=items)
+
+
+# ---------------------------------------------------------------------------
+# FinOps budget guardrail (--max-cost)
+# ---------------------------------------------------------------------------
+
+#: Validation error code emitted when the estimate breaches the budget.
+COST_EXCEEDED_CODE = "COST_EXCEEDED"
+
+#: Remediation hint attached to every COST_EXCEEDED validation error.
+COST_EXCEEDED_HINT = "Reduce CPU/RAM requests or database instances to fit budget"
+
+
+def budget_exceeded_message(
+    program: n.Program, max_cost_usd: float
+) -> Optional[str]:
+    """Return a budget-violation message when the estimate exceeds the budget.
+
+    Computes the static monthly estimate of *program* and compares it against
+    *max_cost_usd* (the ``--max-cost`` limit). The comparison is strict: an
+    estimate exactly equal to the budget is *within* budget and yields None.
+    Otherwise the returned message states both amounts, e.g. ::
+
+        Estimated monthly cost $330.00 exceeds the --max-cost budget of $200.00
+    """
+    total = estimate_cost(program).total_monthly_usd
+    if total <= max_cost_usd:
+        return None
+    return (
+        f"Estimated monthly cost ${total:.2f} exceeds the "
+        f"--max-cost budget of ${max_cost_usd:.2f}"
+    )

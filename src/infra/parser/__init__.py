@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import re
 from pathlib import Path
 from typing import Any, Optional, cast
@@ -174,6 +175,24 @@ PRELUDE_PATH = Path(__file__).resolve().parent.parent / "stdlib" / "prelude.infr
 _PRELUDE: Optional["n.Program"] = None
 
 
+@functools.lru_cache(maxsize=1)
+def _raw_lark() -> Lark:
+    """Return the shared ``Lark`` instance for the bundled grammar.
+
+    Compiling ``grammar.lark`` into a LALR parser costs ~0.7 s, so the
+    instance is built exactly once and reused by every ``Parser`` created
+    with the default grammar and by the import resolver (which previously
+    re-compiled the grammar for every imported file). ``Lark.parse()`` is
+    reentrant across independent inputs, so sharing is safe.
+    """
+    return Lark(
+        DEFAULT_GRAMMAR.read_text(encoding="utf-8"),
+        parser="lalr",
+        propagate_positions=True,
+        start="start",
+    )
+
+
 def _load_prelude() -> "n.Program":
     global _PRELUDE
     if _PRELUDE is None:
@@ -188,14 +207,19 @@ class Parser:
     def __init__(self, grammar_path: Optional[Path] = None) -> None:
         path = Path(grammar_path) if grammar_path else DEFAULT_GRAMMAR
         self._grammar_path = path
-        with open(path, encoding="utf-8") as f:
-            grammar = f.read()
-        self._lark = Lark(
-            grammar,
-            parser="lalr",
-            propagate_positions=True,
-            start="start",
-        )
+        if grammar_path is None:
+            # Default grammar: reuse the process-wide shared instance so the
+            # grammar is compiled once, not once per Parser construction.
+            self._lark = _raw_lark()
+        else:
+            with open(path, encoding="utf-8") as f:
+                grammar = f.read()
+            self._lark = Lark(
+                grammar,
+                parser="lalr",
+                propagate_positions=True,
+                start="start",
+            )
         self._transformer = InfraTransformer()
 
     def parse(self, source: str, filename: str = "<string>") -> n.Program:

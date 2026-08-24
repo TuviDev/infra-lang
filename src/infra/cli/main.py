@@ -81,7 +81,10 @@ def register_commands() -> None:
     app.command(name="docs", help="Generate documentation from .infra files.")(
         docs.docs
     )
-    app.command(name="diff", help="Compare two .infra files.")(diff.diff_cmd)
+    app.command(
+        name="diff",
+        help="Compare two .infra files, or plan against live infra (--live).",
+    )(diff.diff_cmd)
     app.command(name="doctor", help="Check the local environment for needed tools.")(
         doctor
     )

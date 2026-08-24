@@ -2,6 +2,86 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.4.4] - 2026-08-23
+
+### Fixed
+- **Diamond imports no longer report false duplicate-variable errors** — when
+  a module is reachable through two import paths (A imports B and C; both
+  import D), the shared file is now merged exactly once. The resolver keys
+  visited files by `(path, selection)` and deduplicates statement identity
+  per merge level, so genuine duplicates declared in *different* files still
+  raise `E001`.
+- **Import recursion limit is actually enforced** — the depth counter was
+  never incremented while recursing into imported files, so `max_depth` was
+  dead code and a deeply nested chain crashed with a raw `RecursionError`.
+  Over-deep chains now raise `ImportDepthError` (a compiler domain error)
+  with the message `Import depth exceeded limit of 20` long before the
+  interpreter limit. `DEFAULT_MAX_DEPTH = 20` remains the default and stays
+  configurable via the resolver constructor.
+- **Live drift probes degrade gracefully on a slow/hung Docker daemon** —
+  the Compose path (`docker compose ps` + one `docker inspect` per
+  container) used the full 30 s per-probe timeout with no global cap, so a
+  hung daemon stalled `infra doctor --check-drift --live` / `infra diff
+  --live` for N containers × 30 s. A global probe budget (`10 s`) now bounds
+  the whole scan; `subprocess.TimeoutExpired` / `CalledProcessError` in
+  individual inspect steps are caught and reported as a readable
+  `DriftReport.error` (exit 1) while successfully gathered state is still
+  compared — never false drift, never a zombie process.
+
+### Performance
+- **~10× faster compilation with imports** — the `Lark` LALR parser for the
+  bundled grammar is now instantiated once per process and shared by the
+  parser and the import resolver (previously recompiled for every imported
+  file, ~0.7 s each; a file with 20 imports went from ~14.5 s to well under
+  1.5 s). Custom grammar paths still build their own parser.
+
+### Internal
+- Coverage hardening round: `k8s_validator.py` and `analyzer/drift.py` are
+  at 100% line & branch coverage, `analyzer/validator.py` at 96%, and
+  `parser/transformer.py` at 99% — the proven-unreachable LALR fallback
+  branches (`?rule` inlining artifacts, the unreferenced `duration` rule,
+  the unproduced `FLOAT` terminal) carry `# pragma: no cover` instead of
+  inflating the gap. New contract suites: `test_transformer_coercions.py`
+  (50 tests), `test_semantic_validator_edges.py` (24), plus targeted error
+  paths in `test_k8s_validator.py` and probe-budget tests in
+  `test_cli_drift.py`. Total: 2438 tests passing, project coverage 96.7%
+  line / 91.8% branch.
+
+## [0.4.3] - 2026-08-22
+
+### Added
+- **Live plan & preview** — `infra diff app.infra --live` turns the diff
+  command into the `terraform plan` equivalent: the desired spec from a
+  single `.infra` file is compared against the **live** state of a Kubernetes
+  namespace (`kubectl get`) or a Docker Compose stack (`docker compose ps` +
+  `docker inspect` — strictly read-only, never mutating), and the planned
+  changes are printed as a colored `rich` preview:
+  `~ service "app":` followed by e.g. `replicas: 2 -> 5` and
+  `image: "myapi:v1.0" -> "myapi:v1.1"`. Services absent in the live state
+  are shown as `+` creations, in-sync ones as `=`, and a `Plan:` summary line
+  closes the report with an `infra up` hint. Exits 0 when the live state
+  already matches the spec, 1 when changes are pending (making it usable as
+  a CI gate), 2 on usage errors. `-t/--target k8s|compose` selects the
+  platform, `-n/--namespace` the k8s namespace, `-e/--env` applies an
+  environment overlay before planning, and `--format json` emits a structural
+  `DriftReport` payload for automation. The classic two-file diff mode is
+  unchanged; the second file argument becomes optional and is rejected
+  exactly when `--live` is used.
+- **FinOps CI/CD guardrail** — `infra validate <file> --max-cost <USD>` and
+  `infra check <file> --max-cost <USD>` compute the static monthly cost
+  estimate (`CostAnalyzer`) and fail the pipeline with a `COST_EXCEEDED`
+  validation error when the estimate breaches the budget, e.g.
+  `Estimated monthly cost $330.00 exceeds the --max-cost budget of $200.00`,
+  including the remediation hint
+  `Hint: Reduce CPU/RAM requests or database instances to fit budget`. The
+  comparison is strict (an estimate exactly equal to the budget passes), the
+  flag composes with `-e/--env` overlays
+  (`infra validate app.infra -e prod --max-cost 500` prices the overlay), and
+  the error flows through all output formats (text, `--json`, `--format
+  json|github`) for machine consumption. New public helpers:
+  `analyzer.cost.budget_exceeded_message()` plus the `COST_EXCEEDED_CODE` /
+  `COST_EXCEEDED_HINT` constants, and `SemanticValidator.validate(max_cost=...)`.
+
 ## [0.4.2] - 2026-08-22
 
 ### Added

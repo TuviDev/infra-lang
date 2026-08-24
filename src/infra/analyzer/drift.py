@@ -24,6 +24,7 @@ import difflib
 import json
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -127,6 +128,14 @@ def render_drift(result: DriftResult) -> str:
 #: Bounded timeout for the read-only live-state probes (kubectl / docker).
 _LIVE_TIMEOUT = 30.0
 
+#: Total wall-clock budget for the *whole* Docker Compose probe sequence
+#: (``compose ps`` + one ``docker inspect`` per container). Probes run
+#: sequentially; without a global cap a slow / hung daemon would stall the
+#: CLI for N containers x per-probe timeout. When the budget is spent, the
+#: remaining containers are reported as unprobed (partial state, never
+#: false drift) and :attr:`DriftReport.error` explains what happened.
+_COMPOSE_PROBE_BUDGET = 10.0
+
 #: Drift item statuses.
 STATUS_MODIFIED = "MODIFIED"
 STATUS_MISSING = "MISSING"
@@ -213,8 +222,15 @@ class _ExpectedState:
     env: Dict[str, str]
 
 
-def _run_readonly(cmd: List[str]) -> Optional[str]:
-    """Run a read-only probe command; return stdout on success, else None."""
+def _probe(cmd: List[str], timeout: float) -> Tuple[Optional[str], Optional[str]]:
+    """Run a read-only probe; return ``(stdout, error)`` — exactly one is set.
+
+    ``subprocess.run`` kills **and reaps** a timed-out child, so a timeout
+    never leaves a zombie / orphan process behind. ``TimeoutExpired`` and
+    ``CalledProcessError`` are caught explicitly so a single hung step is
+    reported as a readable message instead of stalling or crashing the scan.
+    """
+    label = " ".join(cmd[:2])
     try:
         result = subprocess.run(
             cmd,
@@ -222,14 +238,30 @@ def _run_readonly(cmd: List[str]) -> Optional[str]:
             text=True,
             encoding="utf-8",
             errors="replace",
-            timeout=_LIVE_TIMEOUT,
+            timeout=timeout,
             check=False,
         )
-    except (OSError, subprocess.SubprocessError):
-        return None
+    except subprocess.TimeoutExpired:
+        return None, f"`{label}` timed out after {timeout:.1f}s"
+    except subprocess.CalledProcessError as exc:  # defensive: check=False
+        return None, f"`{label}` failed: {exc}"
+    except OSError as exc:
+        return None, f"`{label}` could not start: {exc.strerror or exc}"
+    except subprocess.SubprocessError as exc:
+        return None, f"`{label}` failed: {exc}"
     if result.returncode != 0:
-        return None
-    return result.stdout or ""
+        return None, f"`{label}` exited with code {result.returncode}"
+    return result.stdout or "", None
+
+
+def _run_readonly(cmd: List[str], timeout: Optional[float] = None) -> Optional[str]:
+    """Run a read-only probe command; return stdout on success, else None.
+
+    Kept for the single-shot probes (``kubectl get``, ``compose ps``) whose
+    callers historically map any failure to their "tool unavailable" hint.
+    """
+    out, _ = _probe(cmd, _LIVE_TIMEOUT if timeout is None else timeout)
+    return out
 
 
 def _expected_services(program: n.Program) -> List[_ExpectedState]:
@@ -351,33 +383,57 @@ def _parse_compose_ps(output: str) -> List[Dict[str, Any]]:
     return rows
 
 
-def _docker_inspect(container_id: str) -> Optional[Dict[str, Any]]:
-    """Return the first `docker inspect` object for *container_id*, or None."""
-    out = _run_readonly(["docker", "inspect", container_id])
+def _docker_inspect(
+    container_id: str, timeout: Optional[float] = None
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Return ``(inspect_object, probe_error)`` for *container_id*.
+
+    A timed-out / failed probe is reported as a readable message in the
+    second element; an empty or unparsable but successful response keeps
+    the historical silent ``(None, None)`` — "unknown" live data must never
+    produce false drift.
+    """
+    out, error = _probe(
+        ["docker", "inspect", container_id],
+        _LIVE_TIMEOUT if timeout is None else timeout,
+    )
     if out is None:
-        return None
+        return None, error
     try:
         data = json.loads(out)
     except json.JSONDecodeError:
-        return None
+        return None, None
     if isinstance(data, list) and data and isinstance(data[0], dict):
-        return data[0]
-    return None
+        return data[0], None
+    return None, None
 
 
-def _compose_live_state() -> Optional[Dict[str, _LiveState]]:
+def _compose_live_state(
+    budget: float = _COMPOSE_PROBE_BUDGET,
+) -> Tuple[Optional[Dict[str, _LiveState]], Optional[str]]:
     """Fetch live Compose service state via `docker compose ps` (read-only).
 
-    Returns a mapping of compose service name -> :class:`_LiveState`, or None
-    when docker is unavailable or the probe fails.
+    Returns ``(live, error)``. ``live`` maps compose service name ->
+    :class:`_LiveState`, or is ``None`` when docker is unavailable or the
+    ``ps`` probe fails. ``error`` is a readable message when the global
+    probe *budget* was exhausted or individual ``docker inspect`` steps
+    timed out / failed; the returned state is then partial (replicas and
+    image come from ``ps``; ports/env of unprobed containers stay unknown,
+    so a slow daemon degrades the report instead of stalling the CLI).
     """
     if shutil.which("docker") is None:
-        return None
-    out = _run_readonly(["docker", "compose", "ps", "--format", "json"])
+        return None, None
+    deadline = time.monotonic() + budget
+    out = _run_readonly(
+        ["docker", "compose", "ps", "--format", "json"],
+        timeout=min(_LIVE_TIMEOUT, budget),
+    )
     if out is None:
-        return None
+        return None, None
     rows = _parse_compose_ps(out)
     live: Dict[str, _LiveState] = {}
+    failures: List[str] = []
+    unprobed = 0
     for row in rows:
         service = str(row.get("Service") or row.get("Name") or "")
         if not service:
@@ -393,25 +449,45 @@ def _compose_live_state() -> Optional[Dict[str, _LiveState]]:
         if image and not state.image:
             state.image = str(image)
         container_id = str(row.get("ID") or row.get("Id") or "")
-        if container_id:
-            inspected = _docker_inspect(container_id)
-            if inspected:
-                config = inspected.get("Config", {}) or {}
-                if not state.image and config.get("Image"):
-                    state.image = str(config["Image"])
-                env_map: Dict[str, str] = {}
-                for pair in config.get("Env", []) or []:
-                    key, sep, value = str(pair).partition("=")
-                    if sep:
-                        env_map[key] = value
-                state.env = env_map
-                ports: List[int] = []
-                for spec_key in (config.get("ExposedPorts", {}) or {}):
-                    port_str = str(spec_key).split("/", 1)[0]
-                    if port_str.isdigit():
-                        ports.append(int(port_str))
-                state.ports = sorted(ports)
-    return live
+        if not container_id:
+            continue
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            # Global budget spent (slow/hung daemon): stop issuing probes —
+            # the loop finishes immediately instead of blocking for another
+            # N containers x per-probe timeout.
+            unprobed += 1
+            continue
+        inspected, probe_error = _docker_inspect(container_id, timeout=remaining)
+        if probe_error is not None:
+            failures.append(probe_error)
+            continue
+        if inspected is None:
+            continue
+        config = inspected.get("Config", {}) or {}
+        if not state.image and config.get("Image"):
+            state.image = str(config["Image"])
+        env_map: Dict[str, str] = {}
+        for pair in config.get("Env", []) or []:
+            key, sep, value = str(pair).partition("=")
+            if sep:
+                env_map[key] = value
+        state.env = env_map
+        ports: List[int] = []
+        for spec_key in (config.get("ExposedPorts", {}) or {}):
+            port_str = str(spec_key).split("/", 1)[0]
+            if port_str.isdigit():
+                ports.append(int(port_str))
+        state.ports = sorted(ports)
+    problems: List[str] = []
+    if unprobed:
+        problems.append(
+            f"docker inspect skipped for {unprobed} container(s): "
+            f"global probe budget of {budget:.1f}s exhausted"
+        )
+    if failures:
+        problems.append("; ".join(failures))
+    return live, "; ".join(problems) if problems else None
 
 
 # -- Comparison ----------------------------------------------------------------
@@ -494,30 +570,29 @@ def _compare_service(
     return clean
 
 
-def detect_live_drift(
-    infra_path: Path,
+def detect_live_drift_program(
+    program: n.Program,
     target: str = "k8s",
     namespace: str = "default",
 ) -> DriftReport:
-    """Compare the declared spec in *infra_path* against the live state.
+    """Compare the declared spec of a parsed *program* against the live state.
 
-    Strictly read-only: only ``kubectl get`` / ``docker compose ps`` /
-    ``docker inspect`` probes are executed — never a mutation.
-
-    ``target`` is ``k8s``/``kubernetes`` or ``compose``/``docker``. Raises on
-    parse errors (propagated); probe failures (missing tool, unreachable
-    daemon) are reported via :attr:`DriftReport.error`, never as an exception.
+    Same contract as :func:`detect_live_drift`, but for callers that already
+    hold a parsed (possibly environment-overlaid) Program — e.g.
+    ``infra diff --live``. Strictly read-only: only ``kubectl get`` /
+    ``docker compose ps`` / ``docker inspect`` probes are executed — never a
+    mutation.
     """
-    program = parse_file(Path(infra_path))
     expected = _expected_services(program)
 
+    probe_error: Optional[str] = None
     normalized = target.lower()
     if normalized in ("k8s", "kubernetes"):
         live = _kubectl_live_state(namespace)
         tool_hint = "kubectl is not available or the cluster is unreachable"
         report_target = "k8s"
     elif normalized in ("compose", "docker"):
-        live = _compose_live_state()
+        live, probe_error = _compose_live_state()
         tool_hint = "docker is not available or the daemon is not running"
         report_target = "compose"
     else:
@@ -533,4 +608,26 @@ def detect_live_drift(
     for exp in expected:
         if _compare_service(exp, live.get(exp.name), report.items):
             report.in_sync.append(exp.name)
+    # A partial probe (global budget exhausted / some inspects timed out) is
+    # surfaced as a readable error *alongside* whatever state was gathered.
+    if probe_error is not None:
+        report.error = probe_error
     return report
+
+
+def detect_live_drift(
+    infra_path: Path,
+    target: str = "k8s",
+    namespace: str = "default",
+) -> DriftReport:
+    """Compare the declared spec in *infra_path* against the live state.
+
+    Strictly read-only: only ``kubectl get`` / ``docker compose ps`` /
+    ``docker inspect`` probes are executed — never a mutation.
+
+    ``target`` is ``k8s``/``kubernetes`` or ``compose``/``docker``. Raises on
+    parse errors (propagated); probe failures (missing tool, unreachable
+    daemon) are reported via :attr:`DriftReport.error`, never as an exception.
+    """
+    program = parse_file(Path(infra_path))
+    return detect_live_drift_program(program, target=target, namespace=namespace)
