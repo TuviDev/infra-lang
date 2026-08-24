@@ -1,4 +1,4 @@
-"""Tests for the v0.4.5 ``--all`` batch workspace processing.
+﻿"""Tests for the v0.4.5 ``--all`` batch workspace processing.
 
 ``infra check|validate|cost|doctor|fmt --all`` recursively discovers every
 ``.infra`` file under the working directory (skipping hidden and vendor
@@ -62,7 +62,7 @@ def workspace(tmp_path, monkeypatch):
 class TestDiscovery:
     def test_skips_hidden_and_vendor_dirs(self, workspace):
         found = discover_infra_files(workspace)
-        names = sorted(str(f.relative_to(workspace)) for f in found)
+        names = sorted(f.relative_to(workspace).as_posix() for f in found)
         assert names == ["bad.infra", "main.infra", "services/worker.infra"]
 
     def test_sorted_and_deterministic(self, workspace):

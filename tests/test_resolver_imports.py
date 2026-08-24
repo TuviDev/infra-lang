@@ -1,4 +1,4 @@
-"""Contract tests for the import resolver fixes (v0.4.4, package 1).
+﻿"""Contract tests for the import resolver fixes (v0.4.4, package 1).
 
 Regression contracts for the three audit findings in
 ``src/infra/resolver/imports.py``:
@@ -84,7 +84,7 @@ class TestDiamondImports:
 
     def test_selective_then_full_import_union(self, tmp_path):
         """`from d import X` in one file, full `import d` elsewhere: both
-        X and Y stay available exactly once — no loss, no duplication."""
+        X and Y stay available exactly once â€” no loss, no duplication."""
         _write(tmp_path, "d.infra", "const X = 1\nconst Y = 2")
         _write(
             tmp_path,
@@ -173,7 +173,7 @@ class TestDiamondImports:
 
 
 def _make_chain(root: Path, length: int) -> Path:
-    """Create root → f1 → ... → f{length} import chain, return the root file."""
+    """Create root â†’ f1 â†’ ... â†’ f{length} import chain, return the root file."""
     for i in range(1, length + 1):
         nxt = f'import "./f{i + 1}.infra"\n' if i < length else ""
         _write(root, f"f{i}.infra", f'{nxt}service s{i} {{ image: "x" }}')
@@ -192,7 +192,7 @@ class TestDepthGuard:
         assert names.count(f"s{DEFAULT_MAX_DEPTH}") == 1
 
     def test_chain_beyond_limit_raises_domain_error(self, tmp_path):
-        """21 nested hops must raise ImportDepthError — never RecursionError."""
+        """21 nested hops must raise ImportDepthError â€” never RecursionError."""
         root = _make_chain(tmp_path, DEFAULT_MAX_DEPTH + 2)
         with pytest.raises(ImportDepthError) as exc_info:
             parse_file(root)
@@ -257,7 +257,7 @@ class TestParserCachePerformance:
         from infra.parser import DEFAULT_GRAMMAR, Parser, _raw_lark
 
         custom = tmp_path / "grammar.lark"
-        custom.write_text(DEFAULT_GRAMMAR.read_text(encoding="utf-8"))
+        custom.write_text(DEFAULT_GRAMMAR.read_text(encoding="utf-8"), encoding="utf-8")
         parser = Parser(grammar_path=custom)
         assert parser._lark is not _raw_lark()
 
