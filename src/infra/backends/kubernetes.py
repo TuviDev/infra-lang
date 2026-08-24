@@ -16,7 +16,7 @@ Environment -> Namespace + ResourceQuota
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from infra.backends._images import CACHE_IMAGES as _CACHE_IMAGES
 from infra.backends._images import QUEUE_IMAGES as _QUEUE_IMAGES
@@ -127,6 +127,8 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
             out.append((stmt.name, self._compile_secret_store(stmt)))
         elif isinstance(stmt, n.CustomResourceSpec):
             out.append((stmt.name, self._compile_custom_resource(stmt)))
+        elif isinstance(stmt, n.NetworkPolicyDef):
+            out.append((stmt.name, self._compile_network_policy_def(stmt)))
         elif isinstance(stmt, n.SecretDef):
             if stmt.store:
                 store_defs = [
@@ -421,6 +423,48 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
             })
             np_["spec"]["egress"] = egress
         return np_
+
+    def _compile_network_policy_def(
+        self, node: n.NetworkPolicyDef
+    ) -> Dict[str, Any]:
+        """K8s ``NetworkPolicy`` from a top-level ``network_policy`` (v0.5.1).
+
+        Mapping: ``target`` selects pods via the standard
+        ``app.kubernetes.io/name`` label; each ``allow_ingress`` entry yields
+        an ingress peer, each ``allow_egress`` entry an egress peer;
+        ``block_all_ingress`` with an empty allow-list renders
+        ``ingress: []`` (deny-all inbound). With no ingress rules at all the
+        ``ingress`` key is omitted, leaving inbound traffic unrestricted —
+        same for outbound when ``allow_egress`` is empty.
+        """
+
+        def _peers(names: Tuple[str, ...]) -> List[Dict[str, Any]]:
+            return [
+                {"podSelector": {"matchLabels": {"app.kubernetes.io/name": s}}}
+                for s in names
+            ]
+
+        target = node.target or node.name
+        spec: Dict[str, Any] = {
+            "podSelector": {"matchLabels": {"app.kubernetes.io/name": target}}
+        }
+        policy_types: List[str] = []
+        if node.block_all_ingress and not node.allow_ingress:
+            spec["ingress"] = []  # empty rule set == deny-all inbound
+            policy_types.append("Ingress")
+        elif node.allow_ingress:
+            spec["ingress"] = [{"from": _peers(node.allow_ingress)}]
+            policy_types.append("Ingress")
+        if node.allow_egress:
+            spec["egress"] = [{"to": _peers(node.allow_egress)}]
+            policy_types.append("Egress")
+        spec["policyTypes"] = policy_types
+        return {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"name": node.name, "labels": self._labels(node.name)},
+            "spec": spec,
+        }
 
     @staticmethod
     def _apply_topology(deployment: Dict[str, Any], topo: n.TopologySpec) -> Dict[str, Any]:

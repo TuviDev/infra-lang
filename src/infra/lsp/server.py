@@ -109,7 +109,7 @@ from ..parser.location import SourceLocation
 
 server = LanguageServer(
     name="infra-lang",
-    version="0.5.0",
+    version="0.5.1",
 )
 
 #: Project-wide on-disk symbol index. Scanned after initialization; consulted by
@@ -760,7 +760,11 @@ FIELD_DOCS = {
         "Example: `{ min: 2, max: 10, target_cpu: 70 }`"
     ),
     "disruption": "Pod Disruption Budget.\nExample: `{ min_available: 1 }`",
-    "network_policy": "NetworkPolicy for this service.",
+    "network_policy": (
+        "Network policy declaration. Per-service sub-block, or the top-level "
+        "v0.5.1 form.\n"
+        'Example: `network_policy "app_sec" { target: "api", ... }`'
+    ),
     "schedule": "Time-based scaling schedule.",
     "affinity": "Pod affinity/anti-affinity rules.",
     "topology": "TopologySpreadConstraints.",
@@ -793,6 +797,10 @@ FIELD_DOCS = {
         "Hard service-start ordering (v0.4.5). Targets may be services or "
         "resources.\nExample: `[db, cache]`"
     ),
+    "target": "Service the policy applies to.",
+    "allow_ingress": "Workloads allowed to initiate connections to the target.",
+    "allow_egress": "Workloads the target is allowed to connect to.",
+    "block_all_ingress": "Drop all inbound traffic to the target (deny-all).",
     "secret_store": (
         "External secret store declaration (v0.5.0).\n"
         'Example: `secret_store "vault_store" { provider: "vault", ... }`'

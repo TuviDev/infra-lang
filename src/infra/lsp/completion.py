@@ -45,6 +45,7 @@ TOP_LEVEL_BLOCKS = [
     "queue",
     "storage",
     "network",
+    "network_policy",
     "secret",
     "config",
     "pipeline",
@@ -87,6 +88,9 @@ BLOCK_FIELDS = {
     "cluster": ["provider", "region", "version", "nodes", "networking", "iam"],
     "secret_store": ["provider", "address", "path", "region", "namespace"],
     "resource": ["api_version", "kind", "spec"],
+    "network_policy": [
+        "target", "allow_ingress", "allow_egress", "block_all_ingress",
+    ],
 }
 
 # sub-block names valid inside a block (they open a nested `{}`)

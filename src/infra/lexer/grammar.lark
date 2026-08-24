@@ -137,6 +137,7 @@ definition: service_def
     | queue_def
     | storage_def
     | network_def
+    | network_policy_def
     | secret_def
     | secret_store_def
     | custom_resource_def
@@ -224,6 +225,25 @@ NETWORK_POLICY.4: "network_policy"
 ALLOW_FROM.4: "allow_from"
 DENY_FROM.4: "deny_from"
 ALLOW_EGRESS.4: "allow_egress"
+ALLOW_INGRESS.4: "allow_ingress"
+BLOCK_ALL_INGRESS.4: "block_all_ingress"
+
+// ---------------------------------------------------------------------------
+// Network Policy (top-level, v0.5.1):
+//   network_policy "app_sec" {
+//       target: "api"
+//       allow_ingress: ["frontend"]
+//       allow_egress: ["database"]
+//       block_all_ingress: true
+//   }
+// ---------------------------------------------------------------------------
+
+network_policy_def: NETWORK_POLICY STRING LBRACE network_policy_def_body RBRACE
+network_policy_def_body: (network_policy_def_item (COMMA? network_policy_def_item)*)?
+network_policy_def_item: TARGET COLON expression
+    | ALLOW_INGRESS COLON? list_literal
+    | ALLOW_EGRESS COLON? list_literal
+    | BLOCK_ALL_INGRESS COLON expression
 TOPOLOGY.4: "topology"
 SPREAD_BY.4: "spread_by"
 MAX_SKEW.4: "max_skew"
@@ -667,6 +687,7 @@ custom_resource_entry: custom_resource_key COLON expression
 // tokens over IDENTIFIER, every keyword token must be accepted here so that
 // arbitrary CRD field names (type, spec, name, labels, ...) work as keys.
 custom_resource_key: IDENTIFIER | ACCESS_MODE | ACTIONS | AFFINITY | ALLOW_EGRESS | ALLOW_FROM
+    | ALLOW_INGRESS | BLOCK_ALL_INGRESS
     | ANNOTATIONS | ARGS | ARTIFACTS | AS | AUTOSCALE | AVOID_SAME | AWS | AZ | BACKUP | BLUE_GREEN
     | BRANCHES | BUCKET | BUILD | BURST | CACHE | CACHE_POLICY | CACHE_TYPE | CANARY
     | CANCEL_IN_PROGRESS | CAPABILITIES | CIDR | CLAIM | CLASS | CLUSTER | COMMAND | CONCURRENCY

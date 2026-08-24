@@ -19,6 +19,7 @@ class SymbolKind(str, Enum):
     QUEUE = "queue"
     STORAGE = "storage"
     NETWORK = "network"
+    NETWORK_POLICY = "network_policy"
     SECRET = "secret"
     SECRET_STORE = "secret_store"
     CUSTOM_RESOURCE = "custom_resource"

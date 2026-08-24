@@ -121,6 +121,8 @@ class TerraformBackend(Backend):
                 )
             elif isinstance(stmt, n.QueueDef):
                 resources.extend(self._queue(stmt))
+            elif isinstance(stmt, n.NetworkPolicyDef):
+                resources.extend(self._network_policy(stmt))
 
         hdr = generated_header("terraform")
         main = hdr + "\n".join(resources) + "\n"
@@ -604,6 +606,151 @@ class TerraformBackend(Backend):
             f"  secret_string = jsonencode({{{entries_json}}})\n"
             "}\n",
         ]
+
+    def _network_policy(self, node: n.NetworkPolicyDef) -> List[str]:
+        """Cloud security resources for a top-level ``network_policy`` (v0.5.1).
+
+        Mapping: ``aws_security_group`` (allow blocks per allow-list; group
+        default-deny covers ``block_all_ingress``), ``google_compute_firewall``
+        (tag-based allow/deny pairs) or ``azurerm_network_security_group``
+        (priority-ordered security rules), depending on the provider.
+        """
+        if self.provider == "gcp":
+            return self._network_policy_gcp(node)
+        if self.provider == "azure":
+            return self._network_policy_azure(node)
+        return self._network_policy_aws(node)
+
+    def _network_policy_aws(self, node: n.NetworkPolicyDef) -> List[str]:
+        lines = [
+            f'resource "aws_security_group" "{node.name}" {{',
+            f'  name        = "{node.name}"',
+            f'  description = "infra-lang network_policy {node.name}'
+            f' (target: {node.target})"',
+        ]
+        for src in node.allow_ingress:
+            lines += [
+                "  ingress {",
+                f'    description = "allow from {src}"',
+                "    from_port   = 0",
+                "    to_port     = 0",
+                '    protocol    = "-1"',
+                "    self        = true",
+                "  }",
+            ]
+        for dst in node.allow_egress:
+            lines += [
+                "  egress {",
+                f'    description = "allow to {dst}"',
+                "    from_port   = 0",
+                "    to_port     = 0",
+                '    protocol    = "-1"',
+                "    self        = true",
+                "  }",
+            ]
+        # block_all_ingress: security groups deny inbound by default, so the
+        # absence of ingress blocks already implements the block.
+        lines.append("}\n")
+        return ["\n".join(lines)]
+
+    def _network_policy_gcp(self, node: n.NetworkPolicyDef) -> List[str]:
+        def _gcp_name(raw: str) -> str:
+            # GCP resource names: lowercase letters, digits and hyphens only
+            return raw.replace("_", "-").lower()
+
+        out: List[str] = []
+        if node.allow_ingress:
+            source_tags = ", ".join(f'"{s}"' for s in node.allow_ingress)
+            out.append(
+                f'resource "google_compute_firewall" "{node.name}_ingress" {{\n'
+                f'  name         = "{_gcp_name(node.name)}-ingress"\n'
+                '  direction    = "INGRESS"\n'
+                f'  target_tags  = ["{node.target}"]\n'
+                f"  source_tags  = [{source_tags}]\n"
+                "  allow {\n"
+                '    protocol = "all"\n'
+                "  }\n"
+                "}\n"
+            )
+        elif node.block_all_ingress:
+            # no allow-list: an explicit deny-all inbound firewall instead
+            out.append(
+                f'resource "google_compute_firewall" "{node.name}_deny_ingress" {{\n'
+                f'  name        = "{_gcp_name(node.name)}-deny-ingress"\n'
+                '  direction   = "INGRESS"\n'
+                f'  target_tags = ["{node.target}"]\n'
+                "  deny {\n"
+                '    protocol = "all"\n'
+                "  }\n"
+                "}\n"
+            )
+        if node.allow_egress:
+            destination_tags = ", ".join(f'"{s}"' for s in node.allow_egress)
+            out.append(
+                f'resource "google_compute_firewall" "{node.name}_egress" {{\n'
+                f'  name             = "{_gcp_name(node.name)}-egress"\n'
+                '  direction        = "EGRESS"\n'
+                f'  target_tags      = ["{node.target}"]\n'
+                f"  destination_tags = [{destination_tags}]\n"
+                "  allow {\n"
+                '    protocol = "all"\n'
+                "  }\n"
+                "}\n"
+            )
+        return out
+
+    def _network_policy_azure(self, node: n.NetworkPolicyDef) -> List[str]:
+        lines = [
+            f'resource "azurerm_network_security_group" "{node.name}" {{',
+            f'  name                = "{node.name.replace("_", "-").lower()}"',
+            "  location            = var.azure_location",
+            "  resource_group_name = var.azure_resource_group",
+        ]
+        for index, src in enumerate(node.allow_ingress):
+            lines += [
+                "  security_rule {",
+                f'    name                       = "allow-from-{src}"',
+                f"    priority                   = {100 + index * 10}",
+                '    direction                  = "Inbound"',
+                '    access                     = "Allow"',
+                '    protocol                   = "*"',
+                '    source_port_range          = "*"',
+                '    destination_port_range     = "*"',
+                '    source_address_prefix      = "VirtualNetwork"',
+                '    destination_address_prefix = "*"',
+                "  }",
+            ]
+        for index, dst in enumerate(node.allow_egress):
+            lines += [
+                "  security_rule {",
+                f'    name                       = "allow-to-{dst}"',
+                f"    priority                   = {200 + index * 10}",
+                '    direction                  = "Outbound"',
+                '    access                     = "Allow"',
+                '    protocol                   = "*"',
+                '    source_port_range          = "*"',
+                '    destination_port_range     = "*"',
+                '    source_address_prefix      = "*"',
+                '    destination_address_prefix = "VirtualNetwork"',
+                "  }",
+            ]
+        if node.block_all_ingress and not node.allow_ingress:
+            # explicit deny-all inbound override, evaluated after allows
+            lines += [
+                "  security_rule {",
+                '    name                       = "deny-all-inbound"',
+                "    priority                   = 4096",
+                '    direction                  = "Inbound"',
+                '    access                     = "Deny"',
+                '    protocol                   = "*"',
+                '    source_port_range          = "*"',
+                '    destination_port_range     = "*"',
+                '    source_address_prefix      = "*"',
+                '    destination_address_prefix = "*"',
+                "  }",
+            ]
+        lines.append("}\n")
+        return ["\n".join(lines)]
 
     def _queue(self, node: n.QueueDef) -> List[str]:
         if node.type == "rabbitmq":

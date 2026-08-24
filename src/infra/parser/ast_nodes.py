@@ -798,6 +798,35 @@ class NetworkDef(ASTNode):
     decorators: Tuple[Decorator, ...] = ()
 
 
+@dataclass(frozen=True)
+class NetworkPolicyDef(ASTNode):
+    """A top-level ``network_policy`` declaration (v0.5.1).
+
+    Declares service-level traffic rules for a target workload::
+
+        network_policy "app_sec" {
+            target: "api"
+            allow_ingress: ["frontend"]
+            allow_egress: ["database"]
+            block_all_ingress: true
+        }
+
+    Not to be confused with :class:`NetworkPolicySpec` — the per-service
+    ``network_policy { ... }`` sub-block that predates this construct.
+    """
+
+    name: str
+    #: Name of the service the policy applies to (pod selector target).
+    target: str = ""
+    #: Workloads allowed to initiate connections to ``target``.
+    allow_ingress: Tuple[str, ...] = ()
+    #: Workloads ``target`` is allowed to connect to.
+    allow_egress: Tuple[str, ...] = ()
+    #: When set (and no ``allow_ingress`` is given), drops all inbound traffic.
+    block_all_ingress: bool = False
+    decorators: Tuple[Decorator, ...] = ()
+
+
 # ---------------------------------------------------------------------------
 # Secret & Config
 # ---------------------------------------------------------------------------
@@ -1184,6 +1213,7 @@ Definition = Union[
     QueueDef,
     StorageDef,
     NetworkDef,
+    NetworkPolicyDef,
     SecretDef,
     SecretStoreDef,
     CustomResourceSpec,

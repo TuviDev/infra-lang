@@ -494,6 +494,31 @@ class SemanticValidator:
     def _visit_NetworkDef(self, node: n.NetworkDef) -> None:
         self._register_definition(node, SymbolKind.NETWORK)
 
+    def _visit_NetworkPolicyDef(self, node: n.NetworkPolicyDef) -> None:
+        self._register_definition(node, SymbolKind.NETWORK_POLICY)
+        # every workload named by the policy must be declared in this file
+        # (services and resources alike; forward references are fine)
+        refs = [node.target, *node.allow_ingress, *node.allow_egress]
+        for ref in refs:
+            if ref and ref not in self._program_defs:
+                self._err(
+                    f"Network policy '{node.name}' references '{ref}', "
+                    "which is not declared in this file",
+                    node,
+                    "POLICY_TARGET_NOT_FOUND",
+                    hint=f"Declare service '{ref}' or fix the "
+                    "network_policy reference",
+                )
+        if node.block_all_ingress and node.allow_ingress:
+            self._warn(
+                f"Network policy '{node.name}' sets 'block_all_ingress' "
+                "but also declares 'allow_ingress' rules; the allow rules "
+                "take precedence over the blanket block",
+                node,
+                "W012",
+                hint="Drop 'block_all_ingress' or empty 'allow_ingress'",
+            )
+
     _VALID_STORE_PROVIDERS = ("vault", "aws", "gcp", "kubernetes")
 
     def _visit_SecretStoreDef(self, node: n.SecretStoreDef) -> None:

@@ -101,6 +101,30 @@ class DockerComposeBackend(Backend, BaseYAMLBackend):
             elif isinstance(stmt, n.NetworkDef):
                 networks[stmt.name] = {"driver": "bridge"}
 
+        # v0.5.1: each top-level `network_policy` maps to a dedicated bridge
+        # network shared only by the target and its allowed peers. Compose
+        # has no firewall primitives, so network membership is the isolation
+        # mechanism: by giving the target an explicit `networks:` list it
+        # drops off the shared default network — only allowed peers can
+        # reach it (and `block_all_ingress` yields an empty peer set).
+        for stmt in program.statements:
+            if not isinstance(stmt, n.NetworkPolicyDef):
+                continue
+            net_name = f"np_{stmt.name}"
+            networks[net_name] = {"driver": "bridge"}
+            seen: set = set()
+            ordered = [stmt.target, *stmt.allow_ingress, *stmt.allow_egress]
+            for peer in ordered:
+                if not peer or peer in seen:
+                    continue
+                seen.add(peer)
+                svc = services.get(peer)
+                if svc is None:
+                    continue  # validator flags unknown refs already
+                svc.setdefault("networks", [])
+                if net_name not in svc["networks"]:
+                    svc["networks"].append(net_name)
+
         # Declare any named volumes referenced by services at the top level so
         # Docker Compose actually provisions them.
         for svc in services.values():

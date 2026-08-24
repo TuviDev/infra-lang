@@ -1421,6 +1421,41 @@ class InfraTransformer(Transformer):
     def network_body(self, meta, children):
         return self._body_dict(children)
 
+    def network_policy_def(self, meta, children):
+        name = _lit(children[1]) or ""
+        body = children[3] if len(children) > 3 else {}
+        fields = body if isinstance(body, dict) else {}
+        return n.NetworkPolicyDef(
+            name=name,
+            target=str(fields.get("target") or ""),
+            allow_ingress=tuple(fields.get("allow_ingress", ())),
+            allow_egress=tuple(fields.get("allow_egress", ())),
+            block_all_ingress=bool(fields.get("block_all_ingress", False)),
+            location=_loc(meta),
+        )
+
+    def network_policy_def_body(self, meta, children):
+        return self._body_dict(children)
+
+    def network_policy_def_item(self, meta, children):
+        head = children[0]
+        ttype = getattr(head, "type", "")
+        if ttype == "TARGET":
+            return ("target", _lit(children[2]) or "")
+        if ttype == "BLOCK_ALL_INGRESS":
+            value = children[2]
+            raw = value.value if isinstance(value, n.Literal) else _lit(value)
+            # true/false literals stay booleans; anything else parses truthy
+            enabled = (
+                raw if isinstance(raw, bool) else str(raw).strip().lower() == "true"
+            )
+            return ("block_all_ingress", enabled)
+        # ALLOW_INGRESS / ALLOW_EGRESS with optional colon; the list is last.
+        lst = children[-1]
+        items = lst.items if isinstance(lst, n.List) else ()
+        key = "allow_ingress" if ttype == "ALLOW_INGRESS" else "allow_egress"
+        return (key, tuple(_lit(i) for i in items))
+
     def network_item(self, meta, children):
         subnets = [c for c in children if isinstance(c, n.SubnetSpec)]
         if subnets:

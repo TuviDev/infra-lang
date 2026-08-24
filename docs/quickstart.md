@@ -115,6 +115,33 @@ manifest verbatim, the Helm backend ships it under the chart's `crds/`
 directory, and the Compose/Terraform backends emit an explicit skip
 notice in their compilation warnings.
 
+### Control network traffic between services (since 0.5.1)
+
+Declare service-level network security policies natively:
+
+```infra
+network_policy "app_sec" {
+    target: "api"
+    allow_ingress: ["frontend"]
+    allow_egress: ["db"]
+    block_all_ingress: true
+}
+```
+
+Any workload named by `target`, `allow_ingress` or `allow_egress` must
+exist in the file — dangling references fail validation with
+`POLICY_TARGET_NOT_FOUND`. Setting `block_all_ingress` together with
+`allow_ingress` rules emits advisory `W012` (the allow rules win).
+
+Each backend renders the policy natively: Kubernetes produces a
+`NetworkPolicy` manifest (`podSelector` on the target, peer selectors,
+`ingress: []` deny-all when only the block is set), Docker Compose puts
+the target and its allowed peers on a dedicated bridge network
+(`np_app_sec`) so unrelated containers cannot reach it, and Terraform
+inlines an `aws_security_group`, pair of `google_compute_firewall`
+rules, or an `azurerm_network_security_group` with priority-ordered
+security rules — depending on the chosen provider.
+
 ## Validate
 ```bash
 infra validate app.infra

@@ -22,8 +22,8 @@ from lsprotocol.types import (
 )
 
 BLOCK_KEYWORDS = (
-    "service|database|cache|queue|storage|network|secret|config"
-    "|pipeline|environment|cluster|secret_store|resource"
+    "service|database|cache|queue|storage|network_policy|network|secret"
+    "|config|pipeline|environment|cluster|secret_store|resource"
 )
 
 # v0.5.0: secret_store / resource use *quoted* names (`secret_store "v"`),

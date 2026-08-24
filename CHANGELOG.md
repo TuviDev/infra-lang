@@ -2,6 +2,44 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.5.1] - 2026-08-24
+
+### Added
+- **Top-level `network_policy` declarations** — native network security
+  policies directly in the DSL:
+  `network_policy "app_sec" { target: "api", allow_ingress: ["frontend"],
+  allow_egress: ["database"], block_all_ingress: true }`. The new AST node
+  `NetworkPolicyDef` captures the target workload, the allowed ingress and
+  egress peer lists and the blanket inbound block; `infra fmt`
+  round-trips the block, document symbols / completion / hover in the
+  language server recognize it, and the symbol table registers
+  `network_policy` symbols (with `E002` duplicate detection).
+  The pre-existing per-service `network_policy { allow_from: ... }`
+  sub-block is untouched.
+- **`POLICY_TARGET_NOT_FOUND` validation** — every workload referenced by
+  `target`, `allow_ingress` or `allow_egress` must be declared in the
+  file (services and resources alike; forward references are fine);
+  dangling references are hard errors with a fix-it hint. Declaring
+  `block_all_ingress` together with `allow_ingress` rules emits advisory
+  warning `W012` (allow rules take precedence over the blanket block).
+- **Network policy code generation in three backends** —
+  Kubernetes emits a `networking.k8s.io/v1` `NetworkPolicy` per
+  declaration: `podSelector` binds the target by the standard
+  `app.kubernetes.io/name` label, peers become `ingress.from` /
+  `egress.to` selectors, `block_all_ingress` with an empty allow-list
+  renders `ingress: []` (deny-all), and `policyTypes` mirrors the
+  declared rules. Docker Compose maps each policy to a dedicated bridge
+  network (`np_<name>`) shared only by the target and its allowed peers —
+  network membership is the isolation mechanism (a target with an
+  explicit `networks:` list drops off the shared default network).
+  Terraform generates the provider's security resource inline in
+  `main.tf`: `aws_security_group` with allow blocks per peer (group
+  default-deny implements the block), tag-based
+  `google_compute_firewall` allow/deny pairs, or priority-ordered
+  `azurerm_network_security_group` security rules (including the
+  deny-all-inbound override at priority 4096). Programs without
+  `network_policy` compile byte-identically to 0.5.0.
+
 ## [0.5.0] - 2026-08-24
 
 ### Added

@@ -188,6 +188,8 @@ class InfraPrinter:
             return self._storage(stmt)
         if isinstance(stmt, n.NetworkDef):
             return self._network(stmt)
+        if isinstance(stmt, n.NetworkPolicyDef):
+            return self._network_policy_def(stmt)
         if isinstance(stmt, n.SecretDef):
             return self._secret(stmt)
         if isinstance(stmt, n.SecretStoreDef):
@@ -365,6 +367,22 @@ class InfraPrinter:
             body.append("}")
         return self._decorators(nw.decorators) + self._render_block(
             "network " + nw.name, body
+        )
+
+    def _network_policy_def(self, np: n.NetworkPolicyDef) -> str:
+        body: list[str] = []
+        if np.target:
+            body.append(f"target: {_qstr(np.target)}")
+        if np.allow_ingress:
+            entries = ", ".join(_qstr(s) for s in np.allow_ingress)
+            body.append(f"allow_ingress: [{entries}]")
+        if np.allow_egress:
+            entries = ", ".join(_qstr(s) for s in np.allow_egress)
+            body.append(f"allow_egress: [{entries}]")
+        if np.block_all_ingress:
+            body.append("block_all_ingress: true")
+        return self._decorators(np.decorators) + self._render_block(
+            f'network_policy "{np.name}"', body
         )
 
     def _secret(self, s: n.SecretDef) -> str:
