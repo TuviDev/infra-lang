@@ -27,6 +27,8 @@ from lsprotocol.types import (
 # fields whose values are references to other named blocks in the document
 REFERENCE_FIELDS = {
     "depends": True,
+    "depends_on": True,
+    "store": True,
     "allow_from": True,
     "allow_egress": True,
     "needs": True,
@@ -48,6 +50,8 @@ TOP_LEVEL_BLOCKS = [
     "pipeline",
     "environment",
     "cluster",
+    "secret_store",
+    "resource",
 ]
 
 # block name -> field names valid inside it (field labels that come before `:`)
@@ -55,7 +59,8 @@ BLOCK_FIELDS = {
     "service": [
         "image", "build", "port", "ports", "env", "envFrom", "command",
         "args", "replicas", "resources", "health", "probes", "volumes",
-        "depends", "labels", "annotations", "strategy", "security",
+        "depends", "depends_on", "labels", "annotations", "strategy",
+        "security",
         "lifecycle", "ingress", "schedule", "autoscale", "disruption",
         "network_policy", "topology", "affinity", "expose",
     ],
@@ -73,13 +78,15 @@ BLOCK_FIELDS = {
         "type", "size", "class", "accessMode", "lifecycle", "bucket", "region",
     ],
     "network": ["cidr", "subnets", "policy"],
-    "secret": ["key"],
+    "secret": ["key", "store"],
     "config": ["key"],
     "pipeline": ["trigger", "stages", "artifacts", "cache", "concurrency"],
     "environment": [
         "namespace", "provider", "region", "resources", "labels", "quotas",
     ],
     "cluster": ["provider", "region", "version", "nodes", "networking", "iam"],
+    "secret_store": ["provider", "address", "path", "region", "namespace"],
+    "resource": ["api_version", "kind", "spec"],
 }
 
 # sub-block names valid inside a block (they open a nested `{}`)
@@ -116,6 +123,12 @@ FIELD_VALUE_HINTS = {
     "replicas": ["1", "2", "3", "5"],
 }
 
+#: block -> field -> value hints, consulted before FIELD_VALUE_HINTS so a
+#: shared label (e.g. ``provider``) can get block-specific suggestions.
+FIELD_VALUE_HINTS_BY_BLOCK = {
+    "secret_store": {"provider": ["vault", "aws", "gcp", "kubernetes"]},
+}
+
 # --------------------------------------------------------------------------- #
 # Heuristic context detection
 # --------------------------------------------------------------------------- #
@@ -136,10 +149,16 @@ def _current_block(lines: List[str], line: int) -> Optional[str]:
         if i == line:
             pass  # we still scan the whole line; the cursor heuristic below is fine
         # opening blocks: a known keyword followed by an identifier and `{`
-        # e.g. `service api {`, `environment prod extends dev {`
+        # e.g. `service api {`, `environment prod extends dev {`; v0.5.0
+        # tolerates quoted names (`secret_store "v" {`) and the two-name
+        # custom-resource form (`resource "crd" "x" {`).
         import re as _re
 
-        named = r"([a-zA-Z_][a-zA-Z0-9_-]*)\s+[a-zA-Z_][a-zA-Z0-9_-]*\s*\{"
+        named = (
+            r"([a-zA-Z_][a-zA-Z0-9_-]*)"
+            r'\s+(?:"?[A-Za-z_][A-Za-z0-9_-]*"?\s+)?'
+            r'"?[A-Za-z_][A-Za-z0-9_-]*"?\s*\{'
+        )
         for m in _re.finditer(named, stripped):
             word = m.group(1)
             if word in BLOCK_FIELDS or word in TOP_LEVEL_BLOCKS:
@@ -201,7 +220,8 @@ def _document_symbols(source: str) -> List[str]:
         stripped = line.split("#", 1)[0]
         m = re.match(
             r"\s*(?:service|database|cache|queue|storage|network|secret|config"
-            r"|pipeline|environment|cluster)\s+([A-Za-z_][A-Za-z0-9_-]*)",
+            r"|pipeline|environment|cluster|secret_store|resource)"
+            r'\s+"?([A-Za-z_][A-Za-z0-9_-]*)"?',
             stripped,
         )
         if m:
@@ -234,8 +254,12 @@ def completions_at(source: str, line: int, char: int) -> List[CompletionItem]:
                         )
                     )
             return items
-        # value completions for an enum/bool/quantity field
-        hints = FIELD_VALUE_HINTS.get(label, [])
+        # value completions for an enum/bool/quantity field; block-scoped
+        # hints win over the generic table (e.g. provider inside secret_store)
+        scoped = FIELD_VALUE_HINTS_BY_BLOCK.get(block or "", {})
+        hints = scoped.get(label) if label in scoped else None
+        if hints is None:
+            hints = FIELD_VALUE_HINTS.get(label, [])
         for h in hints:
             items.append(
                 CompletionItem(

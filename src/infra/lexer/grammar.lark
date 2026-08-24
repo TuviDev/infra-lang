@@ -32,10 +32,13 @@ QUEUE.4: "queue"
 STORAGE.4: "storage"
 NETWORK.4: "network"
 SECRET.4: "secret"
+SECRET_STORE.4: "secret_store"
+STORE.4: "store"
 CONFIG.4: "config"
 PIPELINE.4: "pipeline"
 ENVIRONMENT.4: "environment"
 CLUSTER.4: "cluster"
+RESOURCE.4: "resource"
 LET.4: "let"
 CONST.4: "const"
 EXTENDS.4: "extends"
@@ -135,6 +138,8 @@ definition: service_def
     | storage_def
     | network_def
     | secret_def
+    | secret_store_def
+    | custom_resource_def
     | config_def
     | pipeline_def
     | environment_def
@@ -626,9 +631,66 @@ SELECTOR.4: "selector"
 secret_def: SECRET IDENTIFIER LBRACE secret_body RBRACE
 secret_body: (secret_item (COMMA? secret_item)*)?
 secret_item: IDENTIFIER COLON secret_value
+    | STORE COLON STRING
 secret_value: expression
             | FROM secret_source STRING (DOT IDENTIFIER)?
 secret_source: ENV | FILE | VAULT | AWS | GCP
+
+// ---------------------------------------------------------------------------
+// Secret store (v0.5.0): secret_store "name" { provider: ..., ... }
+// ---------------------------------------------------------------------------
+
+secret_store_def: SECRET_STORE STRING LBRACE secret_store_body RBRACE
+secret_store_body: (secret_store_item (COMMA? secret_store_item)*)?
+secret_store_item: secret_store_key COLON expression
+// keys may collide with existing keyword tokens (path/provider/region/namespace)
+secret_store_key: IDENTIFIER | PATH | PROVIDER | REGION | NAMESPACE
+
+// ---------------------------------------------------------------------------
+// Custom resource / CRD (v0.5.0 plugin system):
+//   resource "custom_crd" "my_resource" {
+//       api_version: "stable.example.com/v1"
+//       kind: "MyKind"
+//       spec { ... }
+//   }
+// ---------------------------------------------------------------------------
+
+custom_resource_def: RESOURCE STRING STRING LBRACE custom_resource_body RBRACE
+custom_resource_body: (custom_resource_item (COMMA? custom_resource_item)*)?
+// values accept either `key: expression` or the bare-map form `key { ... }`
+custom_resource_item: custom_resource_key COLON expression
+    | custom_resource_key custom_resource_map
+custom_resource_map: LBRACE custom_resource_entry (COMMA? custom_resource_entry)* RBRACE
+custom_resource_entry: custom_resource_key COLON expression
+    | custom_resource_key custom_resource_map
+// keys are bare identifiers; because the DSL lexer always prefers keyword
+// tokens over IDENTIFIER, every keyword token must be accepted here so that
+// arbitrary CRD field names (type, spec, name, labels, ...) work as keys.
+custom_resource_key: IDENTIFIER | ACCESS_MODE | ACTIONS | AFFINITY | ALLOW_EGRESS | ALLOW_FROM
+    | ANNOTATIONS | ARGS | ARTIFACTS | AS | AUTOSCALE | AVOID_SAME | AWS | AZ | BACKUP | BLUE_GREEN
+    | BRANCHES | BUCKET | BUILD | BURST | CACHE | CACHE_POLICY | CACHE_TYPE | CANARY
+    | CANCEL_IN_PROGRESS | CAPABILITIES | CIDR | CLAIM | CLASS | CLUSTER | COMMAND | CONCURRENCY
+    | CONDITION | CONFIG | CONST | CONTEXT | CONTINUE_ON_ERROR | CORS | CPU | CREDENTIALS | DATABASE
+    | DB_TYPE | DENY_FROM | DEPENDS | DEPENDS_ON | DISRUPTION | DOCKERFILE | DOMAIN | DOWNLOAD
+    | ELSE | ENABLED | ENV | ENVIRONMENT | ENV_FROM | EVENTS | EXEC | EXPIRATION | EXPOSE | EXTENDS
+    | FALSE | FIELD | FILE | FROM | FROM_DIR | GCP | GROUP | GRPC | HA | HEADERS | HEALTH | HOST
+    | HOST_PATH | HTTP | IAM | IF | IMAGE | IMPORT | IN | INGRESS | INITIAL_DELAY | INTERVAL | KEY
+    | LABELS | LET | LEVEL | LIFECYCLE | LIMITS | LIVENESS | MACHINE | MANUAL | MATCH | MATRIX | MAX
+    | MAXMEMORY | MAX_CPU | MAX_MEMORY | MAX_PODS | MAX_SKEW | MAX_UNAVAILABLE | MEMORY | METHODS
+    | MIN | MIN_AVAILABLE | MOUNT_PATH | NAME | NAMESPACE | NEEDS | NETWORK | NETWORKING
+    | NETWORK_POLICY | NODES | NULL | ORIGINS | PARALLEL | PARTITIONS | PATH | PATHS | PERSISTENCE
+    | PIPELINE | PIPELINE_CACHE | POLICY | PORT | PORTS | POST_START | PREFER_SAME | PREFIX
+    | PRE_STOP | PRIVILEGED | PROBES | PROTOCOL | PROVIDER | QUEUE | QUEUE_TYPE | QUOTAS
+    | RATE_LIMIT | READINESS | READONLY | READONLY_ROOT | RECREATE | REGION | REPLICAS | REPLICATION
+    | REQUESTS | REQ_PER_SEC | RESOURCE | RESOURCES | RESTORE_KEYS | RETENTION | RETRIES | ROLE
+    | ROLLING | RUN | RUNS_ON | SA | SC | SCALE_DOWN_DELAY | SCALE_UP_DELAY | SCHEDULE | SECCOMP
+    | SECRET | SECRET_STORE | SECURITY | SELECTOR | SELINUX | SERVICE | SIZE | SPREAD_BY | STAGES
+    | STARTUP | START_PERIOD | STEPS | STORAGE | STORAGE_TYPE | STORE | STRATEGY | SUBNETS | TAGS
+    | TARGET | TARGET_CPU | TARGET_MEMORY | TARGET_PORT | TCP | THEN | TIMEOUT | TLS | TOPICS
+    | TOPOLOGY | TO_DIR | TRAFFIC | TRANSITION | TRIGGER | TRUE | TYPE | UPLOAD | USER | USERS
+    | USES | VAULT | VERSION | VOLUME | VOLUMES | VPC | WEIGHT | WITH_ARGS
+
+
 FILE.4: "file"
 VAULT.4: "vault"
 AWS.4: "aws"

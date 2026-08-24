@@ -1475,14 +1475,105 @@ class InfraTransformer(Transformer):
 
     def secret_def(self, meta, children):
         name = _str(children[1])
+        body = children[3] if len(children) > 3 else {}
+        entries: tuple = ()
+        store = None
+        if isinstance(body, dict):
+            entries = tuple(body.get("entries", ()))
+            store = body.get("store")
+        elif isinstance(body, (list, tuple)):
+            entries = tuple(body)
+        return n.SecretDef(name=name, entries=entries, store=store, location=_loc(meta))
+
+    def secret_store_def(self, meta, children):
+        name = _lit(children[1]) or ""
         body = children[3] if len(children) > 3 else []
-        entries = tuple(body) if isinstance(body, (list, tuple)) else ()
-        return n.SecretDef(name=name, entries=entries, location=_loc(meta))
+        fields: dict = {}
+        extra: list = []
+        known = ("provider", "address", "path", "region", "namespace", "project")
+        for key, value in body if isinstance(body, (list, tuple)) else []:
+            if key in known:
+                fields[key] = _lit(value)
+            else:
+                extra.append((key, value))
+        return n.SecretStoreDef(
+            name=name,
+            provider=fields.get("provider") or "",
+            address=fields.get("address"),
+            path=fields.get("path"),
+            region=fields.get("region"),
+            namespace=fields.get("namespace"),
+            project=fields.get("project"),
+            extra=tuple(extra),
+            location=_loc(meta),
+        )
+
+    def secret_store_body(self, meta, children):
+        return [c for c in children if isinstance(c, tuple) and len(c) == 2]
+
+    def secret_store_item(self, meta, children):
+        return (_str(children[0]), children[2])
+
+    def secret_store_key(self, meta, children):
+        return _str(children[0])
+
+    # ------------------------------------------------------------------ #
+    # Custom resources / CRDs (v0.5.0 plugin system)
+    # ------------------------------------------------------------------ #
+
+    def custom_resource_def(self, meta, children):
+        kind_name = _lit(children[1]) or ""
+        name = _lit(children[2]) or ""
+        body = children[4] if len(children) > 4 else []
+        props = body if isinstance(body, list) else []
+        return n.CustomResourceSpec(
+            kind_name=kind_name,
+            name=name,
+            properties=tuple(props),
+            location=_loc(meta),
+        )
+
+    def custom_resource_body(self, meta, children):
+        return [c for c in children if isinstance(c, tuple) and len(c) == 2]
+
+    def custom_resource_item(self, meta, children):
+        key = _str(children[0])
+        # `key COLON expression` keeps the colon token at index 1; the
+        # bare-map form `key { ... }` delivers the map directly.
+        value = children[2] if len(children) > 2 else children[1]
+        return (key, value)
+
+    def custom_resource_map(self, meta, children):
+        entries = [
+            c for c in children if isinstance(c, tuple) and len(c) == 2
+        ]
+        return n.Map(
+            entries=tuple(
+                n.MapEntry(key=n.Identifier(name=k), value=v) for k, v in entries
+            )
+        )
+
+    custom_resource_entry = custom_resource_item
+
+    def custom_resource_key(self, meta, children):
+        return _str(children[0])
 
     def secret_body(self, meta, children):
-        return [c for c in children if isinstance(c, n.SecretEntry)]
+        entries = [c for c in children if isinstance(c, n.SecretEntry)]
+        store = next(
+            (
+                c[1]
+                for c in children
+                if isinstance(c, tuple) and c and c[0] == "__store__"
+            ),
+            None,
+        )
+        return {"entries": entries, "store": store}
 
     def secret_item(self, meta, children):
+        # `store: "<name>"` binds the whole secret to a secret_store (v0.5.0)
+        if getattr(children[0], "type", "") == "STORE":
+            return ("__store__", _lit(children[2]) or "")
         entry_name = _str(children[0])
         value = children[2]
         if isinstance(value, tuple):

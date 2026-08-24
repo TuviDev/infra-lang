@@ -20,6 +20,8 @@ class SymbolKind(str, Enum):
     STORAGE = "storage"
     NETWORK = "network"
     SECRET = "secret"
+    SECRET_STORE = "secret_store"
+    CUSTOM_RESOURCE = "custom_resource"
     CONFIG = "config"
     PIPELINE = "pipeline"
     ENVIRONMENT = "environment"

@@ -2,6 +2,57 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.5.0] - 2026-08-24
+
+### Added
+- **`secret_store` declarations with ExternalSecrets integration** — a new
+  top-level block declares an external secret backend once and reuses it
+  across secrets: `secret_store "vault_store" { provider: "vault" ... }`
+  with `provider: "vault" | "aws" | "gcp" | "kubernetes"` plus optional
+  `address`, `path`, `region`, `namespace` and `project`. A `secret` block
+  binds to it with `store: "vault_store"`; the validator raises
+  `STORE_NOT_FOUND` (with a fix-it hint) when the reference dangles and
+  `INVALID_STORE_PROVIDER` for unknown providers. The Kubernetes backend
+  compiles stores to `SecretStore` manifests and bound secrets to
+  `ExternalSecret` CRDs (`external-secrets.io/v1beta1`, `remoteRef.key`
+  from the store path); Docker Compose emits `external: true` secrets
+  (no literal values in `.env` files); Terraform generates the matching
+  cloud resources — `aws_secretsmanager_secret`,
+  `google_secret_manager_secret`, `vault_generic_secret` or
+  `kubernetes_secret` — including provider blocks and
+  `required_providers` entries where needed. Legacy inline secrets compile
+  byte-identically to 0.4.5.
+- **Generic custom resources (CRD plugin system)** — any Kubernetes CRD
+  can now be declared directly in the DSL:
+  `resource "custom_crd" "my_resource" { api_version: "...", kind: "MyKind",
+  spec { ... } }`. Property values accept both `key: expression` and the
+  bare-map form `key { ... }` (arbitrarily nestable); keys tolerate every
+  DSL keyword, so real manifest fields such as `type`, `resources` or
+  `spec` work unquoted. The validator emits advisory `W010`/`W011`
+  notices when `api_version`/`kind` are missing and hard `E050` errors
+  for duplicate properties at any nesting level. The Kubernetes backend
+  renders the manifest verbatim (clean YAML with `apiVersion`, `kind`,
+  `metadata` and the full `spec` tree), the Helm backend ships it under
+  the chart's `crds/` directory (installed by Helm before all templates),
+  and the Compose/Terraform backends report a clear skip notice in
+  compilation warnings instead of silently dropping the declaration.
+- **LSP completion for the new constructs** — the completion engine now
+  suggests `depends_on` and `store` inside `service`/`secret` blocks,
+  offers `secret_store` field hints with provider values
+  (`vault`/`aws`/`gcp`/`kubernetes`), completes `resource` blocks with
+  `api_version`/`kind`/`spec` fields and resolves `depends_on` / `store`
+  values against symbols declared in the workspace. Hover documentation
+  covers the new fields. Document symbols and go-to-definition recognize
+  `secret_store` and `resource` blocks (quoted names included).
+
+### Changed
+- **Language server migrated to pygls 2.x** — the LSP server now targets
+  pygls 2.x APIs (`pygls.lsp.server.LanguageServer`, lsprotocol
+  2025 types, `PrepareRenamePlaceholder`, protocol-level
+  `textDocument/publishDiagnostics` notifications) while staying
+  backwards-compatible with pygls 1.3 for existing installs; the dependency
+  constraint is now `pygls>=1.3.0,<3.0.0`.
+
 ## [0.4.5] - 2026-08-24
 
 ### Added

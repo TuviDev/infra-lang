@@ -13,7 +13,7 @@ Protocol: JSON-RPC over stdio (standard LSP transport).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 from lsprotocol.types import (
     INITIALIZED,
@@ -30,6 +30,7 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_FORMATTING,
     TEXT_DOCUMENT_HOVER,
     TEXT_DOCUMENT_PREPARE_RENAME,
+    TEXT_DOCUMENT_PUBLISH_DIAGNOSTICS,
     TEXT_DOCUMENT_REFERENCES,
     TEXT_DOCUMENT_RENAME,
     TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
@@ -64,7 +65,9 @@ from lsprotocol.types import (
     MarkupKind,
     Position,
     PrepareRenameParams,
-    PrepareRenameResult_Type1,
+    PrepareRenamePlaceholder,
+    PrepareRenameResult,
+    PublishDiagnosticsParams,
     Range,
     ReferenceParams,
     RenameParams,
@@ -80,7 +83,7 @@ from lsprotocol.types import (
     WorkspaceSymbol,
     WorkspaceSymbolParams,
 )
-from pygls.server import LanguageServer
+from pygls.lsp.server import LanguageServer
 
 from ..errors.exceptions import InfraLexError, InfraParseError
 from ..lsp.completion import completions_at
@@ -106,7 +109,7 @@ from ..parser.location import SourceLocation
 
 server = LanguageServer(
     name="infra-lang",
-    version="0.4.4",
+    version="0.5.0",
 )
 
 #: Project-wide on-disk symbol index. Scanned after initialization; consulted by
@@ -294,7 +297,16 @@ def _diagnose(source: str, uri: str) -> list[Diagnostic]:
 
 def _publish(ls: LanguageServer, uri: str, source: str) -> None:
     diagnostics = _diagnose(source, uri)
-    ls.publish_diagnostics(uri, diagnostics)
+    legacy = getattr(ls, "publish_diagnostics", None)
+    if callable(legacy):
+        # pygls 1.x convenience API (also used by unit-test fakes)
+        legacy(uri, diagnostics)
+        return
+    # pygls 2.x: server->client notifications go through the protocol layer
+    ls.protocol.notify(
+        TEXT_DOCUMENT_PUBLISH_DIAGNOSTICS,
+        PublishDiagnosticsParams(uri=uri, diagnostics=diagnostics),
+    )
 
 
 def _workspace_documents(ls: LanguageServer) -> dict[str, str]:
@@ -306,14 +318,20 @@ def _workspace_documents(ls: LanguageServer) -> dict[str, str]:
     backward compatible in unit tests).
     """
     sources: dict[str, str] = dict(workspace_index.sources())
-    try:
-        docs = ls.workspace.documents
-    except Exception:  # noqa: BLE001 - defensive, missing attribute
-        docs = {}
-    if isinstance(docs, dict):
-        for uri, doc in docs.items():
-            src = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
-            sources[uri] = src  # open document wins
+    docs: dict[str, Any] = {}
+    # pygls 2.x exposes ``text_documents``; 1.x used ``documents`` — take the
+    # first one that exists.
+    for attr in ("text_documents", "documents"):
+        try:
+            candidate = getattr(ls.workspace, attr)
+        except Exception:  # noqa: BLE001 - defensive, missing attribute
+            continue
+        if isinstance(candidate, dict):
+            docs = candidate
+            break
+    for uri, doc in docs.items():
+        src = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+        sources[uri] = src  # open document wins
     return sources
 
 
@@ -353,7 +371,10 @@ def initialized(ls: LanguageServer, params: InitializedParams) -> None:
     if root is None:
         return
     try:
-        executor = ls.thread_pool_executor
+        # pygls 1.x: thread_pool_executor; pygls 2.x: thread_pool
+        executor = getattr(ls, "thread_pool_executor", None) or getattr(
+            ls, "thread_pool", None
+        )
     except Exception:  # noqa: BLE001
         executor = None
     scan: Callable[[], None] = lambda: workspace_index.scan_directory(root)  # noqa: E731
@@ -624,7 +645,7 @@ def references(
 def prepare_rename(
     ls: LanguageServer,
     params: PrepareRenameParams,
-) -> PrepareRenameResult_Type1 | None:
+) -> PrepareRenameResult | None:
     """Validate that the position is a renameable symbol.
 
     Returns the range of the symbol under the cursor plus its current name as
@@ -642,7 +663,7 @@ def prepare_rename(
     rng = symbol_range(source, line, char)
     if rng is None:
         return None
-    return PrepareRenameResult_Type1(range=rng, placeholder=name)
+    return PrepareRenamePlaceholder(range=rng, placeholder=name)
 
 
 @server.feature(TEXT_DOCUMENT_RENAME)
@@ -720,7 +741,7 @@ def code_action(
     return quick_fixes(
         params.text_document.uri,
         source,
-        params.context.diagnostics,
+        list(params.context.diagnostics),
     )
 
 
@@ -768,6 +789,22 @@ FIELD_DOCS = {
     "probes": "Liveness/readiness/startup probe config.",
     "volumes": "Storage volumes mounted into the container.",
     "depends": "Other services this one depends on.\nExample: `[db, cache]`",
+    "depends_on": (
+        "Hard service-start ordering (v0.4.5). Targets may be services or "
+        "resources.\nExample: `[db, cache]`"
+    ),
+    "secret_store": (
+        "External secret store declaration (v0.5.0).\n"
+        'Example: `secret_store "vault_store" { provider: "vault", ... }`'
+    ),
+    "store": (
+        "Reference to a `secret_store` backing this secret (v0.5.0).\n"
+        'Example: `store: "vault_store"`'
+    ),
+    "resource": (
+        "Generic custom resource (CRD) declaration (v0.5.0).\n"
+        'Example: `resource "crd" "name" { api_version: ..., kind: ... }`'
+    ),
     "labels": "Kubernetes labels for the resource.\nExample: `{ tier: \"web\" }`",
     "annotations": "Kubernetes annotations.\nExample: `{ team: \"platform\" }`",
     "strategy": "Deployment strategy.\nValues: rolling, recreate, blue_green, canary",

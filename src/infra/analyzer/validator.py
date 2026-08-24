@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from difflib import get_close_matches
-from typing import Any, Dict, List, Optional, Set, Tuple, cast
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, cast
 
 from infra.analyzer import types as T
 from infra.analyzer.symbols import (
@@ -78,6 +78,8 @@ class SemanticValidator:
         # resources), collected up-front so depends_on accepts forward
         # references and non-service targets such as databases or caches.
         self._program_defs: Set[str] = set()
+        #: Names of declared ``secret_store`` blocks (v0.5.0).
+        self._secret_stores: Set[str] = set()
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -99,6 +101,11 @@ class SemanticValidator:
             for name in (getattr(s, "name", "") for s in program.statements)
             if name
         }
+        # v0.5.0: secret stores, collected up-front for STORE_NOT_FOUND
+        store_defs = [
+            s for s in program.statements if isinstance(s, n.SecretStoreDef)
+        ]
+        self._secret_stores = {s.name for s in store_defs}
 
         for imp in program.imports:
             self._check_import(imp)
@@ -487,13 +494,86 @@ class SemanticValidator:
     def _visit_NetworkDef(self, node: n.NetworkDef) -> None:
         self._register_definition(node, SymbolKind.NETWORK)
 
+    _VALID_STORE_PROVIDERS = ("vault", "aws", "gcp", "kubernetes")
+
+    def _visit_SecretStoreDef(self, node: n.SecretStoreDef) -> None:
+        self._register_definition(node, SymbolKind.SECRET_STORE)
+        if node.provider not in self._VALID_STORE_PROVIDERS:
+            self._err(
+                f"Secret store '{node.name}' has invalid provider "
+                f"'{node.provider or '(empty)'}'",
+                node,
+                "INVALID_STORE_PROVIDER",
+                hint="Supported providers: "
+                + ", ".join(self._VALID_STORE_PROVIDERS),
+            )
+
     def _visit_SecretDef(self, node: n.SecretDef) -> None:
         self._register_definition(node, SymbolKind.SECRET)
+        if node.store is not None and node.store not in self._secret_stores:
+            self._err(
+                f"Secret '{node.name}' references secret store "
+                f"'{node.store}', but no secret_store '{node.store}' "
+                "is declared in this file",
+                node,
+                "STORE_NOT_FOUND",
+                hint=f'Declare secret_store "{node.store}" or fix the '
+                "store reference",
+            )
         seen: Set[str] = set()
         for e in node.entries:
             if e.name in seen:
                 self._err(f"Duplicate secret key '{e.name}'", e, "E027")
             seen.add(e.name)
+
+    def _visit_CustomResourceSpec(self, node: n.CustomResourceSpec) -> None:
+        self._register_definition(node, SymbolKind.CUSTOM_RESOURCE)
+        # Not fatal: the backends fall back to sensible defaults, but a
+        # proper CRD manifest needs both coordinates.
+        if not node.api_version:
+            self._warn(
+                f"Custom resource '{node.name}' does not declare "
+                "'api_version'",
+                node,
+                "W010",
+                hint='Add api_version: "<group>/<version>" '
+                '(e.g. "stable.example.com/v1")',
+            )
+        if not node.kind:
+            self._warn(
+                f"Custom resource '{node.name}' does not declare 'kind'",
+                node,
+                "W011",
+                hint='Add kind: "<Kind>" (e.g. "MyKind")',
+            )
+        self._check_custom_resource_keys(node.properties, node)
+
+    def _check_custom_resource_keys(
+        self, props: Iterable[Tuple[str, n.Expression]], node: n.CustomResourceSpec
+    ) -> None:
+        """Flag duplicate keys at every nesting level of a custom resource.
+
+        Kubernetes applies last-one-wins semantics to duplicate YAML keys,
+        which silently drops user configuration — better to flag it here.
+        """
+        seen: Set[str] = set()
+        for key, value in props:
+            if key in seen:
+                self._err(
+                    f"Duplicate property '{key}' in custom resource "
+                    f"'{node.name}'",
+                    node,
+                    "E050",
+                )
+            seen.add(key)
+            if isinstance(value, n.Map):
+                nested = []
+                for e in value.entries:
+                    if isinstance(e.key, n.Identifier):
+                        nested.append((e.key.name, e.value))
+                    elif isinstance(e.key, n.Literal):
+                        nested.append((str(e.key.value), e.value))
+                self._check_custom_resource_keys(nested, node)
 
     def _visit_ConfigDef(self, node: n.ConfigDef) -> None:
         self._register_definition(node, SymbolKind.CONFIG)

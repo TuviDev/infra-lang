@@ -5,6 +5,7 @@
 pip install infra-lang
 # with the language server (recommended for VS Code):
 pip install 'infra-lang[lsp]'
+# note: the server runs on pygls 1.3 or 2.x (since 0.5.0)
 ```
 
 Verify: `infra --version`
@@ -66,6 +67,53 @@ renders the ordering natively — Compose `depends_on`, Kubernetes/Helm
 `initContainers` that wait on `<dep>:<port>`, and Terraform
 `depends_on = [...]` references on generated `kubernetes_deployment`
 resources. `infra graph app.infra` draws one edge per dependency.
+
+### Store secrets in an external secret manager (since 0.5.0)
+
+Declare the store once, bind any number of secrets to it with `store:`:
+
+```infra
+secret_store "vault_store" {
+    provider: "vault"
+    address: "https://vault.internal:8200"
+    path: "secret/data/app"
+}
+
+secret api_keys {
+    store: "vault_store"
+    token: from env "API_TOKEN"
+}
+```
+
+Supported providers are `vault`, `aws`, `gcp` and `kubernetes`. A dangling
+`store:` reference fails validation with `STORE_NOT_FOUND`. The Kubernetes
+backend compiles stores to `SecretStore` manifests and bound secrets to
+`ExternalSecret` CRDs (External Secrets Operator); Compose marks them
+`external: true`; Terraform generates the matching cloud secret-manager
+resources. Legacy inline secrets keep working unchanged.
+
+### Declare custom Kubernetes resources (since 0.5.0)
+
+Any CRD can be declared inline with the generic `resource` block:
+
+```infra
+resource "custom_crd" "my_resource" {
+    api_version: "stable.example.com/v1"
+    kind: "MyKind"
+    spec {
+        replicas: 3
+        template { labels { app: "web" } }
+    }
+}
+```
+
+Property values accept both `key: expression` and the bare-map form
+`key { ... }` (nestable), and keys tolerate every DSL keyword. Missing
+`api_version`/`kind` produce advisory warnings (`W010`/`W011`), duplicate
+properties are hard errors (`E050`). The Kubernetes backend renders the
+manifest verbatim, the Helm backend ships it under the chart's `crds/`
+directory, and the Compose/Terraform backends emit an explicit skip
+notice in their compilation warnings.
 
 ## Validate
 ```bash

@@ -79,6 +79,20 @@ class TerraformBackend(Backend):
         deps_active = any(
             isinstance(s, n.ServiceDef) and s.depends_on for s in program.statements
         )
+        # v0.5.0: secret stores pull in extra providers
+        vault_store = next(
+            (
+                s
+                for s in program.statements
+                if isinstance(s, n.SecretStoreDef) and s.provider == "vault"
+            ),
+            None,
+        )
+        k8s_secret_store = any(
+            isinstance(s, n.SecretStoreDef) and s.provider == "kubernetes"
+            for s in program.statements
+        )
+        needs_kubernetes = deps_active or k8s_secret_store
 
         for stmt in program.statements:
             if isinstance(stmt, n.ClusterDef):
@@ -96,23 +110,42 @@ class TerraformBackend(Backend):
                 if self.provider == "aws":
                     resources.extend(self._network(stmt))
             elif isinstance(stmt, n.SecretDef):
-                resources.extend(self._secret(stmt))
+                resources.extend(self._secret(stmt, program))
+            elif isinstance(stmt, n.CustomResourceSpec):
+                # v0.5.0 plugin system: CRDs are Kubernetes manifests; there
+                # is no generic Terraform representation, so we emit a clear
+                # notice instead of silently dropping the declaration.
+                result.warnings.append(
+                    f"Custom resource '{stmt.name}' ({stmt.kind_name}) is only "
+                    "supported by the kubernetes backend and was skipped."
+                )
             elif isinstance(stmt, n.QueueDef):
                 resources.extend(self._queue(stmt))
 
         hdr = generated_header("terraform")
         main = hdr + "\n".join(resources) + "\n"
         result.files["main.tf"] = main
-        if deps_active:
+        if needs_kubernetes:
             provider_conf += 'provider "kubernetes" {}\n'
+        if vault_store is not None:
+            address = vault_store.address or "http://127.0.0.1:8200"
+            provider_conf += (
+                'provider "vault" {\n'
+                f'  address = "{address}"\n'
+                "}\n"
+            )
         result.files["providers.tf"] = hdr + provider_conf
         result.files["variables.tf"] = hdr + "\n".join(variables) + "\n"
         result.files["outputs.tf"] = hdr + "\n".join(outputs) + "\n"
         required = self._required_providers()
-        if deps_active:
+        if needs_kubernetes:
             required += (
                 '    kubernetes = { source = "hashicorp/kubernetes",'
                 ' version = "~> 2.0" }\n'
+            )
+        if vault_store is not None:
+            required += (
+                '    vault = { source = "hashicorp/vault", version = "~> 4.0" }\n'
             )
         result.files["versions.tf"] = (
             hdr
@@ -493,7 +526,17 @@ class TerraformBackend(Backend):
         )
         return out
 
-    def _secret(self, node: n.SecretDef) -> List[str]:
+    def _secret(
+        self, node: n.SecretDef, program: Optional[n.Program] = None
+    ) -> List[str]:
+        if node.store is not None:
+            store_defs = [
+                s
+                for s in (program.statements if program else ())
+                if isinstance(s, n.SecretStoreDef)
+            ]
+            store = next((s for s in store_defs if s.name == node.store), None)
+            return self._store_backed_secret(node, store)
         out = [
             f'resource "aws_secretsmanager_secret" "{node.name}" {{\n  name = "{node.name}"\n}}\n',  # noqa: E501
             f'resource "aws_secretsmanager_secret_version" "{node.name}" {{\n'
@@ -507,6 +550,60 @@ class TerraformBackend(Backend):
                 f'variable "{node.name}_{e.name}" {{ sensitive = true }}'
             )
         return out
+
+    def _store_backed_secret(
+        self, node: n.SecretDef, store: Optional[n.SecretStoreDef]
+    ) -> List[str]:
+        """Cloud/vault secret-manager resources for a store-backed secret
+        (v0.5.0). Values are passed as sensitive variables; the remote key
+        is the store ``path`` when set, else the secret name."""
+        provider = store.provider if store else "aws"
+        key = (store.path if store and store.path else None) or node.name
+        entries_json = ", ".join(
+            f'"{e.name}" = var.{node.name}_{e.name}' for e in node.entries
+        )
+        for e in node.entries:
+            self._variables.append(
+                f'variable "{node.name}_{e.name}" {{ sensitive = true }}'
+            )
+        if provider == "gcp":
+            return [
+                f'resource "google_secret_manager_secret" "{node.name}" {{\n'
+                f'  secret_id = "{key}"\n'
+                "  replication {\n    auto {}\n  }\n}\n",
+                f'resource "google_secret_manager_secret_version" "{node.name}" {{\n'
+                f"  secret = google_secret_manager_secret.{node.name}.id\n"
+                f"  secret_data = jsonencode({{{entries_json}}})\n"
+                "}\n",
+            ]
+        if provider == "vault":
+            return [
+                f'resource "vault_generic_secret" "{node.name}" {{\n'
+                f'  path = "{key}"\n'
+                f"  data_json = jsonencode({{{entries_json}}})\n"
+                "}\n",
+            ]
+        if provider == "kubernetes":
+            return [
+                f'resource "kubernetes_secret" "{node.name}" {{\n'
+                "  metadata {\n"
+                f'    name = "{node.name}"\n'
+                + (f'    namespace = "{store.namespace}"\n' if store and store.namespace else "")
+                + "  }\n"
+                "  data = {\n"
+                + "".join(
+                    f'    {e.name} = var.{node.name}_{e.name}\n' for e in node.entries
+                )
+                + "  }\n}\n",
+            ]
+        # aws (and fallback for undeclared stores)
+        return [
+            f'resource "aws_secretsmanager_secret" "{node.name}" {{\n  name = "{key}"\n}}\n',  # noqa: E501
+            f'resource "aws_secretsmanager_secret_version" "{node.name}" {{\n'
+            f"  secret_id = aws_secretsmanager_secret.{node.name}.id\n"
+            f"  secret_string = jsonencode({{{entries_json}}})\n"
+            "}\n",
+        ]
 
     def _queue(self, node: n.QueueDef) -> List[str]:
         if node.type == "rabbitmq":

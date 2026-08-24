@@ -826,7 +826,85 @@ class SecretDef(ASTNode):
 
     name: str
     entries: Tuple[SecretEntry, ...] = ()
+    #: Reference to a ``secret_store`` backing this secret (v0.5.0); ``None``
+    #: keeps the legacy file/env behavior.
+    store: Optional[str] = None
     decorators: Tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True)
+class SecretStoreDef(ASTNode):
+    """A top-level ``secret_store`` declaration (v0.5.0).
+
+    Example::
+
+        secret_store "vault_store" {
+            provider: "vault"
+            address: "https://vault.internal:8200"
+            path: "secret/data/app"
+        }
+    """
+
+    name: str
+    provider: str = ""
+    address: Optional[str] = None
+    path: Optional[str] = None
+    region: Optional[str] = None
+    namespace: Optional[str] = None
+    project: Optional[str] = None
+    #: Additional unrecognized properties, preserved verbatim.
+    extra: Tuple[Tuple[str, Expression], ...] = ()
+    decorators: Tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True)
+class CustomResourceSpec(ASTNode):
+    """A generic custom resource / CRD declaration (v0.5.0 plugin system).
+
+    Example::
+
+        resource "custom_crd" "my_resource" {
+            api_version: "stable.example.com/v1"
+            kind: "MyKind"
+            spec {
+                replicas: 3
+            }
+        }
+    """
+
+    #: First quoted string — the resource "type" label (e.g. ``custom_crd``).
+    kind_name: str
+    #: Second quoted string — the instance name (e.g. ``my_resource``).
+    name: str
+    #: All declared properties, in order, as ``(key, expression)`` pairs.
+    properties: Tuple[Tuple[str, Expression], ...] = ()
+    decorators: Tuple[Decorator, ...] = ()
+
+    @property
+    def api_version(self) -> Optional[str]:
+        """Literal value of the ``api_version`` property, if declared."""
+        lit = self._literal_property("api_version")
+        return str(lit) if lit is not None else None
+
+    @property
+    def kind(self) -> Optional[str]:
+        """Literal value of the ``kind`` property, if declared."""
+        lit = self._literal_property("kind")
+        return str(lit) if lit is not None else None
+
+    @property
+    def spec(self) -> Optional[Expression]:
+        """The ``spec`` property expression (usually a :class:`Map`)."""
+        for key, value in self.properties:
+            if key == "spec":
+                return value
+        return None
+
+    def _literal_property(self, key: str) -> Optional[object]:
+        for k, value in self.properties:
+            if k == key and isinstance(value, Literal):
+                return value.value
+        return None
 
 
 @dataclass(frozen=True)
@@ -1107,6 +1185,8 @@ Definition = Union[
     StorageDef,
     NetworkDef,
     SecretDef,
+    SecretStoreDef,
+    CustomResourceSpec,
     ConfigDef,
     PipelineDef,
     EnvironmentDef,

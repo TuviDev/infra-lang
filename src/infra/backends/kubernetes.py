@@ -123,8 +123,23 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         elif isinstance(stmt, n.NetworkDef):
             for item in self._compile_network(stmt, ctx):
                 out.append((stmt.name, item))
+        elif isinstance(stmt, n.SecretStoreDef):
+            out.append((stmt.name, self._compile_secret_store(stmt)))
+        elif isinstance(stmt, n.CustomResourceSpec):
+            out.append((stmt.name, self._compile_custom_resource(stmt)))
         elif isinstance(stmt, n.SecretDef):
-            out.append((stmt.name, self._compile_secret(stmt)))
+            if stmt.store:
+                store_defs = [
+                    s
+                    for s in ctx.program.statements
+                    if isinstance(s, n.SecretStoreDef)
+                ]
+                store = next(
+                    (s for s in store_defs if s.name == stmt.store), None
+                )
+                out.append((stmt.name, self._compile_external_secret(stmt, store)))
+            else:
+                out.append((stmt.name, self._compile_secret(stmt)))
         elif isinstance(stmt, n.ConfigDef):
             out.append((stmt.name, self._compile_config(stmt)))
         elif isinstance(stmt, n.EnvironmentDef):
@@ -1077,6 +1092,120 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
             "data": data,
             "type": "Opaque",
         }
+
+    def _compile_secret_store(self, node: n.SecretStoreDef) -> Dict[str, Any]:
+        """ExternalSecret-Operator ``SecretStore`` for a ``secret_store`` (v0.5.0)."""
+        provider_block: Dict[str, Any] = {}
+        if node.provider == "vault":
+            vault: Dict[str, Any] = {"server": node.address or "http://vault:8200"}
+            if node.path:
+                vault["path"] = node.path
+            provider_block["vault"] = vault
+        elif node.provider == "aws":
+            aws: Dict[str, Any] = {"service": "SecretsManager"}
+            if node.region:
+                aws["region"] = node.region
+            provider_block["aws"] = aws
+        elif node.provider == "gcp":
+            provider_block["gcpsm"] = {"projectID": node.project or "PROJECT_ID"}
+        elif node.provider == "kubernetes":
+            kube: Dict[str, Any] = {
+                "server": node.address or "https://kubernetes.default"
+            }
+            if node.namespace:
+                kube["remoteNamespace"] = node.namespace
+            provider_block["kubernetes"] = kube
+        else:
+            # validator reports INVALID_STORE_PROVIDER; stay permissive here
+            provider_block[node.provider or "generic"] = {}
+        return {
+            "apiVersion": "external-secrets.io/v1beta1",
+            "kind": "SecretStore",
+            "metadata": {"name": node.name, "labels": self._labels(node.name)},
+            "spec": {"provider": provider_block},
+        }
+
+    def _compile_external_secret(
+        self, node: n.SecretDef, store: Optional[n.SecretStoreDef]
+    ) -> Dict[str, Any]:
+        """``ExternalSecret`` bound to a ``SecretStore`` (v0.5.0).
+
+        Mapping: ``remoteRef.key`` is the store ``path`` when set, else the
+        secret's own name; ``property`` selects the JSON key (vault KV-v2 /
+        AWS/GCP JSON payloads alike).
+        """
+        key = (store.path if store and store.path else None) or node.name
+        data = [
+            {
+                "secretKey": e.name,
+                "remoteRef": {"key": key, "property": e.key or e.name},
+            }
+            for e in node.entries
+        ]
+        return {
+            "apiVersion": "external-secrets.io/v1beta1",
+            "kind": "ExternalSecret",
+            "metadata": {"name": node.name, "labels": self._labels(node.name)},
+            "spec": {
+                "secretStoreRef": {"name": node.store, "kind": "SecretStore"},
+                "target": {"name": node.name},
+                "data": data,
+            },
+        }
+
+    def _compile_custom_resource(self, node: n.CustomResourceSpec) -> Dict[str, Any]:
+        """Render a generic custom resource (CRD) manifest directly (v0.5.0).
+
+        ``api_version``/``kind`` map onto the manifest's ``apiVersion``/
+        ``kind``; every other property (``spec`` included) is passed through
+        verbatim. When ``api_version`` is missing we default to ``v1``; when
+        ``kind`` is missing we reuse the declaration's type label so the
+        manifest stays loadable — the validator nudges the user with W010 /
+        W011 in both cases.
+        """
+        manifest: Dict[str, Any] = {
+            "apiVersion": node.api_version or "v1",
+            "kind": node.kind or node.kind_name,
+            "metadata": {"name": node.name, "labels": self._labels(node.name)},
+        }
+        for key, value in node.properties:
+            if key in ("api_version", "kind"):
+                continue
+            rendered = self._custom_value(value)
+            if key == "metadata" and isinstance(rendered, dict):
+                merged = dict(manifest["metadata"])
+                merged.update(rendered)
+                rendered = merged
+            manifest[key] = rendered
+        return manifest
+
+    def _custom_value(self, value: n.Expression) -> Any:
+        """Literal-evaluate an expression into plain YAML-ready data."""
+        if isinstance(value, n.Literal):
+            return value.value
+        if isinstance(value, n.Identifier):
+            return value.name
+        if isinstance(value, n.Map):
+            out: Dict[str, Any] = {}
+            for entry in value.entries:
+                key = entry.key
+                if isinstance(key, n.Literal):
+                    k = str(key.value)
+                elif isinstance(key, n.Identifier):
+                    k = key.name
+                else:
+                    k = _lit(key)
+                out[k] = self._custom_value(entry.value)
+            # keep manifests valid when a value resolves to None (e.g. null)
+            return self._clean_none(out)
+        if isinstance(value, n.List):
+            return [self._custom_value(item) for item in value.items]
+        if isinstance(value, n.TemplateString):
+            return "".join(
+                p if isinstance(p, str) else str(self._custom_value(p))
+                for p in value.parts
+            )
+        return _lit(value)
 
     def _compile_config(self, node: n.ConfigDef) -> Dict[str, Any]:
         data = {}

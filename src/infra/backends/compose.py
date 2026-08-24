@@ -74,10 +74,23 @@ class DockerComposeBackend(Backend, BaseYAMLBackend):
                 if stmt.type == "minio":
                     services[stmt.name] = self._minio(stmt, env_vars)
             elif isinstance(stmt, n.SecretDef):
-                for e in stmt.entries:
-                    if e.value is not None:
-                        env_vars[stmt.name.upper() + "_" + e.name.upper()] = e.value
-                secrets[stmt.name] = {"file": f"./{stmt.name}.txt"}
+                if stmt.store:
+                    # v0.5.0: values live in an external secret store — the
+                    # compose secret only references it (no local file mount,
+                    # no literal values in .env files).
+                    secrets[stmt.name] = {"external": True}
+                else:
+                    for e in stmt.entries:
+                        if e.value is not None:
+                            env_vars[stmt.name.upper() + "_" + e.name.upper()] = e.value
+                    secrets[stmt.name] = {"file": f"./{stmt.name}.txt"}
+            elif isinstance(stmt, n.CustomResourceSpec):
+                # v0.5.0 plugin system: CRDs have no Compose equivalent —
+                # surface a clear notice instead of silently dropping them.
+                result.warnings.append(
+                    f"Custom resource '{stmt.name}' ({stmt.kind_name}) is only "
+                    "supported by the kubernetes backend and was skipped."
+                )
             elif isinstance(stmt, n.ConfigDef):
                 for e in stmt.entries:
                     if e.value is not None:

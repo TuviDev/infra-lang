@@ -173,7 +173,7 @@ class TestHandlers:
             DidChangeTextDocumentParams,
             Position,
             Range,
-            TextDocumentContentChangeEvent_Type1,
+            TextDocumentContentChangePartial,
             VersionedTextDocumentIdentifier,
         )
 
@@ -190,7 +190,7 @@ class TestHandlers:
                 uri="file:///tmp/t.infra", version=2
             ),
             content_changes=[
-                TextDocumentContentChangeEvent_Type1(
+                TextDocumentContentChangePartial(
                     range=Range(
                         start=Position(line=0, character=0),
                         end=Position(line=0, character=1),

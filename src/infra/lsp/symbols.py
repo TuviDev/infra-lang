@@ -23,11 +23,14 @@ from lsprotocol.types import (
 
 BLOCK_KEYWORDS = (
     "service|database|cache|queue|storage|network|secret|config"
-    "|pipeline|environment|cluster"
+    "|pipeline|environment|cluster|secret_store|resource"
 )
 
+# v0.5.0: secret_store / resource use *quoted* names (`secret_store "v"`),
+# so the name capture tolerates an optional pair of double quotes. Group 1 is
+# the kind keyword, group 2 the (bare or quoted) name, exactly as before.
 _BLOCK_RE = re.compile(
-    r"\s*(" + BLOCK_KEYWORDS + r")\s+([A-Za-z_][A-Za-z0-9_-]*)"
+    r"\s*(" + BLOCK_KEYWORDS + r")\s+\"?([A-Za-z_][A-Za-z0-9_-]*)\"?"
 )
 
 
