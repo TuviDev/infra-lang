@@ -5,51 +5,50 @@ repo_url: https://github.com/TuviDev/infra-lang
 repo_name: TuviDev/infra-lang
 
 theme:
-name: material
-palette:
-- scheme: default
-primary: indigo
-accent: indigo
-toggle:
-icon: material/brightness-7
-name: Switch to dark mode
-- scheme: slate
-primary: indigo
-accent: indigo
-toggle:
-icon: material/brightness-4
-name: Switch to light mode
-features:
-- navigation.indexes
-- navigation.sections
-- navigation.top
-- content.code.copy
-- content.code.annotate
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - content.code.annotate
 
 markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.details
+  - tables
+  - toc:
+      permalink: true
 
-pymdownx.highlight:
-anchor_linenums: true
-pymdownx.inlinehilite
-pymdownx.snippets
-pymdownx.superfences
-admonition
-pymdownx.details
-tables
-toc:
-permalink: true
 nav:
-
-Home: index.md
-Quickstart: quickstart.md
-Language Spec: language_spec.md
-Architecture Decisions: language_decisions.md
-Editor Setup:
-VS Code: vscode_setup.md
-Neovim: editors/neovim.md
-Backends:
-Helm: backends/helm.md
-Quality & Testing: testing_quality.md
-Known Limitations: known_limitations.md
-Support Matrix: support_matrix.md
-Troubleshooting: troubleshooting.md
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Language Spec: language_spec.md
+  - Architecture Decisions: language_decisions.md
+  - Editor Setup:
+      - VS Code: vscode_setup.md
+      - Neovim: editors/neovim.md
+  - Backends:
+      - Helm: backends/helm.md
+  - Quality & Testing: testing_quality.md
+  - Known Limitations: known_limitations.md
+  - Support Matrix: support_matrix.md
+  - Troubleshooting: troubleshooting.md
