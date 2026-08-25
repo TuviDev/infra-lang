@@ -9,7 +9,7 @@ without external tools. See docs/support_matrix.md for the supported set.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Any, Dict, List
 
 import yaml
 
@@ -54,7 +54,7 @@ API_VERSIONS = {
 }
 
 # lazily loaded kubernetes-json-schema docs (optional, offline fallback)
-_SCHEMA_CACHE: Dict[str, dict] = {}
+_SCHEMA_CACHE: Dict[str, Dict[str, Any]] = {}
 
 
 @dataclass
@@ -66,9 +66,9 @@ class SchemaIssue:
     message: str
 
 
-def _get_nested(doc: dict, path: str):
+def _get_nested(doc: Dict[str, Any], path: str) -> Any:
     parts = path.split(".")
-    current: object = doc
+    current: Any = doc
     for part in parts:
         if not isinstance(current, dict):
             return None
@@ -76,7 +76,7 @@ def _get_nested(doc: dict, path: str):
     return current
 
 
-def validate_document(doc: dict) -> List[SchemaIssue]:
+def validate_document(doc: Dict[str, Any]) -> List[SchemaIssue]:
     issues: List[SchemaIssue] = []
     kind = doc.get("kind", "Unknown")
     name = _get_nested(doc, "metadata.name") or "unknown"

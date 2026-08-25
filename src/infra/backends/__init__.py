@@ -12,6 +12,7 @@ def get_backend(name: str, **opts: Any) -> Backend:
     """Instantiate the backend registered under *name* (case-insensitive)."""
     from infra.backends.compose import DockerComposeBackend
     from infra.backends.github import GitHubActionsBackend
+    from infra.backends.helm import HelmBackend
     from infra.backends.kubernetes import KubernetesBackend
     from infra.backends.terraform import TerraformBackend
 
@@ -25,6 +26,7 @@ def get_backend(name: str, **opts: Any) -> Backend:
         "github": GitHubActionsBackend,
         "actions": GitHubActionsBackend,
         "github_actions": GitHubActionsBackend,
+        "helm": HelmBackend,
     }
     cls = registry.get(name.lower())
     if cls is None:

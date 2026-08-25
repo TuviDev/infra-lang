@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 import typer
 
@@ -21,13 +21,56 @@ def _parse_var_options(var: List[str]) -> Dict[str, str]:
     return out
 
 
+def _apply_environment(program: Any, env_name: str) -> Any:
+    """Apply an environment overlay, raising ``typer.Exit(1)`` on unknown name."""
+    from rich.console import Console
+
+    from infra.analyzer.environments import (
+        EnvironmentNotFoundError,
+        apply_environment_overlay,
+    )
+
+    if not env_name:
+        return program
+    try:
+        return apply_environment_overlay(program, env_name)
+    except EnvironmentNotFoundError as exc:
+        Console().print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1)
+
+
+def compile_program_to_files(
+    path: Path, target: str, environment: Optional[str] = None
+) -> Dict[str, str]:
+    """Parse + validate a single .infra file and return {filename: content}.
+
+    Shared by `infra compile` and `infra up`/`infra down` so the compile +
+    semantic-validation path is defined in exactly one place. Raises
+    ``typer.Exit(1)`` on invalid input.
+    """
+    from rich.console import Console
+
+    program = _parser().parse_file(path)
+    program = _apply_environment(program, environment or "")
+    vresult = SemanticValidator().validate(program)
+    if not vresult.is_valid:
+        console = Console()
+        for e in vresult.errors:
+            loc = e.location
+            pos = f"{loc.file}:{loc.line}:{loc.column}" if loc else "?"
+            console.print(f"[red]error[{e.code}] {pos}: {e.message}[/red]")
+        raise typer.Exit(code=1)
+    backend = get_backend(target)
+    return backend.compile(program).files
+
+
 def compile(
     files: List[Path] = typer.Argument(..., help=".infra file(s) to compile"),
     target: str = typer.Option(
         "kubernetes",
         "--target",
         "-t",
-        help="Backend: kubernetes, compose, terraform, github",
+        help="Backend: kubernetes, compose, terraform, github, helm",
     ),
     output: Path = typer.Option(
         Path("./infra-out"), "--output", "-o", help="Output directory"
@@ -37,7 +80,11 @@ def compile(
         None, "--namespace", "-n", help="Kubernetes namespace"
     ),
     environment: Optional[str] = typer.Option(
-        None, "--environment", help="Environment name"
+        None,
+        "--environment",
+        "-e",
+        "--env",
+        help="Environment overlay name (e.g. prod). See environment \"name\" blocks.",
     ),
     var: List[str] = typer.Option([], "--var", help="Variable: --var key=value"),
     dry_run: bool = typer.Option(
@@ -71,6 +118,7 @@ def compile(
     issues: List[str] = []
     for f in files:
         program = parser.parse_file(f)
+        program = _apply_environment(program, environment or "")
         vresult = SemanticValidator().validate(program)
         if not vresult.is_valid:
             for e in vresult.errors:
@@ -86,8 +134,8 @@ def compile(
 
             validator = KubernetesOutputValidator()
             for name, content in compiled.files.items():
-                for issue in validator.validate(content):
-                    issues.append(f"{f.name}/{name}: {issue}")
+                for vissue in validator.validate(content):
+                    issues.append(f"{f.name}/{name}: {vissue}")
             for sissue in validate_compiled_output(compiled.files):
                 if sissue.severity == "error":
                     issues.append(
@@ -103,7 +151,14 @@ def compile(
             out_dir.mkdir(parents=True, exist_ok=True)
             for name, content in compiled.files.items():
                 dest = out_dir / name
-                dest.write_text(content)
+                # Helm emits nested paths (e.g. <chart>/templates/...); ensure
+                # the parent directory exists before writing.
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                # Defensive: strip any UTF-8 BOM from the text before writing.
+                # Helm's Go YAML parser rejects a file that starts with a BOM
+                # (`yaml: invalid leading UTF-8 octet`). encoding="utf-8" writes
+                # UTF-8; this guards against a stray \ufeff in generated content.
+                dest.write_text(content.lstrip("\ufeff"), encoding="utf-8")
                 total += 1
     if issues:
         for issue in issues:
@@ -111,7 +166,7 @@ def compile(
         typer.echo(f"Validation failed with {len(issues)} issue(s)")
         raise typer.Exit(code=1)
     if not dry_run:
-        typer.echo(f"✅ Compiled {total} files to {output}/")
+        typer.echo(f"[OK] Compiled {total} files to {output}/")
 
 
 # --------------------------------------------------------------------------- #
@@ -119,7 +174,7 @@ def compile(
 # --------------------------------------------------------------------------- #
 
 
-def _collect_watched_files(source_path: Path, program) -> Set[Path]:
+def _collect_watched_files(source_path: Path, program: Any) -> Set[Path]:
     files: Set[Path] = {source_path.resolve()}
     try:
         from infra.parser import ast_nodes as n
@@ -143,7 +198,7 @@ def _compile_once_watch(
     split: bool,
     cli_vars: Dict[str, str],
     dry_run: bool,
-    console,
+    console: Any,
 ) -> tuple[bool, float, Set[Path]]:
     import time
 
@@ -169,7 +224,8 @@ def _compile_once_watch(
             for fname, content in compiled.files.items():
                 out = output_dir / fname
                 out.parent.mkdir(parents=True, exist_ok=True)
-                out.write_text(content)
+                # strip a stray UTF-8 BOM so Go YAML (helm) accepts the file
+                out.write_text(content.lstrip("\ufeff"), encoding="utf-8")
         elapsed = (time.perf_counter() - t0) * 1000
         return True, elapsed, watched
     except Exception as exc:
@@ -198,7 +254,7 @@ def run_watch(
     watched: Set[Path] = {source_path.resolve()}
 
     class Handler(FileSystemEventHandler):
-        def on_modified(self, event):
+        def on_modified(self, event: Any) -> None:
             if isinstance(event, FileModifiedEvent):
                 src = event.src_path
                 if isinstance(src, bytes):
@@ -218,7 +274,7 @@ def run_watch(
         source_path, target, output_dir, split, cli_vars, dry_run, console
     )
     ts = time.strftime("%H:%M:%S")
-    icon = "✅" if ok else "❌"
+    icon = "[OK]" if ok else "[FAIL]"
     console.print(
         f"[dim]{ts}[/dim] {icon} "
         f"{'Compiled' if ok else 'Error'} "
@@ -239,7 +295,7 @@ def run_watch(
                     source_path, target, output_dir, split, cli_vars, dry_run, console
                 )
                 ts = time.strftime("%H:%M:%S")
-                icon = "✅" if ok else "❌"
+                icon = "[OK]" if ok else "[FAIL]"
                 console.print(
                     f"[dim]{ts}[/dim] {icon} "
                     f"Recompiled [dim]({ms:.0f}ms)[/dim]"

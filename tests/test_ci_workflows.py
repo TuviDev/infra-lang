@@ -19,27 +19,27 @@ class TestCIWorkflows:
     def test_ci_yml_exists_and_parses(self):
         f = Path(".github/workflows/ci.yml")
         assert f.exists()
-        data = yaml.safe_load(f.read_text())
+        data = yaml.safe_load(f.read_text(encoding="utf-8"))
         assert data is not None
 
     def test_ci_yml_triggers_on_push_and_pr(self):
-        data = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
+        data = yaml.safe_load(Path(".github/workflows/ci.yml").read_text(encoding="utf-8"))
         triggers = _triggers(data)
         assert "push" in triggers
         assert "pull_request" in triggers
 
     def test_ci_yml_runs_pytest_with_coverage(self):
-        content = Path(".github/workflows/ci.yml").read_text()
+        content = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         assert "pytest" in content
         assert "cov" in content
 
     def test_ci_yml_runs_ruff_and_mypy(self):
-        content = Path(".github/workflows/ci.yml").read_text()
+        content = Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
         assert "ruff" in content
         assert "mypy" in content
 
     def test_ci_yml_matrix_has_multiple_python_versions(self):
-        data = yaml.safe_load(Path(".github/workflows/ci.yml").read_text())
+        data = yaml.safe_load(Path(".github/workflows/ci.yml").read_text(encoding="utf-8"))
         matrix = data["jobs"]["test"]["strategy"]["matrix"]
         assert len(matrix["python-version"]) >= 2
 
@@ -48,17 +48,17 @@ class TestPublishWorkflow:
     def test_publish_yml_exists_and_parses(self):
         f = Path(".github/workflows/publish.yml")
         assert f.exists()
-        data = yaml.safe_load(f.read_text())
+        data = yaml.safe_load(f.read_text(encoding="utf-8"))
         assert data is not None
 
     def test_publish_yml_triggers_on_version_tags(self):
-        data = yaml.safe_load(Path(".github/workflows/publish.yml").read_text())
+        data = yaml.safe_load(Path(".github/workflows/publish.yml").read_text(encoding="utf-8"))
         on = _triggers(data)
         push = on.get("push", {})
         tags = push.get("tags", [])
         assert any("v" in t for t in tags)
 
     def test_publish_yml_uses_twine_and_build(self):
-        content = Path(".github/workflows/publish.yml").read_text()
+        content = Path(".github/workflows/publish.yml").read_text(encoding="utf-8")
         assert "twine" in content
         assert "build" in content

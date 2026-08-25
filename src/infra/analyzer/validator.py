@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from difflib import get_close_matches
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple, cast
 
 from infra.analyzer import types as T
 from infra.analyzer.symbols import (
@@ -74,17 +74,38 @@ class SemanticValidator:
         self.result = ValidationResult()
         self.symbols = SymbolTable()
         self._defined_names: Set[str] = set()
+        # All top-level definition names in the program (services and
+        # resources), collected up-front so depends_on accepts forward
+        # references and non-service targets such as databases or caches.
+        self._program_defs: Set[str] = set()
+        #: Names of declared ``secret_store`` blocks (v0.5.0).
+        self._secret_stores: Set[str] = set()
 
     # ------------------------------------------------------------------ #
     # Public API
     # ------------------------------------------------------------------ #
 
     def validate(
-        self, program: n.Program, *, reliability: bool = True, security: bool = True
+        self,
+        program: n.Program,
+        *,
+        reliability: bool = True,
+        security: bool = True,
+        max_cost: Optional[float] = None,
     ) -> ValidationResult:
         self.result = ValidationResult()
         self.symbols = SymbolTable()
         self._defined_names = set()
+        self._program_defs = {
+            name
+            for name in (getattr(s, "name", "") for s in program.statements)
+            if name
+        }
+        # v0.5.0: secret stores, collected up-front for STORE_NOT_FOUND
+        store_defs = [
+            s for s in program.statements if isinstance(s, n.SecretStoreDef)
+        ]
+        self._secret_stores = {s.name for s in store_defs}
 
         for imp in program.imports:
             self._check_import(imp)
@@ -92,6 +113,7 @@ class SemanticValidator:
         for stmt in program.statements:
             self._visit(stmt)
 
+        self._check_dependency_cycles(program)
         self._check_unused()
 
         if reliability:
@@ -114,7 +136,65 @@ class SemanticValidator:
                     self.result.errors.append(finding)
                 else:
                     self.result.warnings.append(finding)
+        if max_cost is not None:
+            self._check_max_cost(program, max_cost)
         return self.result
+
+    def _check_dependency_cycles(self, program: n.Program) -> None:
+        """Report a service-dependency cycle (``A -> B -> A``) as an error.
+
+        Runs on the merged edge set (``depends`` + ``depends_on``) over
+        declared services only — undeclared targets are already reported by
+        DEPENDENCY_NOT_FOUND / W001 and are ignored here.
+        """
+        services = {
+            s.name: s for s in program.statements if isinstance(s, n.ServiceDef)
+        }
+        white, gray, black = 0, 1, 2
+        color: Dict[str, int] = {}
+        reported: set[tuple[str, ...]] = set()
+
+        def dfs(name: str, path: List[str]) -> None:
+            color[name] = gray
+            for dep in services[name].dependencies:
+                if dep not in services:
+                    continue
+                state = color.get(dep, white)
+                if state == gray:
+                    # found a cycle: rotate so it starts at the dep
+                    start = path.index(dep) if dep in path else 0
+                    cycle = tuple(path[start:] + [dep])
+                    if cycle not in reported:
+                        reported.add(cycle)
+                        svc = services[name]
+                        self._err(
+                            "Service dependency cycle detected: "
+                            + " -> ".join(cycle),
+                            svc,
+                            "DEPENDENCY_CYCLE",
+                            hint="Break the cycle by removing one of the "
+                            "depends_on entries",
+                        )
+                    continue
+                if state == white:
+                    dfs(dep, path + [dep])
+            color[name] = black
+
+        for name in services:
+            if color.get(name, white) == white:
+                dfs(name, [name])
+
+    def _check_max_cost(self, program: n.Program, max_cost: float) -> None:
+        """Append a COST_EXCEEDED error when the estimate breaches the budget."""
+        from infra.analyzer.cost import (
+            COST_EXCEEDED_CODE,
+            COST_EXCEEDED_HINT,
+            budget_exceeded_message,
+        )
+
+        message = budget_exceeded_message(program, max_cost)
+        if message is not None:
+            self._err(message, None, COST_EXCEEDED_CODE, hint=COST_EXCEEDED_HINT)
 
     # ------------------------------------------------------------------ #
     # Error/warning helpers
@@ -258,9 +338,9 @@ class SemanticValidator:
                 "E010",
             )
         # image may be a variable reference -> check it is defined
-        self._check_expression(node.image)
+        self._check_expression(cast(Any, node.image))
         if node.build is not None and node.build.context is not None:
-            self._check_expression(node.build.context)
+            self._check_expression(cast(Any, node.build.context))
         self._check_ports(node)
         if node.replicas is not None and node.replicas < 1:
             self._err(
@@ -279,6 +359,18 @@ class SemanticValidator:
                     f"Service '{node.name}' depends on undefined service '{dep}'",
                     node,
                     "W001",
+                )
+        # v0.4.5: depends_on is a hard contract — an undeclared target is an
+        # error (the legacy `depends` list keeps its W001 warning above for
+        # backward compatibility).
+        for dep in _string_list(node.depends_on):
+            if dep not in self._program_defs:
+                self._err(
+                    f"Service '{node.name}' depends on '{dep}' via depends_on, "
+                    f"but '{dep}' is not declared in this file",
+                    node,
+                    "DEPENDENCY_NOT_FOUND",
+                    hint=f"Declare service '{dep}' or fix spelling in depends_on",
                 )
         if node.network_policy:
             self._check_network_policy(node)
@@ -302,6 +394,8 @@ class SemanticValidator:
 
     def _check_network_policy(self, node: n.ServiceDef) -> None:
         np_ = node.network_policy
+        if np_ is None:
+            return
         known = self._defined_names
         for ref in list(np_.allow_from) + list(np_.allow_egress):
             if ref != "*" and ref not in known:
@@ -400,13 +494,111 @@ class SemanticValidator:
     def _visit_NetworkDef(self, node: n.NetworkDef) -> None:
         self._register_definition(node, SymbolKind.NETWORK)
 
+    def _visit_NetworkPolicyDef(self, node: n.NetworkPolicyDef) -> None:
+        self._register_definition(node, SymbolKind.NETWORK_POLICY)
+        # every workload named by the policy must be declared in this file
+        # (services and resources alike; forward references are fine)
+        refs = [node.target, *node.allow_ingress, *node.allow_egress]
+        for ref in refs:
+            if ref and ref not in self._program_defs:
+                self._err(
+                    f"Network policy '{node.name}' references '{ref}', "
+                    "which is not declared in this file",
+                    node,
+                    "POLICY_TARGET_NOT_FOUND",
+                    hint=f"Declare service '{ref}' or fix the "
+                    "network_policy reference",
+                )
+        if node.block_all_ingress and node.allow_ingress:
+            self._warn(
+                f"Network policy '{node.name}' sets 'block_all_ingress' "
+                "but also declares 'allow_ingress' rules; the allow rules "
+                "take precedence over the blanket block",
+                node,
+                "W012",
+                hint="Drop 'block_all_ingress' or empty 'allow_ingress'",
+            )
+
+    _VALID_STORE_PROVIDERS = ("vault", "aws", "gcp", "kubernetes")
+
+    def _visit_SecretStoreDef(self, node: n.SecretStoreDef) -> None:
+        self._register_definition(node, SymbolKind.SECRET_STORE)
+        if node.provider not in self._VALID_STORE_PROVIDERS:
+            self._err(
+                f"Secret store '{node.name}' has invalid provider "
+                f"'{node.provider or '(empty)'}'",
+                node,
+                "INVALID_STORE_PROVIDER",
+                hint="Supported providers: "
+                + ", ".join(self._VALID_STORE_PROVIDERS),
+            )
+
     def _visit_SecretDef(self, node: n.SecretDef) -> None:
         self._register_definition(node, SymbolKind.SECRET)
+        if node.store is not None and node.store not in self._secret_stores:
+            self._err(
+                f"Secret '{node.name}' references secret store "
+                f"'{node.store}', but no secret_store '{node.store}' "
+                "is declared in this file",
+                node,
+                "STORE_NOT_FOUND",
+                hint=f'Declare secret_store "{node.store}" or fix the '
+                "store reference",
+            )
         seen: Set[str] = set()
         for e in node.entries:
             if e.name in seen:
                 self._err(f"Duplicate secret key '{e.name}'", e, "E027")
             seen.add(e.name)
+
+    def _visit_CustomResourceSpec(self, node: n.CustomResourceSpec) -> None:
+        self._register_definition(node, SymbolKind.CUSTOM_RESOURCE)
+        # Not fatal: the backends fall back to sensible defaults, but a
+        # proper CRD manifest needs both coordinates.
+        if not node.api_version:
+            self._warn(
+                f"Custom resource '{node.name}' does not declare "
+                "'api_version'",
+                node,
+                "W010",
+                hint='Add api_version: "<group>/<version>" '
+                '(e.g. "stable.example.com/v1")',
+            )
+        if not node.kind:
+            self._warn(
+                f"Custom resource '{node.name}' does not declare 'kind'",
+                node,
+                "W011",
+                hint='Add kind: "<Kind>" (e.g. "MyKind")',
+            )
+        self._check_custom_resource_keys(node.properties, node)
+
+    def _check_custom_resource_keys(
+        self, props: Iterable[Tuple[str, n.Expression]], node: n.CustomResourceSpec
+    ) -> None:
+        """Flag duplicate keys at every nesting level of a custom resource.
+
+        Kubernetes applies last-one-wins semantics to duplicate YAML keys,
+        which silently drops user configuration — better to flag it here.
+        """
+        seen: Set[str] = set()
+        for key, value in props:
+            if key in seen:
+                self._err(
+                    f"Duplicate property '{key}' in custom resource "
+                    f"'{node.name}'",
+                    node,
+                    "E050",
+                )
+            seen.add(key)
+            if isinstance(value, n.Map):
+                nested = []
+                for e in value.entries:
+                    if isinstance(e.key, n.Identifier):
+                        nested.append((e.key.name, e.value))
+                    elif isinstance(e.key, n.Literal):
+                        nested.append((str(e.key.value), e.value))
+                self._check_custom_resource_keys(nested, node)
 
     def _visit_ConfigDef(self, node: n.ConfigDef) -> None:
         self._register_definition(node, SymbolKind.CONFIG)

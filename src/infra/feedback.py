@@ -121,6 +121,13 @@ def report_error(
         # Network send wrapped so failures are invisible to the user.
         import json
         import urllib.request
+        from urllib.parse import urlparse
+
+        # Safety: only allow http/https collector URLs. Rejecting file:/ or
+        # other custom schemes prevents an SSRF-ish misconfiguration from
+        # reading local files or hitting unexpected endpoints.
+        if urlparse(COLLECTOR_URL).scheme not in ("http", "https"):
+            return False
 
         req = urllib.request.Request(
             COLLECTOR_URL,

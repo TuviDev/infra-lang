@@ -187,24 +187,29 @@ def init(
     for rel, content in TEMPLATES[template].items():
         path = infra / rel
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(content)
+        path.write_text(content, encoding="utf-8")
 
     (infra / "environments" / "dev.infra").write_text(
-        f'environment dev {{ namespace: "{name}-dev" labels: {{ env: "dev" }} }}\n'
+        f'environment dev {{ namespace: "{name}-dev" labels: {{ env: "dev" }} }}\n',
+        encoding="utf-8",
     )
     (infra / "environments" / "prod.infra").write_text(
-        f'environment prod {{ namespace: "{name}-prod" labels: {{ env: "prod" }} }}\n'
+        f'environment prod {{ namespace: "{name}-prod" labels: {{ env: "prod" }} }}\n',
+        encoding="utf-8",
     )
 
     (root / ".infra-config.yaml").write_text(
-        f'version: "1"\nname: {name}\ndefault_target: {target}\noutput_dir: ./infra-out\nenvironments: [dev, staging, prod]\n'  # noqa: E501
+        f'version: "1"\nname: {name}\ndefault_target: {target}\noutput_dir: ./infra-out\nenvironments: [dev, staging, prod]\n',  # noqa: E501
+        encoding="utf-8",
     )
     (root / ".gitignore").write_text(
-        "infra-out/\n*.pyc\n__pycache__/\n.env\n.env.local\n"
+        "infra-out/\n*.pyc\n__pycache__/\n.env\n.env.local\n",
+        encoding="utf-8",
     )
     (root / "README.md").write_text(
         f"# {name}\n\nInfrastructure defined with Infra Language.\n\n## Usage\n\n"
-        "infra compile infra/main.infra\ninfra validate infra/\ninfra fmt infra/\n"
+        "infra compile infra/main.infra\ninfra validate infra/\ninfra fmt infra/\n",
+        encoding="utf-8",
     )
 
     if not no_git:
@@ -220,5 +225,5 @@ def init(
         except Exception:  # pragma: no cover
             pass
 
-    typer.echo(f"✅ Created project {name}/ (template: {template})")
+    typer.echo(f"[OK] Created project {name}/ (template: {template})")
     typer.echo(f"   Run: cd {name} && infra validate infra/")

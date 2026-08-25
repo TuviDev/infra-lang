@@ -1,0 +1,216 @@
+"""Tests for `infra up` and `infra down` commands."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from typer.testing import CliRunner
+
+from infra.cli.main import app
+
+runner = CliRunner()
+
+SRC = 'service api { image: "nginx:1.25" port 80 replicas: 2 }'
+
+
+def write(path: Path, content: str = SRC) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
+class TestUpDryRun:
+    def test_up_dry_run_kubernetes(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        result = runner.invoke(
+            app, ["up", str(src), "--dry-run", "-t", "kubernetes"]
+        )
+        assert result.exit_code == 0
+        assert "kubectl apply" in result.stdout
+        assert "Dry run" in result.stdout
+
+    def test_up_dry_run_compose(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        result = runner.invoke(
+            app, ["up", str(src), "--dry-run", "-t", "compose"]
+        )
+        assert result.exit_code == 0
+        assert "docker compose" in result.stdout
+        assert "up -d" in result.stdout
+
+    def test_up_dry_run_helm(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        result = runner.invoke(app, ["up", str(src), "--dry-run", "-t", "helm"])
+        assert result.exit_code == 0
+        assert "helm upgrade --install" in result.stdout
+
+    def test_up_dry_run_namespace(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        result = runner.invoke(
+            app, ["up", str(src), "--dry-run", "-t", "kubernetes", "-n", "prod"]
+        )
+        assert result.exit_code == 0
+        assert "-n" in result.stdout and "prod" in result.stdout
+
+
+class TestUpErrors:
+    def test_up_missing_file(self, tmp_path):
+        result = runner.invoke(app, ["up", str(tmp_path / "nope.infra"), "--dry-run"])
+        assert result.exit_code == 1
+        assert "not found" in result.stdout.lower()
+
+    def test_up_missing_tool_real_exec(self, tmp_path, monkeypatch):
+        # non-dry-run: missing kubectl should error and point at doctor
+        monkeypatch.setattr("infra.cli.up_cmd.shutil.which", lambda name: None)
+        src = write(tmp_path / "app.infra")
+        result = runner.invoke(app, ["up", str(src), "-t", "kubernetes"])
+        assert result.exit_code == 1
+        assert "not found" in result.stdout.lower()
+        assert "infra doctor" in result.stdout
+
+    def test_up_unsupported_target(self, tmp_path):
+        src = write(tmp_path / "app.infra")
+        result = runner.invoke(app, ["up", str(src), "--dry-run", "-t", "terraform"])
+        assert result.exit_code == 1
+        assert "unsupported" in result.stdout.lower()
+
+    def test_up_invalid_infra(self, tmp_path):
+        src = write(tmp_path / "bad.infra", 'service api { image: }')
+        result = runner.invoke(app, ["up", str(src), "--dry-run"])
+        assert result.exit_code == 1
+
+
+class TestDown:
+    def test_down_dry_run_compose(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        # down executes; mock the tool to avoid a real docker invocation
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+        monkeypatch.setattr("infra.cli.up_cmd._run", lambda cmd, cwd=None: type(
+            "R", (), {"returncode": 0, "stdout": "down", "stderr": ""}
+        )())
+        result = runner.invoke(app, ["down", str(src), "-t", "compose"])
+        assert result.exit_code == 0
+        # flexible: the printed command must contain the key tokens joined by
+        # spaces (no stray newline splitting `down -v`).
+        assert "docker" in result.stdout
+        assert "compose" in result.stdout
+        assert "down" in result.stdout
+        assert "-v" in result.stdout
+
+    def test_down_missing_file(self, tmp_path):
+        result = runner.invoke(app, ["down", str(tmp_path / "nope.infra")])
+        assert result.exit_code == 1
+        assert "not found" in result.stdout.lower()
+
+    def test_down_helm(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+        monkeypatch.setattr("infra.cli.up_cmd._run", lambda cmd, cwd=None: type(
+            "R", (), {"returncode": 0, "stdout": "uninstalled", "stderr": ""}
+        )())
+        result = runner.invoke(app, ["down", str(src), "-t", "helm"])
+        assert result.exit_code == 0
+        assert "helm uninstall" in result.stdout
+
+
+class TestUpExecutionBranches:
+    def test_up_command_fails_nonzero(self, tmp_path, monkeypatch):
+        # real execution path: tool present, subprocess returns error
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+
+        def fake_run(cmd, cwd=None):
+            return type("R", (), {"returncode": 1, "stdout": "", "stderr": "boom"})()
+        monkeypatch.setattr("infra.cli.up_cmd._run", fake_run)
+        result = runner.invoke(app, ["up", str(src), "-t", "compose"])
+        assert result.exit_code == 1
+        assert "Command failed" in result.stdout
+
+    def test_up_command_success_output(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+
+        def fake_run(cmd, cwd=None):
+            return type("R", (), {"returncode": 0, "stdout": "created", "stderr": ""})()
+        monkeypatch.setattr("infra.cli.up_cmd._run", fake_run)
+        result = runner.invoke(app, ["up", str(src), "-t", "compose"])
+        assert result.exit_code == 0
+        assert "Applied" in result.stdout
+
+    def test_up_parse_error(self, tmp_path):
+        # invalid .infra aborts compilation
+        src = write(tmp_path / "bad.infra", "service api { image: }")
+        result = runner.invoke(app, ["up", str(src), "-t", "compose"])
+        assert result.exit_code == 1
+
+    def test_up_kubectl_namespace(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+        captured = {}
+        def fake_run(cmd, cwd=None):
+            captured["cmd"] = cmd
+            return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+        monkeypatch.setattr("infra.cli.up_cmd._run", fake_run)
+        result = runner.invoke(app, ["up", str(src), "-t", "kubernetes", "-n", "prod"])
+        assert result.exit_code == 0
+        assert "prod" in captured["cmd"]
+
+
+class TestDownExecutionBranches:
+    def test_down_kubernetes(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+        monkeypatch.setattr("infra.cli.up_cmd._run", lambda cmd, cwd=None: type(
+            "R", (), {"returncode": 0, "stdout": "", "stderr": ""}
+        )())
+        result = runner.invoke(app, ["down", str(src), "-t", "kubernetes"])
+        assert result.exit_code == 0
+        assert "kubectl delete" in result.stdout
+
+    def test_down_command_fails(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+        monkeypatch.setattr("infra.cli.up_cmd._run", lambda cmd, cwd=None: type(
+            "R", (), {"returncode": 2, "stdout": "", "stderr": "err"}
+        )())
+        result = runner.invoke(app, ["down", str(src), "-t", "compose"])
+        assert result.exit_code == 2
+        assert "Command failed" in result.stdout
+
+    def test_down_missing_tool(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: False)
+        result = runner.invoke(app, ["down", str(src), "-t", "kubernetes"])
+        assert result.exit_code == 1
+        assert "infra doctor" in result.stdout
+
+    def test_down_unsupported_target(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+        result = runner.invoke(app, ["down", str(src), "-t", "terraform"])
+        assert result.exit_code == 1
+        assert "Unsupported target" in result.stdout
+
+
+class TestUpDownTimeouts:
+    def test_up_timeout_handled(self, tmp_path, monkeypatch):
+        import subprocess
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+
+        def raiser(cmd, cwd=None):
+            raise subprocess.TimeoutExpired(cmd, timeout=1)
+        monkeypatch.setattr("infra.cli.up_cmd._run", raiser)
+        result = runner.invoke(app, ["up", str(src), "-t", "compose"])
+        assert result.exit_code == 1
+        assert "timed out" in result.stdout
+
+    def test_up_run_oserror(self, tmp_path, monkeypatch):
+        src = write(tmp_path / "app.infra")
+        monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
+
+        def raiser(cmd, cwd=None):
+            raise OSError("boom")
+        monkeypatch.setattr("infra.cli.up_cmd._run", raiser)
+        result = runner.invoke(app, ["up", str(src), "-t", "compose"])
+        assert result.exit_code == 1

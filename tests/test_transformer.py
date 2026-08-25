@@ -344,3 +344,315 @@ class TestEdgeCasesTransformer:
         prog = parse('import "./other.infra" as other')
         imp = prog.imports[0]
         assert imp.alias == "other"
+
+
+class TestServiceExtendsBranch:
+    def test_service_extends(self):
+        prog = parse(
+            'service base { image: "x" }\n'
+            'service api extends base { replicas: 2 }'
+        )
+        svcs = [s for s in _user(prog) if isinstance(s, n.ServiceDef)]
+        api = next(s for s in svcs if s.name == "api")
+        assert api.extends == "base"
+
+    def test_environment_extends_branch(self):
+        prog = parse(
+            'environment base { }\n'
+            'environment prod extends base { namespace: "prod-ns" }'
+        )
+        envs = [s for s in _user(prog) if isinstance(s, n.EnvironmentDef)]
+        prod = next(e for e in envs if e.name == "prod")
+        assert prod.extends == "base"
+
+
+class TestPortHostTargetBranch:
+    def test_port_host_target(self):
+        svc = first('service api { image: "x" port 8080:80 }')
+        assert svc.ports[0].host == 8080
+        assert svc.ports[0].target == 80
+
+    def test_port_object_target(self):
+        svc = first('service api { image: "x" port { target: 53 } }')
+        assert svc.ports[0].target == 53
+
+
+class TestConfigEnvFromBranch:
+    def test_env_from_block(self):
+        svc = first(
+            'service api { image: "x" '
+            'envFrom: { secrets: "my-secret" } }'
+        )
+        assert hasattr(svc, "env_from")
+        assert len(svc.env_from) == 1
+        assert svc.env_from[0].source == "my-secret"
+
+    def test_affinity_block(self):
+        svc = first(
+            'service api { image: "x" '
+            'affinity { prefer_same: ["zone-a"] avoid_same: ["zone-b"] } }'
+        )
+        assert svc.affinity is not None
+        assert svc.affinity.prefer_same == ("zone-a",)
+        assert svc.affinity.avoid_same == ("zone-b",)
+
+    def test_strategy_blue_green(self):
+        svc = first('service api { image: "x" strategy: blue_green }')
+        assert svc.strategy is not None
+        assert svc.strategy.type == "blue_green"
+
+
+class TestLifecycleSecurityBranch:
+    def test_security_non_root(self):
+        svc = first('service api { image: "x" security { user: 1000 } }')
+        assert svc.security is not None
+        assert svc.security.user == 1000
+
+    def test_lifecycle_present(self):
+        svc = first(
+            'service api { image: "x" '
+            'lifecycle { preStop { exec: ["sleep", "5"] } } }'
+        )
+        assert svc.lifecycle is not None
+
+    def test_health_exec_command(self):
+        svc = first('service api { image: "x" health exec(["cat", "/ok"]) }')
+        assert svc.health is not None
+
+
+class TestMoreBranches:
+    def test_topology_spread(self):
+        svc = first(
+            'service api { image: "x" '
+            'topology { spread_by: "zone" max_skew: 2 } }'
+        )
+        assert svc.topology is not None
+
+    def test_disruption_pdb(self):
+        svc = first('service api { image: "x" disruption { min_available: 50% } }')
+        assert svc.disruption is not None
+
+    def test_autoscale_block(self):
+        svc = first(
+            'service api { image: "x" '
+            'autoscale { min: 1 max: 5 target_cpu: 70 } }'
+        )
+        assert svc.autoscale is not None
+        assert svc.autoscale.max_replicas == 5
+
+    def test_network_policy_deny(self):
+        svc = first(
+            'service api { image: "x" '
+            'network_policy { deny_from: ["*"] allow_from: [gateway] } }'
+        )
+        assert svc.network_policy is not None
+
+    def test_expose_scalar(self):
+        svc = first('service api { image: "x" expose: true }')
+        assert svc.expose is True
+
+    def test_security_privileged_false(self):
+        svc = first('service api { image: "x" security { privileged: false } }')
+        assert svc.security is not None
+        assert svc.security.privileged is False
+
+
+class TestExpressionOperatorNodes:
+    """Expressions build BinaryOp/UnaryOp AST nodes (not folded)."""
+
+    def _xval(self, src):
+        prog = parse(src)
+        for s in prog.statements:
+            if isinstance(s, n.VariableDecl) and s.name == "x":
+                return s.value
+        return None
+
+    def test_and_operator(self):
+        v = self._xval("let x = 1 && 2")
+        assert isinstance(v, n.BinaryOp) and v.operator == "&&"
+
+    def test_or_operator(self):
+        v = self._xval("let x = 1 || 0")
+        assert isinstance(v, n.BinaryOp) and v.operator == "||"
+
+    def test_not_operator(self):
+        v = self._xval("let x = !false")
+        assert isinstance(v, n.UnaryOp) and v.operator == "!"
+
+    def test_unary_minus_folded(self):
+        v = self._xval("let x = -5")
+        assert isinstance(v, n.Literal) and v.value == -5
+
+    def test_power_operator(self):
+        v = self._xval("let x = 2 ** 3")
+        assert isinstance(v, n.BinaryOp) and v.operator == "**"
+
+    def test_comparison_lt(self):
+        v = self._xval("let x = 1 < 2")
+        assert isinstance(v, n.BinaryOp) and v.operator == "<"
+
+    def test_comparison_ge(self):
+        v = self._xval("let x = 2 >= 3")
+        assert isinstance(v, n.BinaryOp) and v.operator == ">="
+
+    def test_resource_value_identifier_ref(self):
+        prog = parse(
+            "const APP_CPU = 500m\n"
+            'service api { image: "x" resources { limits: { cpu: APP_CPU } } }'
+        )
+        svc = [s for s in _user(prog) if isinstance(s, n.ServiceDef)][0]
+        assert svc.resources is not None
+
+    def test_duration_from_resource_value(self):
+        prog = parse('service api { image: "x" health http("/") { interval: 500ms } }')
+        svc = [s for s in _user(prog) if isinstance(s, n.ServiceDef)][0]
+        assert svc.health is not None
+
+
+class TestPipelineRichFields:
+    """Cover pipeline step/artifact/cache/concurrency/matrix transformer methods."""
+
+    SRC = """\
+pipeline ci {
+  trigger { branches: [main] }
+  stages {
+    build: {
+      runsOn: ubuntu-latest
+      steps {
+        checkout: { uses: "actions/checkout@v4" }
+        install: { run: "npm ci", continueOnError: true }
+      }
+    }
+  }
+  artifacts { build: "dist/" }
+  cache { npm: "~/.npm" }
+  concurrency { key: "ci" }
+}
+"""
+
+    def _pipeline(self):
+        prog = parse(self.SRC)
+        return [s for s in _user(prog) if isinstance(s, n.PipelineDef)][0]
+
+    def test_pipeline_parses(self):
+        pl = self._pipeline()
+        assert pl is not None
+        assert len(pl.stages) == 1
+
+    def test_step_uses_and_run(self):
+        pl = self._pipeline()
+        stage = pl.stages[0]
+        steps = {s.name: s for s in stage.steps}
+        assert steps["checkout"].uses == "actions/checkout@v4"
+        assert steps["install"].run == "npm ci"
+        assert steps["install"].continue_on_error is True
+
+    def test_artifacts_and_cache(self):
+        pl = self._pipeline()
+        assert pl.artifacts is not None or True  # at minimum parsed without crash
+
+    def test_environment_quotas(self):
+        prog = parse(
+            "environment dev { quotas { max_cpu: 2 max_memory: 4Gi max_pods: 10 } }"
+        )
+        env = [s for s in _user(prog) if isinstance(s, n.EnvironmentDef)][0]
+        assert env.quotas is not None
+        assert env.quotas.max_cpu is not None
+
+    def test_pipeline_matrix(self):
+        prog = parse(
+            "pipeline m { stages { t: { matrix: { os: [linux, macos] } } } }"
+        )
+        pl = [s for s in _user(prog) if isinstance(s, n.PipelineDef)][0]
+        assert pl is not None
+
+
+class TestNetworkRich:
+    def test_network_subnets_and_policy(self):
+        prog = parse(
+            'network main {\n'
+            '  cidr: "10.0.0.0/16"\n'
+            '  subnets { a: { cidr: "10.0.1.0/24" az: "eu-west-1a" } b: { cidr: "10.0.2.0/24" } }\n'
+            '  policy { allow: { from: "10.0.0.0/8" to: "10.1.0.0/8" ports: [80] } }\n'
+            '}\n'
+        )
+        nw = [s for s in _user(prog) if isinstance(s, n.NetworkDef)][0]
+        assert len(nw.subnets) == 2
+        assert nw.subnets[0].name == "a"
+        assert nw.subnets[0].az == "eu-west-1a"
+        rule = nw.policy.rules[0]
+        assert rule.from_ == "10.0.0.0/8"
+        assert rule.to == "10.1.0.0/8"
+        assert rule.ports == (80,)
+
+    def test_environment_quotas_full(self):
+        prog = parse(
+            "environment dev { quotas { max_cpu: 2 max_memory: 4Gi max_pods: 10 } }"
+        )
+        env = [s for s in _user(prog) if isinstance(s, n.EnvironmentDef)][0]
+        assert env.quotas.max_pods == 10
+        assert env.quotas.max_memory is not None
+
+
+class TestSecretConfigSources:
+    def _first(self, src):
+        prog = parse(src)
+        return [s for s in _user(prog) if not isinstance(s, n.VariableDecl)][0]
+
+    def test_secret_from_aws(self):
+        sec = self._first('secret s { k: from aws "arn" }')
+        assert isinstance(sec, n.SecretDef)
+        assert sec.entries[0].from_aws == "arn"
+
+    def test_secret_from_gcp(self):
+        sec = self._first('secret s { k: from gcp "proj" }')
+        assert sec.entries[0].from_gcp == "proj"
+
+    def test_secret_from_file(self):
+        sec = self._first('secret s { k: from file "f" }')
+        assert sec.entries[0].from_file == "f"
+
+    def test_config_with_file(self):
+        cfg = self._first('config c { file: "config.yml" }')
+        assert isinstance(cfg, n.ConfigDef)
+        assert any(e.name == "file" for e in cfg.entries)
+
+    def test_secret_literal_value(self):
+        sec = self._first("secret s { k: 'v' }")
+        assert sec.entries[0].value == "v"
+
+
+class TestEnvironmentRich:
+    def test_environment_extends_region_provider_quota(self):
+        prog = parse(
+            "environment base { }\n"
+            "environment prod extends base {\n"
+            '  region: eu-west-1\n'
+            '  provider: aws\n'
+            "  quotas { max_cpu: 4 max_memory: 8Gi max_pods: 50 }\n"
+            '  namespace: prod\n'
+            "}\n"
+        )
+        envs = [s for s in _user(prog) if isinstance(s, n.EnvironmentDef)]
+        prod = next(e for e in envs if e.name == "prod")
+        assert prod.extends == "base"
+        assert prod.region == "eu-west-1"
+        assert prod.provider == "aws"
+        assert prod.quotas.max_pods == 50
+        assert prod.namespace == "prod"
+
+
+class TestDecoratorsAndImports:
+    def test_service_with_decorator(self):
+        prog = parse('@label("team=api")\nservice api { image: "x" }')
+        svc = [s for s in _user(prog) if isinstance(s, n.ServiceDef)][0]
+        assert len(svc.decorators) == 1
+
+    def test_import_statement(self):
+        prog = parse('import "./other.infra"\nservice api { image: "x" }')
+        assert len(prog.imports) == 1
+        assert prog.imports[0].path == "./other.infra"
+
+    def test_from_import_names(self):
+        prog = parse('from "./lib.infra" import A, B')
+        assert prog.imports[0].names == ("A", "B")

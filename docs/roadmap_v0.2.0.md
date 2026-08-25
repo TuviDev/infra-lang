@@ -18,9 +18,15 @@
 - Better provider mapping
 - More explicit outputs
 
+## Priority 2b — drift detection (implemented MVP)
+- **`infra doctor --check-drift`** — recompiles a `.infra` file for a target,
+  compares against on-disk generated output (`--out-dir`, default `infra-out`),
+  and reports any modified/missing files as unified diffs. Exit code 0 when
+  clean, 1 on drift. This addresses post-launch feedback that users hand-edit
+  generated manifests, silently diverging from source.
+
 ## Priority 4 — based on community feedback
 - To be decided after the first users give feedback on
-  - drift detection
   - cost estimation
   - additional providers/backends
   - a plugin system

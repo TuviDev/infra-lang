@@ -10,16 +10,17 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional, cast
 
 from infra.parser import ast_nodes as n
+from infra.parser.location import SourceLocation
 
 
 @dataclass
 class ReliabilityFinding:
     code: str
     message: str
-    location: Optional[n.SourceLocation] = None
+    location: Optional[SourceLocation] = None
     hint: Optional[str] = None
 
 
@@ -336,12 +337,12 @@ class ReliabilityChecker:
         ]
 
 
-def _replicas_int(value) -> int:
+def _replicas_int(value: Any) -> int:
     if isinstance(value, int):
         return value
     if isinstance(value, n.Literal):
         try:
-            return int(value.value)
+            return int(cast(Any, value.value))
         except (TypeError, ValueError):
             return 1
     return 1

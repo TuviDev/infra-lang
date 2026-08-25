@@ -1,15 +1,35 @@
 {
   "name": "infra-lang",
   "displayName": "Infra Lang",
-  "description": "Syntax highlighting and language server for .infra files",
-  "version": "0.1.0",
+  "description": "Syntax highlighting, snippets, and language server for .infra files",
+  "version": "0.5.1",
   "publisher": "infra-lang",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/TuviDev/infra-lang.git"
+  },
+  "homepage": "https://TuviDev.github.io/infra-lang/",
+  "bugs": {
+    "url": "https://github.com/TuviDev/infra-lang/issues"
+  },
+  "keywords": [
+    "infra",
+    "infrastructure",
+    "kubernetes",
+    "docker-compose",
+    "devops",
+    "lsp"
+  ],
+  "icon": "icon.png",
   "main": "./out/extension.js",
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.125.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Snippets",
+    "Linters"
   ],
   "activationEvents": [
     "onLanguage:infra"
@@ -45,7 +65,10 @@
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "publish:marketplace": "vsce publish",
+    "publish:openvsx": "ovsx publish"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.0"
@@ -53,6 +76,8 @@
   "devDependencies": {
     "@types/node": "^26.2.0",
     "@types/vscode": "^1.125.0",
+    "@vscode/vsce": "^2.30.0",
+    "ovsx": "^1.1.0",
     "typescript": "^5.0.0"
   }
 }

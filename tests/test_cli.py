@@ -126,6 +126,27 @@ class TestValidateCommand:
                                catch_exceptions=False)
         assert "::error" in result.output
 
+    def test_validate_json_flag_valid(self, simple_service):
+        result = runner.invoke(
+            app, ["validate", str(simple_service), "--json"], catch_exceptions=False
+        )
+        data = json.loads(result.output)
+        assert data["valid"] is True
+        assert data["file"]
+        assert data["errors"] == []
+        assert "severity" in str(data)
+
+    def test_validate_json_flag_invalid(self, invalid_service):
+        result = runner.invoke(
+            app, ["validate", str(invalid_service), "--json"], catch_exceptions=False
+        )
+        data = json.loads(result.output)
+        assert data["valid"] is False
+        assert len(data["errors"]) > 0
+        first = data["errors"][0]
+        for key in ("code", "message", "line", "column", "severity", "hint"):
+            assert key in first
+
     def test_validate_strict_warnings_as_errors(self, tmp_path):
         src = write_infra(tmp_path / "w.infra", 'let unused_var = "hello"\nservice api { image: "nginx:1.0" }')
         result = runner.invoke(app, ["validate", str(src), "--strict"], catch_exceptions=False)
@@ -143,7 +164,7 @@ class TestFmtCommand:
         src = write_infra(tmp_path / "fmt.infra", 'service api{image:"nginx:1.0"}')
         result = runner.invoke(app, ["fmt", str(src)])
         assert result.exit_code == 0
-        assert "image:" in src.read_text()
+        assert "image:" in src.read_text(encoding="utf-8")
 
     def test_fmt_check_unformatted_exits_1(self, tmp_path):
         src = write_infra(tmp_path / "fmt.infra", 'service api{image:"nginx:1.0"}')
@@ -153,9 +174,9 @@ class TestFmtCommand:
     def test_fmt_idempotent(self, tmp_path):
         src = write_infra(tmp_path / "fmt.infra", 'service api { image: "nginx:1.0" }')
         runner.invoke(app, ["fmt", str(src)])
-        first = src.read_text()
+        first = src.read_text(encoding="utf-8")
         runner.invoke(app, ["fmt", str(src)])
-        assert src.read_text() == first
+        assert src.read_text(encoding="utf-8") == first
 
 
 class TestCheckCommand:
@@ -190,7 +211,7 @@ class TestInitCommand:
             if main.exists():
                 from infra import parse, validate
 
-                prog = parse(main.read_text())
+                prog = parse(main.read_text(encoding="utf-8"))
                 res = validate(prog)
                 assert len(res.errors) == 0
         finally:
@@ -226,7 +247,7 @@ class TestErrorReporter:
         from infra import parse, validate
         from infra.errors.reporter import ErrorReporter
 
-        source = invalid_service.read_text()
+        source = invalid_service.read_text(encoding="utf-8")
         result = validate(parse(source))
         output = ErrorReporter().report_semantic_errors(result.errors, result.warnings, source)
         assert isinstance(output, str)
@@ -246,7 +267,7 @@ class TestErrorReporter:
         from infra import parse, validate
         from infra.errors.reporter import ErrorReporter
 
-        result = validate(parse(invalid_service.read_text()))
+        result = validate(parse(invalid_service.read_text(encoding="utf-8")))
         data = json.loads(ErrorReporter().format_as_json(result))
         assert "errors" in data
         assert "valid" in data
@@ -278,3 +299,47 @@ class TestTokensModule:
         from infra.lexer.tokens import TokenType
 
         assert len(list(TokenType)) >= 20
+
+
+class TestTyperCliOptions:
+    """Regression: Typer option params (`--environment`, `--project`,
+    `--no-color`) are part of the CLI surface and must not be removed as
+    "dead code". Vulture flags them because it doesn't understand Typer; these
+    tests assert the flags actually work.
+    """
+
+    def test_compile_environment_flag(self, simple_service, tmp_path):
+        out = tmp_path / "out"
+        with_env = write_infra(
+            tmp_path / "env.infra",
+            'service api { image: "nginx:1.25" replicas: 2 }\n'
+            'environment "prod" { service api { replicas: 4 } }',
+        )
+        result = runner.invoke(
+            app,
+            ["compile", str(with_env), "--environment", "prod", "--output", str(out)],
+        )
+        assert result.exit_code == 0
+        assert out.exists()
+
+    def test_feedback_project_flag(self):
+        result = runner.invoke(app, ["feedback", "--project"])
+        assert result.exit_code == 0
+        assert "feedback" in result.output.lower() or "config" in result.output.lower()
+
+    def test_no_color_flag(self):
+        result = runner.invoke(app, ["--no-color", "--help"])
+        assert result.exit_code == 0
+        assert "compile" in result.output
+
+    def test_compile_environment_flag_dry_run(self, simple_service):
+        with_env = write_infra(
+            simple_service.parent / "staging.infra",
+            'service api { image: "nginx:1.25" replicas: 2 }\n'
+            'environment "staging" { service api { replicas: 3 } }',
+        )
+        result = runner.invoke(
+            app,
+            ["compile", str(with_env), "--environment", "staging", "--dry-run"],
+        )
+        assert result.exit_code == 0

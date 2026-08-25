@@ -264,6 +264,9 @@ class Program(ASTNode):
 
     statements: Tuple[Union["Statement", "Definition"], ...] = ()
     imports: Tuple[Import, ...] = ()
+    #: ``environment "name" { ... }`` overlay blocks, collected separately so
+    #: backends can ignore them until an overlay is applied.
+    environments: Tuple["EnvironmentSpec", ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -551,6 +554,8 @@ class ServiceDef(ASTNode):
     probes: Optional[ProbesSpec] = None
     volumes: Tuple[VolumeSpec, ...] = ()
     depends: Tuple[str, ...] = ()
+    #: Compose-style dependency list (v0.4.5): `depends_on: [db, redis]`.
+    depends_on: Tuple[str, ...] = ()
     labels: Tuple[Tuple[str, str], ...] = ()
     annotations: Tuple[Tuple[str, str], ...] = ()
     strategy: Optional[StrategySpec] = None
@@ -568,6 +573,12 @@ class ServiceDef(ASTNode):
     #: Extra fields that don't map to a known attribute (kept for formatter).
     extra: Tuple[Tuple[str, Expression], ...] = ()
     decorators: Tuple[Decorator, ...] = ()
+
+    @property
+    def dependencies(self) -> Tuple[str, ...]:
+        """All declared dependencies (``depends`` + ``depends_on``),
+        order-preserving and de-duplicated (v0.4.5)."""
+        return tuple(dict.fromkeys((*self.depends, *self.depends_on)))
 
 
 # ---------------------------------------------------------------------------
@@ -613,7 +624,7 @@ class DatabaseDef(ASTNode):
     ha: bool = False
     ssl: Optional[bool] = None
     size: Optional[ResourceValue] = None
-    storage: Optional[str] = None
+    storage: Optional[ResourceValue] = None
     backup: Optional[BackupSpec] = None
     users: Tuple[DbUserSpec, ...] = ()
     extra: Tuple[Tuple[str, Expression], ...] = ()
@@ -787,6 +798,35 @@ class NetworkDef(ASTNode):
     decorators: Tuple[Decorator, ...] = ()
 
 
+@dataclass(frozen=True)
+class NetworkPolicyDef(ASTNode):
+    """A top-level ``network_policy`` declaration (v0.5.1).
+
+    Declares service-level traffic rules for a target workload::
+
+        network_policy "app_sec" {
+            target: "api"
+            allow_ingress: ["frontend"]
+            allow_egress: ["database"]
+            block_all_ingress: true
+        }
+
+    Not to be confused with :class:`NetworkPolicySpec` — the per-service
+    ``network_policy { ... }`` sub-block that predates this construct.
+    """
+
+    name: str
+    #: Name of the service the policy applies to (pod selector target).
+    target: str = ""
+    #: Workloads allowed to initiate connections to ``target``.
+    allow_ingress: Tuple[str, ...] = ()
+    #: Workloads ``target`` is allowed to connect to.
+    allow_egress: Tuple[str, ...] = ()
+    #: When set (and no ``allow_ingress`` is given), drops all inbound traffic.
+    block_all_ingress: bool = False
+    decorators: Tuple[Decorator, ...] = ()
+
+
 # ---------------------------------------------------------------------------
 # Secret & Config
 # ---------------------------------------------------------------------------
@@ -815,7 +855,85 @@ class SecretDef(ASTNode):
 
     name: str
     entries: Tuple[SecretEntry, ...] = ()
+    #: Reference to a ``secret_store`` backing this secret (v0.5.0); ``None``
+    #: keeps the legacy file/env behavior.
+    store: Optional[str] = None
     decorators: Tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True)
+class SecretStoreDef(ASTNode):
+    """A top-level ``secret_store`` declaration (v0.5.0).
+
+    Example::
+
+        secret_store "vault_store" {
+            provider: "vault"
+            address: "https://vault.internal:8200"
+            path: "secret/data/app"
+        }
+    """
+
+    name: str
+    provider: str = ""
+    address: Optional[str] = None
+    path: Optional[str] = None
+    region: Optional[str] = None
+    namespace: Optional[str] = None
+    project: Optional[str] = None
+    #: Additional unrecognized properties, preserved verbatim.
+    extra: Tuple[Tuple[str, Expression], ...] = ()
+    decorators: Tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True)
+class CustomResourceSpec(ASTNode):
+    """A generic custom resource / CRD declaration (v0.5.0 plugin system).
+
+    Example::
+
+        resource "custom_crd" "my_resource" {
+            api_version: "stable.example.com/v1"
+            kind: "MyKind"
+            spec {
+                replicas: 3
+            }
+        }
+    """
+
+    #: First quoted string — the resource "type" label (e.g. ``custom_crd``).
+    kind_name: str
+    #: Second quoted string — the instance name (e.g. ``my_resource``).
+    name: str
+    #: All declared properties, in order, as ``(key, expression)`` pairs.
+    properties: Tuple[Tuple[str, Expression], ...] = ()
+    decorators: Tuple[Decorator, ...] = ()
+
+    @property
+    def api_version(self) -> Optional[str]:
+        """Literal value of the ``api_version`` property, if declared."""
+        lit = self._literal_property("api_version")
+        return str(lit) if lit is not None else None
+
+    @property
+    def kind(self) -> Optional[str]:
+        """Literal value of the ``kind`` property, if declared."""
+        lit = self._literal_property("kind")
+        return str(lit) if lit is not None else None
+
+    @property
+    def spec(self) -> Optional[Expression]:
+        """The ``spec`` property expression (usually a :class:`Map`)."""
+        for key, value in self.properties:
+            if key == "spec":
+                return value
+        return None
+
+    def _literal_property(self, key: str) -> Optional[object]:
+        for k, value in self.properties:
+            if k == key and isinstance(value, Literal):
+                return value.value
+        return None
 
 
 @dataclass(frozen=True)
@@ -957,6 +1075,45 @@ class EnvironmentDef(ASTNode):
 
 
 @dataclass(frozen=True)
+class ServiceOverlay(ASTNode):
+    """Per-service override carried inside an ``environment "name"`` block.
+
+    Only fields that make sense to override at deploy time are present here.
+    During ``apply_environment_overlay`` these are merged on top of the base
+    :class:`ServiceDef` (overlay wins for scalar fields and for env/label
+    entries that share a name).
+    """
+
+    name: str
+    replicas: Optional[int] = None
+    image: Optional[str] = None
+    command: Tuple[str, ...] = ()
+    args: Tuple[str, ...] = ()
+    env: Tuple[EnvEntry, ...] = ()
+    labels: Tuple[Tuple[str, str], ...] = ()
+    annotations: Tuple[Tuple[str, str], ...] = ()
+    resources: Optional[ResourcesSpec] = None
+    expose: bool = False
+    extra: Tuple[Tuple[str, Expression], ...] = ()
+    decorators: Tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True)
+class EnvironmentSpec(ASTNode):
+    """A top-level ``environment "name" { ... }`` overlay block.
+
+    Unlike :class:`EnvironmentDef` (which configures a target cloud
+    namespace/provider), an ``EnvironmentSpec`` holds per-service *overrides*
+    that are merged onto the base definitions by
+    :func:`infra.analyzer.environments.apply_environment_overlay`.
+    """
+
+    name: str
+    overrides: Tuple[ServiceOverlay, ...] = ()
+    decorators: Tuple[Decorator, ...] = ()
+
+
+@dataclass(frozen=True)
 class NodePoolSpec(ASTNode):
     """A Kubernetes node pool."""
 
@@ -1056,9 +1213,13 @@ Definition = Union[
     QueueDef,
     StorageDef,
     NetworkDef,
+    NetworkPolicyDef,
     SecretDef,
+    SecretStoreDef,
+    CustomResourceSpec,
     ConfigDef,
     PipelineDef,
     EnvironmentDef,
+    EnvironmentSpec,
     ClusterDef,
 ]

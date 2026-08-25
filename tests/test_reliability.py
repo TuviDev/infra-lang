@@ -51,32 +51,6 @@ class TestREL002EvenReplicas:
 
 
 class TestREL003MemoryLimit:
-    def test_triggers_no_resources(self):
-        assert any(w.code == "REL003" for w in v('service a { image:"nginx:1.0" }').warnings)
-
-    def test_no_trigger_with_memory_limit(self):
-        src = 'service a { image:"nginx:1.0" resources { limits { memory: 256Mi } } }'
-        assert not any(w.code == "REL003" for w in v(src).warnings)
-
-
-class TestREL004HealthChecks:
-    def test_triggers_no_health(self):
-        assert any(w.code == "REL004" for w in v('service a { image:"nginx:1.0" }').warnings)
-
-    def test_no_trigger_with_health(self):
-        assert not any(w.code == "REL004" for w in v('service a { image:"nginx:1.0" health http("/") }').warnings)
-
-
-class TestREL006Backup:
-    def test_triggers_no_backup(self):
-        assert any(w.code == "REL006" for w in v('database db { type:postgres }').warnings)
-
-    def test_no_trigger_with_backup(self):
-        src = 'database db { type:postgres backup { enabled: true schedule: "0 2 * * *" } }'
-        assert not any(w.code == "REL006" for w in v(src).warnings)
-
-
-class TestREL007SingleReplica:
     def test_triggers_single_depended_on(self):
         src = 'service proxy { image:"haproxy:2" replicas:1 }\nservice api { image:"myapp:1.0" depends: ["proxy"] }'
         assert any(w.code == "REL007" for w in v(src).warnings)

@@ -36,7 +36,7 @@ class TestSEC001HardcodedSecret:
 
 class TestSEC002SecretPattern:
     @pytest.mark.parametrize("value", [
-        "sk-abcdefghijklmnopqrstuvwxyz1234567890",
+        "sk-abcdefghijklmnopqrstuvwxyz0123456789qrstuvwxyz1234567890",
         "AKIAIOSFODNN7EXAMPLE1234",
         "ghp_abcdefghijklmnopqrstuvwxyz1234567890",
     ])
@@ -144,3 +144,113 @@ class TestSecuritySeverityAndMessages:
         r = v("database db { type: postgres ssl: false }")
         assert r.is_valid
         assert any(w.code == "SEC006" for w in r.warnings)
+
+
+class TestSecurityEdgeCases:
+    """Mutation-driven: cover false-positive-avoidance branches."""
+
+    def _codes(self, source):
+        from infra import parse, validate
+        result = validate(parse(source))
+        return [e.code for e in result.errors] + [w.code for w in result.warnings]
+
+    def test_sec001_ignores_non_string_literal(self):
+        # integer env value must not trip SEC001/SEC002
+        codes = self._codes('service api { image: "x" env { PORT: 8080 } }')
+        assert "SEC001" not in codes and "SEC002" not in codes
+
+    def test_sec003_ignores_non_string_image(self):
+        # image from a variable reference (expression) must not crash/trip SEC003
+        codes = self._codes(
+            'const IMG = "nginx:latest"\nservice api { image: IMG }'
+        )
+        # nginx:latest via variable may resolve; but no crash
+        assert isinstance(codes, list)
+
+    def test_sec005_no_trigger_non_root_user(self):
+        codes = self._codes(
+            'service api { image: "x" security { user: 1000 } }'
+        )
+        assert "SEC005" not in codes
+
+    def test_sec007_ignores_short_secret(self):
+        codes = self._codes('secret s { k: "short" }')
+        assert "SEC007" not in codes
+
+    def test_sec008_no_trigger_with_network_policy(self):
+        codes = self._codes(
+            'service api { image: "x" ingress { host: "h.com" } '
+            'network_policy { deny_from: ["*"] } }'
+        )
+        assert "SEC008" not in codes
+
+    def test_sec008_triggers_ingress_no_policy(self):
+        codes = self._codes(
+            'service api { image: "x" ingress { host: "h.com" } }'
+        )
+        assert "SEC008" in codes
+
+    def test_sec009_no_trigger_registry_path(self):
+        codes = self._codes('service api { image: "myreg.io/org/app:1.0" }')
+        assert "SEC009" not in codes
+
+    def test_sec009_triggers_bare_image(self):
+        codes = self._codes('service api { image: "nginx:1.0" }')
+        assert "SEC009" in codes
+
+    def test_sec010_no_trigger_without_prod_env(self):
+        codes = self._codes(
+            'environment dev { namespace: "d" }\n'
+            'secret s { v: from env "X" }'
+        )
+        assert "SEC010" not in codes
+
+    def test_sec010_triggers_in_production_env(self):
+        codes = self._codes(
+            'environment prod { namespace: "p" }\n'
+            'secret s { v: from env "X" }'
+        )
+        assert "SEC010" in codes
+
+
+class TestSecurityAccumulation:
+    """Mutation-driven: multi-finding accumulation and iteration order."""
+
+    def _findings(self, source):
+        from infra import parse, validate
+        result = validate(parse(source))
+        return list(result.errors) + list(result.warnings)
+
+    def test_sec001_and_sec003_both_reported(self):
+        # a service with a hardcoded secret (error) AND a mutable tag (warning)
+        # must report BOTH (verifies findings += not = in _check_service)
+        f = self._findings('service api { image: "nginx:latest" env { PASSWORD: "hunter2" } }')
+        codes = [x.code for x in f]
+        assert "SEC001" in codes and "SEC003" in codes
+
+    def test_multiple_sec001_in_same_env(self):
+        # two secret env vars -> both findings (continue, not break)
+        f = self._findings(
+            'service api { image: "x" env { PASSWORD: "a" TOKEN: "b" } }'
+        )
+        codes = [x.code for x in f]
+        assert codes.count("SEC001") == 2
+
+    def test_nonsecret_before_secret_still_finds(self):
+        # a non-secret env var BEFORE the secret one (continue vs break)
+        f = self._findings(
+            'service api { image: "x" env { LOG_LEVEL: "info" PASSWORD: "hunter2" } }'
+        )
+        assert "SEC001" in [x.code for x in f]
+
+    def test_sec002_pattern_after_secret_name(self):
+        # a value matching a credential pattern in a non-secret-named var
+        f = self._findings('service api { image: "x" env { TOKEN_STR: "sk-abcdefghijklmnopqrstuvwxyz0123456789" } }')
+        codes = [x.code for x in f]
+        assert "SEC002" in codes
+
+    def test_finding_has_location(self):
+        from infra import parse, validate
+        result = validate(parse('service api { image: "nginx:latest" env { PASSWORD: "hunter2" } }'))
+        f = (list(result.errors) + list(result.warnings))[0]
+        assert f.location is not None

@@ -32,10 +32,13 @@ QUEUE.4: "queue"
 STORAGE.4: "storage"
 NETWORK.4: "network"
 SECRET.4: "secret"
+SECRET_STORE.4: "secret_store"
+STORE.4: "store"
 CONFIG.4: "config"
 PIPELINE.4: "pipeline"
 ENVIRONMENT.4: "environment"
 CLUSTER.4: "cluster"
+RESOURCE.4: "resource"
 LET.4: "let"
 CONST.4: "const"
 EXTENDS.4: "extends"
@@ -116,6 +119,11 @@ import_stmt: IMPORT STRING (AS IDENTIFIER)?
 
 import_names: IDENTIFIER (COMMA IDENTIFIER)* (AS IDENTIFIER)?
 
+// Service dependencies (v0.4.5): `depends_on: db, redis` (bare identifiers)
+// or `depends_on: [db, redis]` (bracketed list).
+depends_on_names: LBRACKET IDENTIFIER (COMMA IDENTIFIER)* RBRACKET
+                | IDENTIFIER (COMMA IDENTIFIER)*
+
 variable_decl: decl_kind IDENTIFIER OP_ASSIGN expression
 decl_kind: LET | CONST
 
@@ -129,10 +137,14 @@ definition: service_def
     | queue_def
     | storage_def
     | network_def
+    | network_policy_def
     | secret_def
+    | secret_store_def
+    | custom_resource_def
     | config_def
     | pipeline_def
     | environment_def
+    | environment_overlay_def
     | cluster_def
 
 // ---------------------------------------------------------------------------
@@ -166,6 +178,7 @@ service_item: IMAGE COLON expression
     | VOLUMES volume_block
     | VOLUME volume_spec
     | DEPENDS COLON list_literal
+    | DEPENDS_ON COLON depends_on_names
     | LABELS COLON map_literal
     | ANNOTATIONS COLON map_literal
     | STRATEGY COLON strategy_block
@@ -212,6 +225,25 @@ NETWORK_POLICY.4: "network_policy"
 ALLOW_FROM.4: "allow_from"
 DENY_FROM.4: "deny_from"
 ALLOW_EGRESS.4: "allow_egress"
+ALLOW_INGRESS.4: "allow_ingress"
+BLOCK_ALL_INGRESS.4: "block_all_ingress"
+
+// ---------------------------------------------------------------------------
+// Network Policy (top-level, v0.5.1):
+//   network_policy "app_sec" {
+//       target: "api"
+//       allow_ingress: ["frontend"]
+//       allow_egress: ["database"]
+//       block_all_ingress: true
+//   }
+// ---------------------------------------------------------------------------
+
+network_policy_def: NETWORK_POLICY STRING LBRACE network_policy_def_body RBRACE
+network_policy_def_body: (network_policy_def_item (COMMA? network_policy_def_item)*)?
+network_policy_def_item: TARGET COLON expression
+    | ALLOW_INGRESS COLON? list_literal
+    | ALLOW_EGRESS COLON? list_literal
+    | BLOCK_ALL_INGRESS COLON expression
 TOPOLOGY.4: "topology"
 SPREAD_BY.4: "spread_by"
 MAX_SKEW.4: "max_skew"
@@ -271,6 +303,7 @@ PROBES.4: "probes"
 VOLUMES.4: "volumes"
 VOLUME.4: "volume"
 DEPENDS.4: "depends"
+DEPENDS_ON.4: "depends_on"
 LABELS.4: "labels"
 ANNOTATIONS.4: "annotations"
 STRATEGY.4: "strategy"
@@ -618,9 +651,67 @@ SELECTOR.4: "selector"
 secret_def: SECRET IDENTIFIER LBRACE secret_body RBRACE
 secret_body: (secret_item (COMMA? secret_item)*)?
 secret_item: IDENTIFIER COLON secret_value
+    | STORE COLON STRING
 secret_value: expression
             | FROM secret_source STRING (DOT IDENTIFIER)?
 secret_source: ENV | FILE | VAULT | AWS | GCP
+
+// ---------------------------------------------------------------------------
+// Secret store (v0.5.0): secret_store "name" { provider: ..., ... }
+// ---------------------------------------------------------------------------
+
+secret_store_def: SECRET_STORE STRING LBRACE secret_store_body RBRACE
+secret_store_body: (secret_store_item (COMMA? secret_store_item)*)?
+secret_store_item: secret_store_key COLON expression
+// keys may collide with existing keyword tokens (path/provider/region/namespace)
+secret_store_key: IDENTIFIER | PATH | PROVIDER | REGION | NAMESPACE
+
+// ---------------------------------------------------------------------------
+// Custom resource / CRD (v0.5.0 plugin system):
+//   resource "custom_crd" "my_resource" {
+//       api_version: "stable.example.com/v1"
+//       kind: "MyKind"
+//       spec { ... }
+//   }
+// ---------------------------------------------------------------------------
+
+custom_resource_def: RESOURCE STRING STRING LBRACE custom_resource_body RBRACE
+custom_resource_body: (custom_resource_item (COMMA? custom_resource_item)*)?
+// values accept either `key: expression` or the bare-map form `key { ... }`
+custom_resource_item: custom_resource_key COLON expression
+    | custom_resource_key custom_resource_map
+custom_resource_map: LBRACE custom_resource_entry (COMMA? custom_resource_entry)* RBRACE
+custom_resource_entry: custom_resource_key COLON expression
+    | custom_resource_key custom_resource_map
+// keys are bare identifiers; because the DSL lexer always prefers keyword
+// tokens over IDENTIFIER, every keyword token must be accepted here so that
+// arbitrary CRD field names (type, spec, name, labels, ...) work as keys.
+custom_resource_key: IDENTIFIER | ACCESS_MODE | ACTIONS | AFFINITY | ALLOW_EGRESS | ALLOW_FROM
+    | ALLOW_INGRESS | BLOCK_ALL_INGRESS
+    | ANNOTATIONS | ARGS | ARTIFACTS | AS | AUTOSCALE | AVOID_SAME | AWS | AZ | BACKUP | BLUE_GREEN
+    | BRANCHES | BUCKET | BUILD | BURST | CACHE | CACHE_POLICY | CACHE_TYPE | CANARY
+    | CANCEL_IN_PROGRESS | CAPABILITIES | CIDR | CLAIM | CLASS | CLUSTER | COMMAND | CONCURRENCY
+    | CONDITION | CONFIG | CONST | CONTEXT | CONTINUE_ON_ERROR | CORS | CPU | CREDENTIALS | DATABASE
+    | DB_TYPE | DENY_FROM | DEPENDS | DEPENDS_ON | DISRUPTION | DOCKERFILE | DOMAIN | DOWNLOAD
+    | ELSE | ENABLED | ENV | ENVIRONMENT | ENV_FROM | EVENTS | EXEC | EXPIRATION | EXPOSE | EXTENDS
+    | FALSE | FIELD | FILE | FROM | FROM_DIR | GCP | GROUP | GRPC | HA | HEADERS | HEALTH | HOST
+    | HOST_PATH | HTTP | IAM | IF | IMAGE | IMPORT | IN | INGRESS | INITIAL_DELAY | INTERVAL | KEY
+    | LABELS | LET | LEVEL | LIFECYCLE | LIMITS | LIVENESS | MACHINE | MANUAL | MATCH | MATRIX | MAX
+    | MAXMEMORY | MAX_CPU | MAX_MEMORY | MAX_PODS | MAX_SKEW | MAX_UNAVAILABLE | MEMORY | METHODS
+    | MIN | MIN_AVAILABLE | MOUNT_PATH | NAME | NAMESPACE | NEEDS | NETWORK | NETWORKING
+    | NETWORK_POLICY | NODES | NULL | ORIGINS | PARALLEL | PARTITIONS | PATH | PATHS | PERSISTENCE
+    | PIPELINE | PIPELINE_CACHE | POLICY | PORT | PORTS | POST_START | PREFER_SAME | PREFIX
+    | PRE_STOP | PRIVILEGED | PROBES | PROTOCOL | PROVIDER | QUEUE | QUEUE_TYPE | QUOTAS
+    | RATE_LIMIT | READINESS | READONLY | READONLY_ROOT | RECREATE | REGION | REPLICAS | REPLICATION
+    | REQUESTS | REQ_PER_SEC | RESOURCE | RESOURCES | RESTORE_KEYS | RETENTION | RETRIES | ROLE
+    | ROLLING | RUN | RUNS_ON | SA | SC | SCALE_DOWN_DELAY | SCALE_UP_DELAY | SCHEDULE | SECCOMP
+    | SECRET | SECRET_STORE | SECURITY | SELECTOR | SELINUX | SERVICE | SIZE | SPREAD_BY | STAGES
+    | STARTUP | START_PERIOD | STEPS | STORAGE | STORAGE_TYPE | STORE | STRATEGY | SUBNETS | TAGS
+    | TARGET | TARGET_CPU | TARGET_MEMORY | TARGET_PORT | TCP | THEN | TIMEOUT | TLS | TOPICS
+    | TOPOLOGY | TO_DIR | TRAFFIC | TRANSITION | TRIGGER | TRUE | TYPE | UPLOAD | USER | USERS
+    | USES | VAULT | VERSION | VOLUME | VOLUMES | VPC | WEIGHT | WITH_ARGS
+
+
 FILE.4: "file"
 VAULT.4: "vault"
 AWS.4: "aws"
@@ -744,6 +835,29 @@ MAX_MEMORY.4: "max_memory"
 MAX_PODS.4: "max_pods"
 PROVIDER.4: "provider"
 NAMESPACE.4: "namespace"
+
+// ---------------------------------------------------------------------------
+// Environment overlay (per-service overrides)
+// ---------------------------------------------------------------------------
+// `environment "prod" { service "web" { replicas: 5 } }` — the name is a STRING
+// (not an IDENTIFIER) so it cannot collide with the cluster-style
+// `environment dev { ... }` definition above.
+environment_overlay_def: ENVIRONMENT STRING LBRACE env_overlay_body RBRACE
+env_overlay_body: (env_overlay_item (COMMA? env_overlay_item)*)?
+env_overlay_item: service_overlay
+service_overlay: SERVICE IDENTIFIER LBRACE overlay_field (COMMA? overlay_field)* RBRACE
+overlay_field: REPLICAS COLON expression
+    | IMAGE COLON expression
+    | COMMAND COLON expression
+    | ARGS COLON list_literal
+    | ENV COLON env_block
+    | ENV env_block
+    | LABELS COLON map_literal
+    | ANNOTATIONS COLON map_literal
+    | RESOURCES COLON resources_block
+    | RESOURCES resources_block
+    | EXPOSE COLON expression
+    | scalar_field
 
 // ---------------------------------------------------------------------------
 // Cluster

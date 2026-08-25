@@ -13,7 +13,7 @@ Protocol: JSON-RPC over stdio (standard LSP transport).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from lsprotocol.types import (
     INITIALIZED,
@@ -24,25 +24,39 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_DID_CLOSE,
     TEXT_DOCUMENT_DID_OPEN,
     TEXT_DOCUMENT_DID_SAVE,
+    TEXT_DOCUMENT_DOCUMENT_HIGHLIGHT,
     TEXT_DOCUMENT_DOCUMENT_SYMBOL,
+    TEXT_DOCUMENT_FOLDING_RANGE,
     TEXT_DOCUMENT_FORMATTING,
     TEXT_DOCUMENT_HOVER,
     TEXT_DOCUMENT_PREPARE_RENAME,
+    TEXT_DOCUMENT_PUBLISH_DIAGNOSTICS,
     TEXT_DOCUMENT_REFERENCES,
     TEXT_DOCUMENT_RENAME,
+    TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
+    TEXT_DOCUMENT_SIGNATURE_HELP,
     WORKSPACE_SYMBOL,
+    CodeAction,
     CodeActionParams,
+    CodeDescription,
     CompletionList,
     CompletionParams,
     DefinitionParams,
     Diagnostic,
+    DiagnosticRelatedInformation,
     DiagnosticSeverity,
     DidChangeTextDocumentParams,
     DidCloseTextDocumentParams,
     DidOpenTextDocumentParams,
     DidSaveTextDocumentParams,
     DocumentFormattingParams,
+    DocumentHighlight,
+    DocumentHighlightKind,
+    DocumentHighlightParams,
+    DocumentSymbol,
     DocumentSymbolParams,
+    FoldingRange,
+    FoldingRangeParams,
     Hover,
     HoverParams,
     InitializedParams,
@@ -51,24 +65,32 @@ from lsprotocol.types import (
     MarkupKind,
     Position,
     PrepareRenameParams,
-    PrepareRenameResult_Type1,
+    PrepareRenameResult,
+    PublishDiagnosticsParams,
     Range,
     ReferenceParams,
     RenameParams,
+    SemanticTokens,
+    SemanticTokensLegend,
+    SemanticTokensParams,
+    SignatureHelp,
+    SignatureHelpOptions,
+    SignatureHelpParams,
     SymbolKind,
     TextEdit,
     WorkspaceEdit,
     WorkspaceSymbol,
     WorkspaceSymbolParams,
 )
-from pygls.server import LanguageServer
 
 from ..errors.exceptions import InfraLexError, InfraParseError
 from ..lsp.completion import completions_at
 from ..lsp.quickfix import quick_fixes
+from ..lsp.semantic_tokens import TOKEN_TYPES, encode_delta, tokenize_source
 from ..lsp.symbols import (
     document_symbols,
     find_definition,
+    highlight_ranges,
     reference_ranges,
     rename_edits,
     symbol_at,
@@ -80,12 +102,40 @@ from ..lsp.workspace_index import (
     find_references_in_sources,
     iterable_symbol_locations,
 )
-from ..lsp.workspace_symbols import build_index, resolve_location
-from ..parser.ast_nodes import SourceLocation
+from ..lsp.workspace_symbols import block_definitions, build_index, resolve_location
+from ..parser.location import SourceLocation
+
+try:
+    # pygls 2.x exposure point for the high-level server class.
+    from pygls.lsp.server import LanguageServer
+except ImportError:  # pragma: no cover - tied to pygls 1.3.x installs
+    # pygls 1.3.x keeps the class at the legacy location; pygls 2.x removed
+    # the re-export, so mypy (running against 2.x) needs both ignores.
+    from pygls.server import LanguageServer  # type: ignore[no-redef, attr-defined]
+
+try:
+    from lsprotocol.types import PrepareRenamePlaceholder
+except ImportError:
+    # pygls 1.3.1 pins lsprotocol 2023.x, which predates this type; the
+    # prepare-rename handler then falls back to returning a plain Range.
+    PrepareRenamePlaceholder = None  # type: ignore[assignment, misc]
+
+try:
+    from lsprotocol.types import TextDocumentContentChangePartial  # noqa: F401
+except ImportError:  # pragma: no cover - tied to lsprotocol 2023.x installs
+    # Compatibility probe: lsprotocol 2023.x (pygls 1.3.1) ships only the
+    # anonymous union shapes ``TextDocumentContentChangeEvent_Type1/_Type2``
+    # and lacks this named alias entirely. Importing it must therefore never
+    # be hard-required at module scope. ``did_change`` intentionally reads
+    # ``change.text`` (a field both union members expose on every lsprotocol
+    # generation), so no runtime reference to this symbol is needed here;
+    # the guarded import keeps feature detection possible for embedders and
+    # documents the porting contract next to the PrepareRenamePlaceholder one.
+    TextDocumentContentChangePartial = None  # type: ignore[assignment, misc]
 
 server = LanguageServer(
     name="infra-lang",
-    version="0.1.0",
+    version="0.5.1",
 )
 
 #: Project-wide on-disk symbol index. Scanned after initialization; consulted by
@@ -101,7 +151,7 @@ def _shutdown_release_index() -> None:
 
 # Wrap pygls's own shutdown so the in-memory index is freed on exit, without
 # interfering with pygls's protocol-level shutdown handling.
-_orig_shutdown = server.shutdown
+_orig_shutdown: Callable[[], None] = server.shutdown
 
 
 def _shutdown_with_cleanup() -> None:
@@ -114,6 +164,51 @@ def _shutdown_with_cleanup() -> None:
 server.shutdown = _shutdown_with_cleanup  # type: ignore[method-assign]
 
 _ERR_SEC = {"SEC001", "SEC002", "SEC004", "SEC007"}
+
+#: Base URL for the hosted language-spec docs, used for diagnostic code links.
+_DOCS_BASE = "https://TuviDev.github.io/infra-lang/language_spec/"
+
+#: Codes that indicate a duplicate definition -> point at the sibling(s).
+_DUPLICATE_CODES = {"E002", "E001"}
+
+
+def _code_href(code: str) -> str:
+    """Return a docs URL for a diagnostic code (used for clickable links)."""
+    return f"{_DOCS_BASE}#{code.lower()}"
+
+
+def _related_for_duplicate(
+    source: str, uri: str, code: str, message: str, current_line: int
+) -> list[DiagnosticRelatedInformation]:
+    """Find sibling definitions of the same name for duplicate-name errors.
+
+    Returns DiagnosticRelatedInformation pointing at every other block
+    definition with the duplicated name.
+    """
+    import re
+
+    if code not in _DUPLICATE_CODES:
+        return []
+    m = re.search(r"'([^']+)'", message)
+    if not m:
+        return []
+    name = m.group(1)
+    related: list[DiagnosticRelatedInformation] = []
+    for other_name, line in block_definitions(source):
+        if other_name == name and line != current_line:
+            related.append(
+                DiagnosticRelatedInformation(
+                    location=Location(
+                        uri=uri,
+                        range=Range(
+                            start=Position(line=line, character=0),
+                            end=Position(line=line, character=len(name)),
+                        ),
+                    ),
+                    message=f"Earlier definition of '{name}'",
+                )
+            )
+    return related
 
 
 def _severity(code: str | None) -> DiagnosticSeverity:
@@ -155,26 +250,40 @@ def _diagnose(source: str, uri: str) -> list[Diagnostic]:
         result = SemanticValidator().validate(program)
 
         for error in result.errors:
+            code = error.code or "E000"
             rng = _location_to_range(error.location, source)
+            cur_line = rng.start.line
+            related = _related_for_duplicate(
+                source, uri, code, error.message, cur_line
+            )
             diagnostics.append(
                 Diagnostic(
                     range=rng,
                     message=error.message,
                     severity=DiagnosticSeverity.Error,
-                    code=error.code or "E000",
+                    code=code,
                     source="infra-lang",
+                    code_description=CodeDescription(href=_code_href(code)),
+                    related_information=related or None,
                 )
             )
 
         for warning in result.warnings:
+            code = warning.code or "W000"
             rng = _location_to_range(warning.location, source)
+            cur_line = rng.start.line
+            related = _related_for_duplicate(
+                source, uri, code, warning.message, cur_line
+            )
             diagnostics.append(
                 Diagnostic(
                     range=rng,
                     message=warning.message,
                     severity=DiagnosticSeverity.Warning,
-                    code=warning.code or "W000",
+                    code=code,
                     source="infra-lang",
+                    code_description=CodeDescription(href=_code_href(code)),
+                    related_information=related or None,
                 )
             )
 
@@ -191,6 +300,7 @@ def _diagnose(source: str, uri: str) -> list[Diagnostic]:
                 severity=DiagnosticSeverity.Error,
                 code="PARSE",
                 source="infra-lang",
+                code_description=CodeDescription(href=_code_href("parse")),
             )
         )
 
@@ -213,7 +323,16 @@ def _diagnose(source: str, uri: str) -> list[Diagnostic]:
 
 def _publish(ls: LanguageServer, uri: str, source: str) -> None:
     diagnostics = _diagnose(source, uri)
-    ls.publish_diagnostics(uri, diagnostics)
+    legacy = getattr(ls, "publish_diagnostics", None)
+    if callable(legacy):
+        # pygls 1.x convenience API (also used by unit-test fakes)
+        legacy(uri, diagnostics)
+        return
+    # pygls 2.x: server->client notifications go through the protocol layer
+    ls.protocol.notify(
+        TEXT_DOCUMENT_PUBLISH_DIAGNOSTICS,
+        PublishDiagnosticsParams(uri=uri, diagnostics=diagnostics),
+    )
 
 
 def _workspace_documents(ls: LanguageServer) -> dict[str, str]:
@@ -225,14 +344,20 @@ def _workspace_documents(ls: LanguageServer) -> dict[str, str]:
     backward compatible in unit tests).
     """
     sources: dict[str, str] = dict(workspace_index.sources())
-    try:
-        docs = ls.workspace.documents
-    except Exception:  # noqa: BLE001 - defensive, missing attribute
-        docs = {}
-    if isinstance(docs, dict):
-        for uri, doc in docs.items():
-            src = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
-            sources[uri] = src  # open document wins
+    docs: dict[str, Any] = {}
+    # pygls 2.x exposes ``text_documents``; 1.x used ``documents`` — take the
+    # first one that exists.
+    for attr in ("text_documents", "documents"):
+        try:
+            candidate = getattr(ls.workspace, attr)
+        except Exception:  # noqa: BLE001 - defensive, missing attribute
+            continue
+        if isinstance(candidate, dict):
+            docs = candidate
+            break
+    for uri, doc in docs.items():
+        src = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
+        sources[uri] = src  # open document wins
     return sources
 
 
@@ -272,10 +397,13 @@ def initialized(ls: LanguageServer, params: InitializedParams) -> None:
     if root is None:
         return
     try:
-        executor = ls.thread_pool_executor
+        # pygls 1.x: thread_pool_executor; pygls 2.x: thread_pool
+        executor = getattr(ls, "thread_pool_executor", None) or getattr(
+            ls, "thread_pool", None
+        )
     except Exception:  # noqa: BLE001
         executor = None
-    scan = lambda: workspace_index.scan_directory(root)  # noqa: E731
+    scan: Callable[[], None] = lambda: workspace_index.scan_directory(root)  # noqa: E731
     if executor is not None:
         executor.submit(scan)
     else:
@@ -289,7 +417,7 @@ def initialized(ls: LanguageServer, params: InitializedParams) -> None:
 def workspace_symbol(
     ls: LanguageServer,
     params: WorkspaceSymbolParams,
-) -> list:
+) -> list[WorkspaceSymbol]:
     """Return every top-level resource in the whole project (Ctrl+T)."""
     query = (params.query or "").lower()
     symbols = workspace_index.all_symbols()
@@ -305,6 +433,84 @@ def workspace_symbol(
         )
         for s in symbols
     ]
+
+
+@server.feature(
+    TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
+    options=SemanticTokensLegend(
+        token_types=list(TOKEN_TYPES), token_modifiers=[]
+    ),
+)
+def semantic_tokens_full(
+    ls: LanguageServer,
+    params: SemanticTokensParams,
+) -> SemanticTokens:
+    """Return LSP semantic tokens for a document.
+
+    Uses a deterministic, line-based tokenizer so malformed / incomplete input
+    never raises — the editor always gets a (possibly partial) token stream.
+    """
+    source = _doc_source(ls, params.text_document.uri)
+    tokens = tokenize_source(source)
+    return SemanticTokens(data=encode_delta(tokens))
+
+
+@server.feature(
+    TEXT_DOCUMENT_SIGNATURE_HELP,
+    options=SignatureHelpOptions(
+        trigger_characters=["{", "\n", "."], retrigger_characters=[","]
+    ),
+)
+def signature_help(
+    ls: LanguageServer,
+    params: SignatureHelpParams,
+) -> Optional[SignatureHelp]:
+    """Show the fields available inside the block the cursor is in."""
+    source = _doc_source(ls, params.text_document.uri)
+    from ..lsp.signature import signature_help_at
+
+    return signature_help_at(
+        source,
+        max(0, params.position.line),
+        max(0, params.position.character),
+    )
+
+
+@server.feature(TEXT_DOCUMENT_DOCUMENT_HIGHLIGHT)
+def document_highlight(
+    ls: LanguageServer,
+    params: DocumentHighlightParams,
+) -> list[DocumentHighlight]:
+    """Highlight every occurrence of the symbol under the cursor in the file."""
+    source = _doc_source(ls, params.text_document.uri)
+    line = max(0, params.position.line)
+    char = max(0, params.position.character)
+    name, ranges = highlight_ranges(source, line, char)
+    if not name:
+        return []
+    return [
+        DocumentHighlight(
+            range=rng,
+            kind=(
+                DocumentHighlightKind.Write
+                if kind == "write"
+                else DocumentHighlightKind.Read
+            ),
+        )
+        for rng, kind in ranges
+    ]
+
+
+@server.feature(TEXT_DOCUMENT_FOLDING_RANGE)
+def folding_range(
+    ls: LanguageServer,
+    params: FoldingRangeParams,
+) -> list[FoldingRange]:
+    """Return foldable regions (blocks + comment runs) for the document."""
+    source = _doc_source(ls, params.text_document.uri)
+    from ..lsp.folding import folding_ranges
+
+    return folding_ranges(source)
 
 
 @server.feature(TEXT_DOCUMENT_DID_OPEN)
@@ -383,7 +589,7 @@ def completion(
 def document_symbol(
     ls: LanguageServer,
     params: DocumentSymbolParams,
-) -> list:
+) -> list[DocumentSymbol]:
     """Provide a document outline (top-level blocks)."""
     doc = ls.workspace.get_text_document(params.text_document.uri)
     source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
@@ -425,7 +631,7 @@ def definition(
 def references(
     ls: LanguageServer,
     params: ReferenceParams,
-) -> list:
+) -> list[Location]:
     """Find references to a symbol, including across the open workspace."""
     uri = params.text_document.uri
     source = _doc_source(ls, uri)
@@ -437,11 +643,15 @@ def references(
         return []
     docs = _workspace_documents(ls)
     if not docs:
-        # single-document fallback preserves the original behaviour
-        return reference_ranges(source, name)
+        # single-document fallback: reference_ranges yields Range objects, but
+        # the LSP references result is a list of Location (uri + range), so wrap
+        # each range with the current document's uri.
+        return [
+            Location(uri=uri, range=rng) for rng in reference_ranges(source, name)
+        ]
     # definition sites (so "find references" includes the declaration),
     # derived from the merged (disk + open) source map.
-    locations: list = []
+    locations: list[Location] = []
     for defn in build_index(docs).get(name, []):
         locations.append(
             Location(
@@ -461,7 +671,7 @@ def references(
 def prepare_rename(
     ls: LanguageServer,
     params: PrepareRenameParams,
-) -> PrepareRenameResult_Type1 | None:
+) -> PrepareRenameResult | None:
     """Validate that the position is a renameable symbol.
 
     Returns the range of the symbol under the cursor plus its current name as
@@ -479,7 +689,11 @@ def prepare_rename(
     rng = symbol_range(source, line, char)
     if rng is None:
         return None
-    return PrepareRenameResult_Type1(range=rng, placeholder=name)
+    if PrepareRenamePlaceholder is not None:
+        return PrepareRenamePlaceholder(range=rng, placeholder=name)
+    # lsprotocol 2023 (pygls 1.3.1): PrepareRenamePlaceholder does not exist;
+    # a plain Range is a valid prepare-rename response there.
+    return rng
 
 
 @server.feature(TEXT_DOCUMENT_RENAME)
@@ -499,7 +713,7 @@ def rename(
     new_name = params.new_name
     if new_name == old_name:
         return WorkspaceEdit(changes={})
-    changes: dict[str, list] = {}
+    changes: dict[str, list[TextEdit]] = {}
     current_edits = [
         TextEdit(range=rng, new_text=text)
         for rng, text in rename_edits(source, old_name, new_name)
@@ -522,7 +736,7 @@ def rename(
 def formatting(
     ls: LanguageServer,
     params: DocumentFormattingParams,
-) -> list:
+) -> list[TextEdit]:
     """Format the whole document via the existing AST pretty-printer."""
     from infra.cli.printer import format_source
 
@@ -550,14 +764,14 @@ def formatting(
 def code_action(
     ls: LanguageServer,
     params: CodeActionParams,
-) -> list:
+) -> list[CodeAction]:
     """Provide quick fixes for diagnostics in the requested range."""
     doc = ls.workspace.get_text_document(params.text_document.uri)
     source = doc.source if hasattr(doc, "source") else "\n".join(doc.lines)
     return quick_fixes(
         params.text_document.uri,
         source,
-        params.context.diagnostics,
+        list(params.context.diagnostics),
     )
 
 
@@ -576,7 +790,11 @@ FIELD_DOCS = {
         "Example: `{ min: 2, max: 10, target_cpu: 70 }`"
     ),
     "disruption": "Pod Disruption Budget.\nExample: `{ min_available: 1 }`",
-    "network_policy": "NetworkPolicy for this service.",
+    "network_policy": (
+        "Network policy declaration. Per-service sub-block, or the top-level "
+        "v0.5.1 form.\n"
+        'Example: `network_policy "app_sec" { target: "api", ... }`'
+    ),
     "schedule": "Time-based scaling schedule.",
     "affinity": "Pod affinity/anti-affinity rules.",
     "topology": "TopologySpreadConstraints.",
@@ -605,6 +823,26 @@ FIELD_DOCS = {
     "probes": "Liveness/readiness/startup probe config.",
     "volumes": "Storage volumes mounted into the container.",
     "depends": "Other services this one depends on.\nExample: `[db, cache]`",
+    "depends_on": (
+        "Hard service-start ordering (v0.4.5). Targets may be services or "
+        "resources.\nExample: `[db, cache]`"
+    ),
+    "target": "Service the policy applies to.",
+    "allow_ingress": "Workloads allowed to initiate connections to the target.",
+    "allow_egress": "Workloads the target is allowed to connect to.",
+    "block_all_ingress": "Drop all inbound traffic to the target (deny-all).",
+    "secret_store": (
+        "External secret store declaration (v0.5.0).\n"
+        'Example: `secret_store "vault_store" { provider: "vault", ... }`'
+    ),
+    "store": (
+        "Reference to a `secret_store` backing this secret (v0.5.0).\n"
+        'Example: `store: "vault_store"`'
+    ),
+    "resource": (
+        "Generic custom resource (CRD) declaration (v0.5.0).\n"
+        'Example: `resource "crd" "name" { api_version: ..., kind: ... }`'
+    ),
     "labels": "Kubernetes labels for the resource.\nExample: `{ tier: \"web\" }`",
     "annotations": "Kubernetes annotations.\nExample: `{ team: \"platform\" }`",
     "strategy": "Deployment strategy.\nValues: rolling, recreate, blue_green, canary",

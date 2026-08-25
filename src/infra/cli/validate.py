@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
+from typing import Any, List, Optional
 
 import typer
 
+from infra.analyzer.environments import (
+    EnvironmentNotFoundError,
+    apply_environment_overlay,
+)
 from infra.analyzer.validator import SemanticValidator
 from infra.parser import _parser
 
 
-def _error_dict(e, file: str = "?") -> dict:
+def _error_dict(e: Any, file: str = "?") -> dict[str, Any]:
     """Normalize a ValidationError or a raw parse exception into a dict."""
     loc = getattr(e, "location", None)
     return {
@@ -26,16 +30,77 @@ def _error_dict(e, file: str = "?") -> dict:
 
 
 def validate(
-    files: List[Path] = typer.Argument(..., help=".infra file(s) to validate"),
+    files: Optional[List[Path]] = typer.Argument(
+        None, help=".infra file(s) to validate"
+    ),
     strict: bool = typer.Option(False, "--strict", help="Treat warnings as errors"),
     format: str = typer.Option(
         "text", "--format", help="Output format: text, json, github"
     ),
+    json_output: bool = typer.Option(
+        False, "--json", help="Emit structured JSON for CI pipelines."
+    ),
     var: List[str] = typer.Option([], "--var", help="Variable: --var key=value"),
+    environment: Optional[str] = typer.Option(
+        None, "--environment", "-e", "--env", help="Environment overlay name"
+    ),
+    max_cost: Optional[float] = typer.Option(
+        None,
+        "--max-cost",
+        help="FinOps guardrail: fail with a COST_EXCEEDED error when the "
+        "estimated monthly cost exceeds this budget (in USD).",
+    ),
+    all_files: bool = typer.Option(
+        False,
+        "--all",
+        "-a",
+        help="Recursively validate every .infra file under the current directory.",
+    ),
 ) -> None:
     """Validate .infra files semantically (no compilation)."""
+    from infra.cli import batch as _batch
+
     parser = _parser()
-    all_errors = []
+    if all_files:
+        root = Path.cwd()
+        rows = []
+        for f in _batch.discover_infra_files(root):
+            rel = _batch.display_path(f, root)
+            try:
+                program = parser.parse_file(f)
+                if environment:
+                    program = apply_environment_overlay(program, environment)
+            except Exception as exc:
+                detail = str(exc).splitlines()[0] if str(exc) else "parse error"
+                rows.append(_batch.BatchRow(rel, ok=False, errors=1, detail=detail))
+                continue
+            result = SemanticValidator().validate(program, max_cost=max_cost)
+            detail = result.errors[0].message if result.errors else ""
+            failed = not result.is_valid or (strict and result.has_warnings)
+            rows.append(
+                _batch.BatchRow(
+                    rel,
+                    ok=not failed,
+                    errors=len(result.errors),
+                    warnings=len(result.warnings),
+                    detail=detail,
+                )
+            )
+        _batch.emit_batch(
+            "validate",
+            rows,
+            title="infra validate --all",
+            verb="Validated",
+            json_output=json_output,
+        )
+        if _batch.any_failed(rows):
+            raise typer.Exit(code=1)
+        return
+
+    if not files:
+        raise _batch.usage_error("validate")
+
+    all_errors: list[dict[str, Any]] = []
     all_warnings = []
     any_invalid = False
     expanded: list[Path] = []
@@ -48,17 +113,53 @@ def validate(
     for f in expanded:
         try:
             program = parser.parse_file(f)
+            if environment:
+                program = apply_environment_overlay(program, environment)
+        except EnvironmentNotFoundError as exc:
+            all_errors.append(
+                {"code": "ENV", "message": str(exc), "hint": None, "file": str(f)}
+            )
+            any_invalid = True
+            continue
         except Exception as exc:
             all_errors.append(_error_dict(exc, file=str(f)))
             any_invalid = True
             continue
-        result = SemanticValidator().validate(program)
+        result = SemanticValidator().validate(program, max_cost=max_cost)
         all_errors.extend(_error_dict(e, file=str(f)) for e in result.errors)
         all_warnings.extend(result.warnings)
         if not result.is_valid or (strict and result.has_warnings):
             any_invalid = True
 
-    if format == "json":
+    if json_output:
+        payload = {
+            "valid": not any_invalid,
+            "file": str(expanded[0]) if expanded else "",
+            "errors": [
+                {
+                    "code": e.get("code"),
+                    "message": e.get("message"),
+                    "line": e.get("line"),
+                    "column": e.get("column"),
+                    "severity": "error",
+                    "hint": e.get("hint"),
+                }
+                for e in all_errors
+            ],
+            "warnings": [
+                {
+                    "code": w.code,
+                    "message": w.message,
+                    "line": w.location.line if w.location else None,
+                    "column": w.location.column if w.location else None,
+                    "severity": "warning",
+                    "hint": w.hint,
+                }
+                for w in all_warnings
+            ],
+        }
+        typer.echo(json.dumps(payload, indent=2))
+    elif format == "json":
         payload = {
             "valid": not any_invalid,
             "errors": all_errors,
@@ -85,6 +186,8 @@ def validate(
                 col = e.get("column")
                 pos = f"{file}:{line}:{col}" if line else file
                 typer.echo(f"error[{e['code']}] {pos}: {e['message']}")
+                if e.get("hint"):
+                    typer.echo(f"  Hint: {e['hint']}")
             for w in all_warnings:
                 if strict:
                     loc = w.location
@@ -96,7 +199,7 @@ def validate(
         elif all_warnings:
             typer.echo(f"Found {len(all_warnings)} warnings")
         else:
-            typer.echo("✅ No errors found")
+            typer.echo("[OK] No errors found")
 
     if any_invalid:
         raise typer.Exit(code=1)

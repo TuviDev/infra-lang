@@ -9,7 +9,7 @@ literals is preserved; structural formatting is normalized.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional, Sequence, Tuple
 
 from infra.parser import _parser
 from infra.parser import ast_nodes as n
@@ -52,7 +52,7 @@ class InfraPrinter:
         self.depth -= 1
         self._w("}")
 
-    def _join(self, items: list[str]) -> str:
+    def _join(self, items: Sequence[str]) -> str:
         return ", ".join(items)
 
     # ------------------------------------------------------------------ #
@@ -188,8 +188,14 @@ class InfraPrinter:
             return self._storage(stmt)
         if isinstance(stmt, n.NetworkDef):
             return self._network(stmt)
+        if isinstance(stmt, n.NetworkPolicyDef):
+            return self._network_policy_def(stmt)
         if isinstance(stmt, n.SecretDef):
             return self._secret(stmt)
+        if isinstance(stmt, n.SecretStoreDef):
+            return self._secret_store(stmt)
+        if isinstance(stmt, n.CustomResourceSpec):
+            return self._custom_resource(stmt)
         if isinstance(stmt, n.ConfigDef):
             return self._config(stmt)
         if isinstance(stmt, n.PipelineDef):
@@ -234,6 +240,8 @@ class InfraPrinter:
             body.append("}")
         if s.depends:
             body.append(f"depends: [{self._join(self._str_list(s.depends))}]")
+        if s.depends_on:
+            body.append(f"depends_on: [{self._join(self._str_list(s.depends_on))}]")
         if s.resources:
             body.append("resources {")
             if s.resources.requests:
@@ -361,8 +369,26 @@ class InfraPrinter:
             "network " + nw.name, body
         )
 
+    def _network_policy_def(self, np: n.NetworkPolicyDef) -> str:
+        body: list[str] = []
+        if np.target:
+            body.append(f"target: {_qstr(np.target)}")
+        if np.allow_ingress:
+            entries = ", ".join(_qstr(s) for s in np.allow_ingress)
+            body.append(f"allow_ingress: [{entries}]")
+        if np.allow_egress:
+            entries = ", ".join(_qstr(s) for s in np.allow_egress)
+            body.append(f"allow_egress: [{entries}]")
+        if np.block_all_ingress:
+            body.append("block_all_ingress: true")
+        return self._decorators(np.decorators) + self._render_block(
+            f'network_policy "{np.name}"', body
+        )
+
     def _secret(self, s: n.SecretDef) -> str:
         body = []
+        if s.store:
+            body.append(f'store: "{s.store}"')
         for e in s.entries:
             if e.value is not None:
                 body.append(f"{e.name}: {e.value}")
@@ -375,6 +401,88 @@ class InfraPrinter:
         return self._decorators(s.decorators) + self._render_block(
             "secret " + s.name, body
         )
+
+    def _secret_store(self, st: n.SecretStoreDef) -> str:
+        body = []
+        if st.provider:
+            body.append(f'provider: "{st.provider}"')
+        if st.address:
+            body.append(f'address: "{st.address}"')
+        if st.path:
+            body.append(f'path: "{st.path}"')
+        if st.region:
+            body.append(f'region: "{st.region}"')
+        if st.namespace:
+            body.append(f'namespace: "{st.namespace}"')
+        if st.project:
+            body.append(f'project: "{st.project}"')
+        for key, value in st.extra:
+            body.append(f"{key}: {self._expr(value)}")
+        return self._decorators(st.decorators) + self._render_block(
+            f'secret_store "{st.name}"', body
+        )
+
+    def _custom_resource(self, cr: n.CustomResourceSpec) -> str:
+        head = f'resource "{cr.kind_name}" "{cr.name}" {{'
+        lines = [head]
+        lines.extend(self._cr_lines(cr.properties, " " * self.indent))
+        lines.append("}")
+        return self._decorators(cr.decorators) + "\n".join(lines)
+
+    def _cr_lines(
+        self, props: Iterable[Tuple[str, n.Expression]], pad: str
+    ) -> list[str]:
+        """Print CRD properties, recursing into bare-word-keyed maps.
+
+        A map whose keys are all bare identifiers prints in the block form
+        (``key { ... }``), which re-parses through the tolerant
+        ``custom_resource_map`` rule (keyword keys accepted, commas
+        optional). Anything else uses the colon form via :meth:`_cr_expr`.
+        """
+        lines: list[str] = []
+        for key, value in props:
+            if (
+                isinstance(value, n.Map)
+                and value.entries
+                and all(isinstance(e.key, n.Identifier) for e in value.entries)
+            ):
+                lines.append(f"{pad}{key} {{")
+                nested = [(self._expr(e.key), e.value) for e in value.entries]
+                lines.extend(self._cr_lines(nested, pad + " " * self.indent))
+                lines.append(f"{pad}}}")
+            else:
+                lines.append(f"{pad}{key}: {self._cr_expr(value)}")
+        return lines
+
+    def _cr_key(self, key: n.Expression) -> str:
+        # inside an expression context a bare keyword key would not lex back
+        # as IDENTIFIER, so identifier map keys are always quoted (string
+        # literals are valid map-literal keys).
+        if isinstance(key, n.Identifier):
+            return f'"{key.name}"'
+        return self._expr(key)
+
+    def _cr_expr(self, value: n.Expression) -> str:
+        """Expression-context printing for CRD values (comma-separated, so
+        the output always re-parses through ``map_literal``/``list_literal``)."""
+        if isinstance(value, n.Map):
+            parts = [
+                f"{self._cr_key(e.key)}: {self._cr_expr(e.value)}"
+                for e in value.entries
+            ]
+            inner = ", ".join(parts)
+            if len(parts) <= 3 and len(inner) <= 60:
+                return "{ " + inner + " }"
+            body = ",\n".join(" " * self.indent + p for p in parts)
+            return "{\n" + body + "\n}"
+        if isinstance(value, n.List):
+            items = [self._cr_expr(i) for i in value.items]
+            inner = ", ".join(items)
+            if len(items) <= 3 and len(inner) <= 60:
+                return "[" + inner + "]"
+            body = ",\n".join(" " * self.indent + i for i in items)
+            return "[\n" + body + "\n]"
+        return self._expr(value)
 
     def _config(self, c: n.ConfigDef) -> str:
         body = []
@@ -473,6 +581,6 @@ def format_source(source: str, indent: int = 4) -> str:
 
 def format_file(path: Path, indent: int = 4):
     """Return (formatted_source, changed: bool)."""
-    source = Path(path).read_text()
+    source = Path(path).read_text(encoding="utf-8")
     formatted = format_source(source, indent)
     return formatted, (formatted != source)

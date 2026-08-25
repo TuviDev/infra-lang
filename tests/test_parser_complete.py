@@ -134,6 +134,35 @@ class TestProgramAndImports:
         assert prog.imports[0].names == ("A", "B")
 
 
+class TestBOM:
+    """UTF-8 BOM (added by Windows editors / PowerShell) must not crash parsing."""
+
+    def test_parse_with_bom(self):
+        source = '\ufeffservice api { image: "nginx:1.25" port 80 }'
+        result = parse(source)
+        assert result is not None
+        assert len(result.statements) >= 1
+
+    def test_parse_with_bom_middle_source_unaffected(self):
+        # BOM stripping must only affect a leading \ufeff, never content.
+        source = 'service api { image: "nginx:1.25" port 80 }'
+        result = parse(source)
+        assert result is not None
+
+    def test_parse_file_with_bom(self):
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "app.infra"
+            bom_src = '\ufeffservice api { image: "nginx:1.25" port 80 }'
+            p.write_text(bom_src, encoding="utf-8")
+            from infra.parser import parse_file
+
+            result = parse_file(p)
+            assert result is not None
+
+
 class TestCLISmoke:
     def test_version(self):
         from typer.testing import CliRunner
@@ -141,7 +170,7 @@ class TestCLISmoke:
         from infra.cli.main import app
 
         result = CliRunner().invoke(app, ["--version"])
-        assert "0.1.0" in result.output
+        assert "0.5.1" in result.output
 
     def test_help_lists_commands(self):
         from typer.testing import CliRunner

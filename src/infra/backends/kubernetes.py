@@ -16,17 +16,17 @@ Environment -> Namespace + ResourceQuota
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from infra.backends._images import CACHE_IMAGES as _CACHE_IMAGES
 from infra.backends._images import QUEUE_IMAGES as _QUEUE_IMAGES
 from infra.backends.base import (
-    GENERATED_HEADER,
     Backend,
     BaseYAMLBackend,
     CompileContext,
     CompileResult,
     evaluate_expression,
+    generated_header,
 )
 from infra.errors.exceptions import InfraCompileError
 from infra.parser import ast_nodes as n
@@ -92,14 +92,14 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
                     kind = manifest.get("kind", "resource").lower()
                     fname = f"{name}-{kind}.yaml"
                     result.files[fname] = (
-                        GENERATED_HEADER + "\n" + self._to_yaml(manifest)
+                        generated_header("kubernetes") + self._to_yaml(manifest)
                     )
                 else:
                     single.append(manifest)
 
         if not self.split and single:
-            docs = "\n---\n".join(self._to_yaml(m).rstrip("\n") for m in single)
-            result.files["infra.yaml"] = GENERATED_HEADER + "\n" + docs + "\n"
+            docs = self._to_yaml_multi(single)
+            result.files["infra.yaml"] = generated_header("kubernetes") + docs + "\n"
         return result
 
     def _compile_definition(self, stmt: n.ASTNode, ctx: CompileContext):
@@ -123,8 +123,25 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         elif isinstance(stmt, n.NetworkDef):
             for item in self._compile_network(stmt, ctx):
                 out.append((stmt.name, item))
+        elif isinstance(stmt, n.SecretStoreDef):
+            out.append((stmt.name, self._compile_secret_store(stmt)))
+        elif isinstance(stmt, n.CustomResourceSpec):
+            out.append((stmt.name, self._compile_custom_resource(stmt)))
+        elif isinstance(stmt, n.NetworkPolicyDef):
+            out.append((stmt.name, self._compile_network_policy_def(stmt)))
         elif isinstance(stmt, n.SecretDef):
-            out.append((stmt.name, self._compile_secret(stmt)))
+            if stmt.store:
+                store_defs = [
+                    s
+                    for s in ctx.program.statements
+                    if isinstance(s, n.SecretStoreDef)
+                ]
+                store = next(
+                    (s for s in store_defs if s.name == stmt.store), None
+                )
+                out.append((stmt.name, self._compile_external_secret(stmt, store)))
+            else:
+                out.append((stmt.name, self._compile_secret(stmt)))
         elif isinstance(stmt, n.ConfigDef):
             out.append((stmt.name, self._compile_config(stmt)))
         elif isinstance(stmt, n.EnvironmentDef):
@@ -257,6 +274,9 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
                 },
             },
         }
+        init_containers = self._dependency_init_containers(node, ctx)
+        if init_containers:
+            deployment["spec"]["template"]["spec"]["initContainers"] = init_containers
         if node.strategy and node.strategy.type == "recreate":
             deployment["spec"]["strategy"] = {"type": "Recreate"}
         elif node.strategy and node.strategy.type in (
@@ -315,6 +335,53 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
             manifests.append(self._clean_none(self._compile_network_policy(node)))
         return manifests
 
+    def _dependency_init_containers(
+        self, node: n.ServiceDef, ctx: CompileContext
+    ) -> List[Dict[str, Any]]:
+        """One ``wait-for-<dep>`` init container per declared dependency.
+
+        The init loop blocks the pod until TCP ``<dep>:<port>`` accepts a
+        connection, giving deterministic start-up ordering for
+        ``depends_on`` without relying on crash-loop retries (v0.4.5).
+        Targets that are not network-reachable (or undeclared — the
+        validator reports those via DEPENDENCY_NOT_FOUND) are skipped.
+        """
+        defs: Dict[str, n.ASTNode] = {}
+        for stmt in ctx.program.statements:
+            name = getattr(stmt, "name", "")
+            if name:
+                defs.setdefault(name, stmt)
+
+        containers: List[Dict[str, Any]] = []
+        for dep in node.dependencies:
+            target = defs.get(dep)
+            port: Optional[int]
+            if isinstance(target, n.ServiceDef):
+                # mirror the Service port mapping: host or target or 80
+                first = target.ports[0] if target.ports else None
+                port = (first.host or first.target or 80) if first else 80
+            elif isinstance(target, n.DatabaseDef):
+                port = 5432
+            elif isinstance(target, n.CacheDef):
+                port = 6379
+            elif isinstance(target, n.QueueDef):
+                port = 5672
+            else:
+                continue
+            containers.append(
+                {
+                    "name": f"wait-for-{dep}",
+                    "image": "busybox:1.36",
+                    "command": [
+                        "sh",
+                        "-c",
+                        f"until nc -z {dep} {port}; do "
+                        f'echo "waiting for {dep}:{port}"; sleep 2; done',
+                    ],
+                }
+            )
+        return containers
+
     def _compile_network_policy(self, node: n.ServiceDef) -> Dict[str, Any]:
         """Generate a per-service NetworkPolicy."""
         np_: Dict[str, Any] = {
@@ -356,6 +423,48 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
             })
             np_["spec"]["egress"] = egress
         return np_
+
+    def _compile_network_policy_def(
+        self, node: n.NetworkPolicyDef
+    ) -> Dict[str, Any]:
+        """K8s ``NetworkPolicy`` from a top-level ``network_policy`` (v0.5.1).
+
+        Mapping: ``target`` selects pods via the standard
+        ``app.kubernetes.io/name`` label; each ``allow_ingress`` entry yields
+        an ingress peer, each ``allow_egress`` entry an egress peer;
+        ``block_all_ingress`` with an empty allow-list renders
+        ``ingress: []`` (deny-all inbound). With no ingress rules at all the
+        ``ingress`` key is omitted, leaving inbound traffic unrestricted —
+        same for outbound when ``allow_egress`` is empty.
+        """
+
+        def _peers(names: Tuple[str, ...]) -> List[Dict[str, Any]]:
+            return [
+                {"podSelector": {"matchLabels": {"app.kubernetes.io/name": s}}}
+                for s in names
+            ]
+
+        target = node.target or node.name
+        spec: Dict[str, Any] = {
+            "podSelector": {"matchLabels": {"app.kubernetes.io/name": target}}
+        }
+        policy_types: List[str] = []
+        if node.block_all_ingress and not node.allow_ingress:
+            spec["ingress"] = []  # empty rule set == deny-all inbound
+            policy_types.append("Ingress")
+        elif node.allow_ingress:
+            spec["ingress"] = [{"from": _peers(node.allow_ingress)}]
+            policy_types.append("Ingress")
+        if node.allow_egress:
+            spec["egress"] = [{"to": _peers(node.allow_egress)}]
+            policy_types.append("Egress")
+        spec["policyTypes"] = policy_types
+        return {
+            "apiVersion": "networking.k8s.io/v1",
+            "kind": "NetworkPolicy",
+            "metadata": {"name": node.name, "labels": self._labels(node.name)},
+            "spec": spec,
+        }
 
     @staticmethod
     def _apply_topology(deployment: Dict[str, Any], topo: n.TopologySpec) -> Dict[str, Any]:
@@ -847,7 +956,7 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
         return manifests
 
     def _db_env(self, node: n.DatabaseDef) -> List[Dict[str, Any]]:
-        env = [
+        env: List[Dict[str, Any]] = [
             {"name": "POSTGRES_DB", "value": node.name},
             {"name": "POSTGRES_USER", "value": node.name},
         ]
@@ -1027,6 +1136,120 @@ class KubernetesBackend(Backend, BaseYAMLBackend):
             "data": data,
             "type": "Opaque",
         }
+
+    def _compile_secret_store(self, node: n.SecretStoreDef) -> Dict[str, Any]:
+        """ExternalSecret-Operator ``SecretStore`` for a ``secret_store`` (v0.5.0)."""
+        provider_block: Dict[str, Any] = {}
+        if node.provider == "vault":
+            vault: Dict[str, Any] = {"server": node.address or "http://vault:8200"}
+            if node.path:
+                vault["path"] = node.path
+            provider_block["vault"] = vault
+        elif node.provider == "aws":
+            aws: Dict[str, Any] = {"service": "SecretsManager"}
+            if node.region:
+                aws["region"] = node.region
+            provider_block["aws"] = aws
+        elif node.provider == "gcp":
+            provider_block["gcpsm"] = {"projectID": node.project or "PROJECT_ID"}
+        elif node.provider == "kubernetes":
+            kube: Dict[str, Any] = {
+                "server": node.address or "https://kubernetes.default"
+            }
+            if node.namespace:
+                kube["remoteNamespace"] = node.namespace
+            provider_block["kubernetes"] = kube
+        else:
+            # validator reports INVALID_STORE_PROVIDER; stay permissive here
+            provider_block[node.provider or "generic"] = {}
+        return {
+            "apiVersion": "external-secrets.io/v1beta1",
+            "kind": "SecretStore",
+            "metadata": {"name": node.name, "labels": self._labels(node.name)},
+            "spec": {"provider": provider_block},
+        }
+
+    def _compile_external_secret(
+        self, node: n.SecretDef, store: Optional[n.SecretStoreDef]
+    ) -> Dict[str, Any]:
+        """``ExternalSecret`` bound to a ``SecretStore`` (v0.5.0).
+
+        Mapping: ``remoteRef.key`` is the store ``path`` when set, else the
+        secret's own name; ``property`` selects the JSON key (vault KV-v2 /
+        AWS/GCP JSON payloads alike).
+        """
+        key = (store.path if store and store.path else None) or node.name
+        data = [
+            {
+                "secretKey": e.name,
+                "remoteRef": {"key": key, "property": e.key or e.name},
+            }
+            for e in node.entries
+        ]
+        return {
+            "apiVersion": "external-secrets.io/v1beta1",
+            "kind": "ExternalSecret",
+            "metadata": {"name": node.name, "labels": self._labels(node.name)},
+            "spec": {
+                "secretStoreRef": {"name": node.store, "kind": "SecretStore"},
+                "target": {"name": node.name},
+                "data": data,
+            },
+        }
+
+    def _compile_custom_resource(self, node: n.CustomResourceSpec) -> Dict[str, Any]:
+        """Render a generic custom resource (CRD) manifest directly (v0.5.0).
+
+        ``api_version``/``kind`` map onto the manifest's ``apiVersion``/
+        ``kind``; every other property (``spec`` included) is passed through
+        verbatim. When ``api_version`` is missing we default to ``v1``; when
+        ``kind`` is missing we reuse the declaration's type label so the
+        manifest stays loadable — the validator nudges the user with W010 /
+        W011 in both cases.
+        """
+        manifest: Dict[str, Any] = {
+            "apiVersion": node.api_version or "v1",
+            "kind": node.kind or node.kind_name,
+            "metadata": {"name": node.name, "labels": self._labels(node.name)},
+        }
+        for key, value in node.properties:
+            if key in ("api_version", "kind"):
+                continue
+            rendered = self._custom_value(value)
+            if key == "metadata" and isinstance(rendered, dict):
+                merged = dict(manifest["metadata"])
+                merged.update(rendered)
+                rendered = merged
+            manifest[key] = rendered
+        return manifest
+
+    def _custom_value(self, value: n.Expression) -> Any:
+        """Literal-evaluate an expression into plain YAML-ready data."""
+        if isinstance(value, n.Literal):
+            return value.value
+        if isinstance(value, n.Identifier):
+            return value.name
+        if isinstance(value, n.Map):
+            out: Dict[str, Any] = {}
+            for entry in value.entries:
+                key = entry.key
+                if isinstance(key, n.Literal):
+                    k = str(key.value)
+                elif isinstance(key, n.Identifier):
+                    k = key.name
+                else:
+                    k = _lit(key)
+                out[k] = self._custom_value(entry.value)
+            # keep manifests valid when a value resolves to None (e.g. null)
+            return self._clean_none(out)
+        if isinstance(value, n.List):
+            return [self._custom_value(item) for item in value.items]
+        if isinstance(value, n.TemplateString):
+            return "".join(
+                p if isinstance(p, str) else str(self._custom_value(p))
+                for p in value.parts
+            )
+        return _lit(value)
 
     def _compile_config(self, node: n.ConfigDef) -> Dict[str, Any]:
         data = {}

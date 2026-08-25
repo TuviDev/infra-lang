@@ -6,6 +6,8 @@ We test the _diagnose() function directly, not the full LSP server
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from lsprotocol.types import DiagnosticSeverity
 
@@ -171,11 +173,21 @@ class TestHandlers:
             DidChangeTextDocumentParams,
             Position,
             Range,
-            TextDocumentContentChangeEvent_Type1,
             VersionedTextDocumentIdentifier,
         )
 
         from infra.lsp import server as mod
+
+        try:
+            from lsprotocol.types import TextDocumentContentChangePartial
+        except ImportError:
+            # lsprotocol 2023.x (pygls 1.3.1) has no named partial-change
+            # class; the anonymous union shape carries the same fields.
+            from lsprotocol.types import TextDocumentContentChangeEvent_Type1
+
+            TextDocumentContentChangePartial = (  # noqa: N806 - intentional
+                TextDocumentContentChangeEvent_Type1
+            )
 
         published = {}
 
@@ -188,7 +200,7 @@ class TestHandlers:
                 uri="file:///tmp/t.infra", version=2
             ),
             content_changes=[
-                TextDocumentContentChangeEvent_Type1(
+                TextDocumentContentChangePartial(
                     range=Range(
                         start=Position(line=0, character=0),
                         end=Position(line=0, character=1),
@@ -375,3 +387,43 @@ class TestLspCmdImportError:
     to trigger in-process because pygls is already imported); the graceful
     message is produced by `lsp_cmd` and covered by the clean-venv install test.
     """
+
+
+class TestWindowsUriConversion:
+    """Regression: a Windows `file:///C:/...` URI must convert to a real path.
+
+    The LSP `did_close` handler converts a file URI to a native path via
+    `url2pathname`. On Windows a leading-slash drive form (`/C:/...`) must be
+    handled; using `Path(unquote(urlparse(uri).path))` alone would leave the
+    leading slash and never match an existing file. This mirrors the logic in
+    `server.did_close` so the conversion contract is covered on every OS.
+    """
+
+    def test_url2pathname_windows_drive_form(self):
+        from urllib.parse import unquote, urlparse
+        from urllib.request import url2pathname
+
+        uri = "file:///C:/Users/tester/app.infra"
+        path = Path(url2pathname(unquote(urlparse(uri).path)))
+        # On Windows this yields `C:\\Users\\tester\\app.infra`; on POSIX the
+        # `/C:/...` form is preserved. Either way the leading `/C` drive marker
+        # must be handled by url2pathname (never a bare `/C:/...` on Windows).
+        assert path is not None
+        # the file name component must survive conversion
+        assert path.name == "app.infra"
+
+    def test_url2pathname_posix_plain(self):
+        from urllib.parse import unquote, urlparse
+        from urllib.request import url2pathname
+
+        uri = "file:///home/user/app.infra"
+        path = Path(url2pathname(unquote(urlparse(uri).path)))
+        assert path == Path("/home/user/app.infra")
+
+    def test_url2pathname_percent_encoded(self):
+        from urllib.parse import unquote, urlparse
+        from urllib.request import url2pathname
+
+        uri = "file:///home/user/my%20app.infra"
+        path = Path(url2pathname(unquote(urlparse(uri).path)))
+        assert "my app.infra" in str(path)
