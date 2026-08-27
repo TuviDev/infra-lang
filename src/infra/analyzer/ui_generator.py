@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import html
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple, TypeAlias
 
 from infra.analyzer.cost import CostEstimate
 from infra.analyzer.drift import DriftReport
@@ -30,7 +30,10 @@ from infra.version import __version__
 
 #: Public alias — the "infrastructure spec" consumed by the UI generator is
 #: the parsed Infra program (the complete AST of a ``.infra`` file).
-InfrastructureSpec = n.Program
+#: Declared as an explicit ``TypeAlias`` so that mypy treats it as a type in
+#: every invocation mode (plain ``mypy src/infra`` did not promote the bare
+#: assignment to an alias and reported "Variable ... is not valid as a type").
+InfrastructureSpec: TypeAlias = n.Program
 
 _KIND_COLORS: Dict[str, str] = {
     "service": "#2563eb",

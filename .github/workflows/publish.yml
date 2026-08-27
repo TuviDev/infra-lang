@@ -10,9 +10,9 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # Only attempt to publish when a PyPI token is configured, so a tag push
-    # without secrets does not fail the workflow.
-    if: "${{ secrets.PYPI_TOKEN != '' }}"
+    # NOTE: the `secrets` context is not available in a job-level `if` (the
+    # GitHub Actions parser rejects the whole workflow), so the token guard
+    # lives on the upload step below via the `env` context instead.
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +31,10 @@ jobs:
         run: twine check dist/*
 
       - name: Upload to PyPI
+        # Only attempt the upload when a PyPI token is configured, so a tag
+        # push without secrets skips publishing instead of failing. Build and
+        # `twine check` above still validate every tagged release.
+        if: env.TWINE_PASSWORD != ''
         run: twine upload dist/*
         env:
           TWINE_USERNAME: __token__

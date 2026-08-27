@@ -32,14 +32,16 @@ jobs:
         run: npx @vscode/vsce package --no-dependencies
 
       - name: Publish to VS Code Marketplace
-        if: "${{ secrets.VSCE_PAT != '' }}"
+        # `secrets` is not allowed in step `if` conditions either; guard on
+        # the env-mapped value instead so the workflow parses on GitHub.
+        if: env.VSCE_PAT != ''
         working-directory: vscode-infra-lang
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: npx @vscode/vsce publish --pat "$VSCE_PAT"
 
       - name: Publish to Open VSX
-        if: "${{ secrets.OVSX_TOKEN != '' }}"
+        if: env.OVSX_TOKEN != ''
         working-directory: vscode-infra-lang
         env:
           OVSX_TOKEN: ${{ secrets.OVSX_TOKEN }}

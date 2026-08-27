@@ -102,6 +102,20 @@ select = ["E", "F", "W", "I", "N"]
 python_version = "3.11"
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+# Dual-stack LSP support: infra/lsp/server.py is checked against BOTH the
+# legacy pygls 1.3.x / lsprotocol 2023.x stack and the modern pygls 2.x one.
+#  * warn_unused_ignores: the module carries ``# type: ignore[attr-defined]``
+#    on guarded imports that only fail on the legacy stack; on the modern
+#    stack those ignores are intentionally unused, so the per-file
+#    unused-ignore warning (enabled by --strict) must stay off here.
+#  * allow_untyped_decorators: pygls 1.3.x ships untyped ``@server.feature``
+#    decorators; pygls 2.x decorators are fully typed, so the flag is inert
+#    on the modern stack.
+module = "infra.lsp.server"
+warn_unused_ignores = false
+allow_untyped_decorators = true
+
 [tool.coverage.run]
 source = ["src/infra"]
 omit = ["*/tests/*", "*/__main__.py"]

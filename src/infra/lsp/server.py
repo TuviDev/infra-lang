@@ -13,7 +13,7 @@ Protocol: JSON-RPC over stdio (standard LSP transport).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, cast
 
 from lsprotocol.types import (
     INITIALIZED,
@@ -114,14 +114,21 @@ except ImportError:  # pragma: no cover - tied to pygls 1.3.x installs
     from pygls.server import LanguageServer  # type: ignore[no-redef, attr-defined]
 
 try:
-    from lsprotocol.types import PrepareRenamePlaceholder
+    # attr-defined: lsprotocol 2023.x (pygls 1.3.x stack) does not ship this
+    # symbol at all; the ignore is inert (and suppressed per-module in
+    # pyproject.toml) on lsprotocol 2024+/pygls 2.x, where the import works.
+    from lsprotocol.types import PrepareRenamePlaceholder  # type: ignore[attr-defined]
 except ImportError:
     # pygls 1.3.1 pins lsprotocol 2023.x, which predates this type; the
     # prepare-rename handler then falls back to returning a plain Range.
     PrepareRenamePlaceholder = None  # type: ignore[assignment, misc]
 
 try:
-    from lsprotocol.types import TextDocumentContentChangePartial  # noqa: F401
+    # attr-defined: lsprotocol 2023.x (pygls 1.3.x stack) lacks this alias;
+    # see the PrepareRenamePlaceholder import above for the ignore policy.
+    from lsprotocol.types import (  # type: ignore[attr-defined]
+        TextDocumentContentChangePartial,  # noqa: F401
+    )
 except ImportError:  # pragma: no cover - tied to lsprotocol 2023.x installs
     # Compatibility probe: lsprotocol 2023.x (pygls 1.3.1) ships only the
     # anonymous union shapes ``TextDocumentContentChangeEvent_Type1/_Type2``
@@ -690,7 +697,15 @@ def prepare_rename(
     if rng is None:
         return None
     if PrepareRenamePlaceholder is not None:
-        return PrepareRenamePlaceholder(range=rng, placeholder=name)
+        # cast: on the legacy lsprotocol 2023.x stack the guarded import
+        # above left this name as ``Any``, which --strict would report as
+        # returning Any from a typed function; on the modern stack the
+        # expression is already a ``PrepareRenamePlaceholder`` (a valid
+        # ``PrepareRenameResult`` member), so the cast is a no-op there.
+        return cast(
+            PrepareRenameResult,
+            PrepareRenamePlaceholder(range=rng, placeholder=name),
+        )
     # lsprotocol 2023 (pygls 1.3.1): PrepareRenamePlaceholder does not exist;
     # a plain Range is a valid prepare-rename response there.
     return rng
