@@ -2,6 +2,39 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.5.2] - 2026-08-26
+
+### Added
+- **Interactive visual web dashboard** (`infra serve` / `infra ui`) — a
+  local, standard-library-only HTTP server (`http.server` +
+  `ThreadingMixIn`, zero web frameworks) that renders a live
+  single-page dashboard for a `.infra` file at
+  `http://localhost:<port>` (bound to `127.0.0.1` only; Ctrl+C stops it
+  cleanly). Browser auto-open via `webbrowser` can be disabled with
+  `--no-browser`; an environment overlay is applied with `-e/--env`.
+- **Architecture DAG visualization** — inline-SVG graph of services,
+  databases, caches and queues connected by `depends_on`/`depends`
+  edges (longest-path layered layout with cycle guard; ghost "external"
+  nodes for forward-referenced dependencies), plus a shared-infrastructure
+  lane for networks, secret stores and network policies. Hovering a node
+  highlights its connected edges.
+- **FinOps calculator panel** — monthly cost table per resource (vCPU,
+  RAM, storage), the estimated monthly total and a cost-share bar chart.
+- **Drift panel** — renders an optional `DriftReport` with an
+  In-Sync/Drifted badge and per-field expected-vs-live highlighting
+  (escaped, so crafted values cannot inject markup); shows probe errors
+  or a "data not collected" note when no report is supplied.
+- **Environment preview switcher** — a `<select>` listing every declared
+  environment (`environment prod { ... }` definitions and
+  `environment "name" { service ... }` overlays with override counts);
+  the `-e` flag preselects the active overlay, which is also shown in
+  the page header.
+- **Offline HTML report export** — `infra serve app.infra
+  --output-html report.html` writes a fully standalone single-file
+  report (inline CSS/JS, no external references, works offline and in
+  sandboxed viewers) without starting the HTTP server; `infra ui` is an
+  official alias of `infra serve`.
+
 ## [0.5.1] - 2026-08-24
 
 ### Added

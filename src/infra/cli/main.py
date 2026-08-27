@@ -53,6 +53,7 @@ def register_commands() -> None:
     from infra.cli.feedback_cmd import feedback_cmd
     from infra.cli.import_cmd import import_cmd
     from infra.cli.lsp_cmd import lsp_cmd
+    from infra.cli.serve_cmd import serve_cmd
     from infra.cli.up_cmd import down, up
 
     app.command(name="up", help="Compile and deploy a .infra file.")(up)
@@ -88,6 +89,13 @@ def register_commands() -> None:
     app.command(name="doctor", help="Check the local environment for needed tools.")(
         doctor
     )
+    app.command(
+        name="serve",
+        help="Open the interactive local dashboard (architecture DAG, FinOps, drift).",
+    )(serve_cmd)
+    app.command(
+        name="ui", help="Alias for 'infra serve' (visual dashboard)."
+    )(serve_cmd)
 
 
 register_commands()

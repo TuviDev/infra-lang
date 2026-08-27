@@ -1,4 +1,4 @@
-﻿"""Tests for cross-file workspace symbol index and symbol rename (S27)."""
+"""Tests for cross-file workspace symbol index and symbol rename (S27)."""
 
 from __future__ import annotations
 
@@ -315,8 +315,8 @@ class TestPrepareRename:
         )
         result = mod.prepare_rename(ls, params)
         assert result is not None
-        if hasattr(result, "placeholder"): assert result.placeholder == "api"
-        assert result is not None
+        assert result.placeholder == "api"
+        assert result.range is not None
 
     def test_returns_none_for_non_resolvable_position(self):
         ls = _make_ls({"file:///a.infra": 'service web {\n    image: "x"\n}\n'})

@@ -142,6 +142,32 @@ inlines an `aws_security_group`, pair of `google_compute_firewall`
 rules, or an `azurerm_network_security_group` with priority-ordered
 security rules — depending on the chosen provider.
 
+### Open the visual dashboard (since 0.5.2)
+
+Spin up a local interactive dashboard for any `.infra` file:
+
+```bash
+infra serve app.infra              # http://localhost:8080
+infra serve app.infra --port 9000 --no-browser
+infra serve app.infra -e prod      # apply an environment overlay
+infra ui   app.infra               # alias of `infra serve`
+```
+
+The page shows the **architecture DAG** (services, databases, caches,
+queues and `depends_on` edges; networks, secret stores and network
+policies in a shared lane), the **FinOps calculator** (monthly cost per
+resource with a share chart), a **drift panel**, and an **environment
+preview switcher**. The HTML is regenerated on every request, so edits
+to the file appear on reload. The server binds to `127.0.0.1` only and
+uses nothing but the Python standard library.
+
+Export the same view as a fully offline single-file report (no server
+started):
+
+```bash
+infra serve app.infra --output-html report.html
+```
+
 ## Validate
 ```bash
 infra validate app.infra

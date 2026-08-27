@@ -1,24 +1,26 @@
 # Infra Lang
 
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Status](https://img.shields.io/badge/status-v0.1.0-orange)
+**Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions.**
 
-**Infra Lang** is an Infrastructure-as-Code DSL that compiles a single
-declarative source file to Kubernetes YAML, Docker Compose, Terraform HCL
-(AWS/GCP/Azure) and GitHub Actions. It brings compiler-grade validation,
-built-in security and reliability linting, and a formatter/REPL to IaC.
+[![PyPI](https://img.shields.io/pypi/v/infra-lang)](https://pypi.org/project/infra-lang/)
+[![CI](https://img.shields.io/github/actions/workflow/status/TuviDev/infra-lang/ci.yml?branch=main)](https://github.com/TuviDev/infra-lang/actions)
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://TuviDev.github.io/infra-lang/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 
-## The Problem
+Infra Lang is an Infrastructure-as-Code DSL for DevOps engineers, SREs, and
+platform teams. You describe your application — services, databases, queues,
+secrets, and pipelines — in one declarative `.infra` file, and Infra Lang
+compiles it to Kubernetes YAML, Docker Compose, Terraform HCL, or a GitHub
+Actions workflow. Instead of hand-writing and maintaining the same app in four
+different formats, you maintain one source of truth.
 
-Infrastructure today is written in many different formats: raw YAML manifests,
-Helm charts, Terraform files, Docker Compose files, CI pipelines. Each has its
-own syntax, validation gap, and sharp edges.
+## Quick demo
 
-Compare a raw Kubernetes Deployment + Service + Ingress (60+ lines of YAML,
-easy to get subtly wrong) with the equivalent Infra:
+A single `.infra` file describes a service:
 
 ```infra
+# app.infra
 service api {
     image: "myapp/api:v1.0.0"
     replicas: 3
@@ -28,33 +30,110 @@ service api {
         requests { cpu: 200m, memory: 256Mi }
         limits   { cpu: 1000m, memory: 512Mi }
     }
-    ingress { host: "api.example.com", tls: true }
 }
 ```
 
-One concise, type-checked source that compiles to the correct Kubernetes
-objects — with validation, security checks and formatting built in.
+Compile it to Kubernetes:
+
+```bash
+infra compile app.infra --target kubernetes
+```
+
+Infra Lang produces the matching Deployment and Service:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  template:
+    spec:
+      containers:
+        - name: api
+          image: myapp/api:v1.0.0
+          ports:
+            - containerPort: 8080
+              name: port-0
+          resources:
+            requests: { cpu: 200m, memory: 256Mi }
+            limits:   { cpu: 1000m, memory: 512Mi }
+          readinessProbe:
+            httpGet: { path: /health, port: 8080 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+spec:
+  selector:
+    app.kubernetes.io/name: api
+  ports:
+    - port: 8080
+      targetPort: 8080
+```
+
+The same file compiles to Docker Compose with no rewriting:
+
+```bash
+infra compile app.infra --target compose
+```
+
+A `pipeline` block compiles to a GitHub Actions workflow:
+
+```infra
+pipeline ci {
+    trigger { branches: ["main"] }
+    stages {
+        test: { runsOn: "ubuntu-latest" steps { t: { run: "pytest" } } }
+    }
+}
+```
+
+```bash
+infra compile app.infra --target github
+```
 
 ## Features
 
-- [x] Own LALR(1) grammar — readable, indentation-free, `{}` blocks
-- [x] 11 top-level structures: `service`, `database`, `cache`, `queue`,
-      `storage`, `network`, `secret`, `config`, `pipeline`, `environment`,
-      `cluster`
-- [x] 4 backends: Kubernetes, Docker Compose, Terraform, GitHub Actions
-- [x] Semantic validation with 30+ error codes and helpful hints
-- [x] Built-in **Security linter** (SEC001–SEC010)
-- [x] Built-in **Reliability linter** (REL001–REL014)
-- [x] Template-string interpolation (`` `image:{TAG}` ``)
-- [x] Import system with cycle detection
-- [x] `extends` inheritance for environments and services
-- [x] Time-aware scaling (`schedule` → CronJobs + HPA + RBAC)
-- [x] Autoscaling block (`autoscale` → HPA)
-- [x] Disruption budgets (`disruption` → PDB)
-- [x] Infra Diff engine (`infra diff`)
-- [x] Built-in formatter (`infra fmt`) and REPL (`infra repl`)
-- [x] 25+ stdlib functions and a prelude of reusable constants
-- [x] 1100+ tests, clean `ruff` and `mypy`
+- **11 top-level resource types** — `service`, `database`, `cache`, `queue`,
+  `storage`, `network`, `secret`, `config`, `pipeline`, `environment`,
+  `cluster`.
+- **5 compilation targets** — Kubernetes (17 resource kinds), **Helm charts**,
+  Docker Compose, Terraform HCL (AWS/GCP/Azure), GitHub Actions.
+- **Compiler-grade validation** — 30+ error codes with source locations and
+  actionable hints; invalid configs fail before anything is emitted.
+- **Built-in security linter** (SEC001–SEC010) and **reliability linter**
+  (REL001–REL014); `Error`-severity findings block compilation.
+- **A language server** — context-aware completion, hover docs, live
+  diagnostics with links and related info, go-to-definition, find-references,
+  workspace symbols, symbol rename, signature help, document highlight,
+  semantic tokens, folding, formatting, and quick-fixes — all across every
+  `.infra` file on disk.
+- **A formatter, REPL, and diff engine** — `infra fmt`, `infra repl`, and
+  `infra diff` for reviewing changes.
+- **Direct execution** — `infra up` / `infra down` apply and remove resources
+  on a live cluster (`kubectl apply/delete`), Docker Compose
+  (`docker compose up/down`), or Helm (`helm upgrade --install`/`uninstall`),
+  with a `--dry-run` to preview commands.
+- **Cost estimation** — `infra cost` estimates the monthly cloud cost of a
+  `.infra` file (per-resource table, `--json` for CI gates, `--currency`).
+- **Reusable pieces** — template-string interpolation, `import` with cycle
+  detection, `extends` inheritance, 25+ stdlib functions and a prelude of
+  shared constants.
+
+## Try it in Codespaces
+
+Click the button below to open this project in GitHub Codespaces:
+
+[![Open in Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/TuviDev/infra-lang)
+
+No local installation needed — full dev environment in about 2 minutes
+(Python 3.12, Docker-in-Docker, kubectl/helm, Ruff/Mypy extensions).
 
 ## Installation
 
@@ -62,7 +141,7 @@ objects — with validation, security checks and formatting built in.
 pip install infra-lang
 ```
 
-With LSP support (recommended for VS Code):
+With the language server (recommended for VS Code):
 
 ```bash
 pip install 'infra-lang[lsp]'
@@ -75,235 +154,66 @@ infra --version
 infra --help
 ```
 
-### VS Code / LSP
+> **Note:** For the latest development version, install from Git:
+> `pip install git+https://github.com/TuviDev/infra-lang.git`
 
-Install the [VS Code extension](vscode-infra-lang/README.md) for syntax
-highlighting, snippets, and a language server that provides live diagnostics,
-hover docs, context-aware completion, document outline, **whole-project**
-workspace indexing (go-to-definition, find-references and workspace symbols
-across every `.infra` file on disk, not just open tabs), symbol rename, and
-formatting. See [docs/lsp.md](docs/lsp.md).
+**Requirements:** Python 3.11+.
 
-### Opt-in error reporting
+## Getting started
 
-Anonymous error reporting is **off by default**. Check the status with:
+Full documentation is hosted at **[TuviDev.github.io/infra-lang](https://TuviDev.github.io/infra-lang/)**.
 
-```bash
-infra feedback
-```
+The fastest path is the [5-minute quickstart](https://TuviDev.github.io/infra-lang/quickstart/). In short:
 
-Enable it locally with `infra feedback --on`. It never sends source code,
-file paths, or PII. See [docs/lsp.md](docs/lsp.md) for details.
+1. **Write** a `.infra` file (see the demo above).
+2. **Validate** it: `infra validate app.infra`
+3. **Compile** to a target: `infra compile app.infra --target kubernetes`
+4. **Inspect** the output in `infra-out/`, or preview with `--dry-run`.
+5. **Iterate** with `infra fmt app.infra` and `infra diff app.infra app2.infra`.
 
-For development:
+There is also a [guided tutorial](https://TuviDev.github.io/infra-lang/tutorial/) and
+commented [examples](examples/).
 
-```bash
-git clone https://github.com/infra-lang/infra-lang
-cd infra-lang
-pip install -e ".[dev]"
-```
+## Supported targets
 
-## Quick Start
+| Target | Command | What it generates |
+|--------|---------|-------------------|
+| **Kubernetes** | `-t kubernetes` | Deployments, Services, Ingress, StatefulSets, PVCs, ConfigMaps, Secrets, CronJobs, HPA, PDBs, NetworkPolicies, ResourceQuotas, Namespaces, RBAC, TopologySpreadConstraints |
+| **Helm** | `-t helm` | A complete chart: `Chart.yaml`, `values.yaml`, `templates/`, `_helpers.tpl`, `.helmignore` |
+| **Docker Compose** | `-t compose` | `docker-compose.yml`, `.env.example`, `Makefile` |
+| **Terraform** | `-t terraform` | `main.tf`, `variables.tf`, `outputs.tf`, `providers.tf` (AWS/GCP/Azure) |
+| **GitHub Actions** | `-t github` | `.github/workflows/*.yml`, `dependabot.yml` |
 
-**Step 1 — write a service:**
-
-```infra
-# app.infra
-service api {
-    image: "nginx:1.25.3"
-    port: 80
-    health http("/")
-}
-```
-
-**Step 2 — validate it:**
-
-```bash
-infra validate app.infra
-# ✅ No errors found
-```
-
-**Step 3 — compile to Kubernetes:**
-
-```bash
-infra compile app.infra --target kubernetes
-# ✅ Compiled 2 files to ./infra-out/
-```
-
-**Step 4 — inspect the output:**
-
-```bash
-infra compile app.infra --target kubernetes --dry-run
-```
-
-**Step 5 — iterate with fmt and diff:**
-
-```bash
-infra fmt app.infra
-infra diff app.infra app.new.infra
-```
-
-## Backends
-
-| Backend     | Command           | What it generates |
-|-------------|-------------------|-------------------|
-| Kubernetes  | `-t kubernetes`   | Deployments, Services, Ingress, StatefulSets, HPA, PDB, CronJobs, NetworkPolicies, ConfigMaps, Secrets |
-| Docker Compose | `-t compose`  | `docker-compose.yml`, `.env.example`, `Makefile` |
-| Terraform   | `-t terraform`    | `main.tf`, `variables.tf`, `outputs.tf`, `providers.tf` (AWS/GCP/Azure) |
-| GitHub Actions | `-t github`    | `.github/workflows/*.yml`, `dependabot.yml` |
-
-## Built-in Quality Gates
-
-Validation runs before every compile and flags problems with codes, source
-locations, and actionable hints.
-
-### Security Linter
-
-| Code | Rule |
-|------|------|
-| SEC001 | Hardcoded secret in environment variable |
-| SEC002 | Value matches a known credential pattern (OpenAI/GitHub/AWS/JWT) |
-| SEC003 | Mutable image tag (`latest`, `dev`, ...) |
-| SEC004 | Privileged container |
-| SEC005 | Container running as root (UID 0) |
-| SEC006 | Database SSL explicitly disabled |
-| SEC007 | Hardcoded value inside a `secret` block |
-| SEC008 | Service exposed via ingress without a `network_policy` |
-| SEC009 | Image uses Docker Hub (no registry prefix) |
-| SEC010 | Secret sourced from an env var in a prod environment |
-
-### Reliability Linter
-
-| Code | Rule |
-|------|------|
-| REL001 | High replicas without a startup probe (thundering herd) |
-| REL002 | Even HA replica count (split-vote risk) |
-| REL003 | No memory limit (OOM risk) |
-| REL004 | No health checks |
-| REL005 | Deep dependency chain (cascade-failure risk) |
-| REL006 | Database without a backup |
-| REL007 | Single-replica service that others depend on |
-| REL008 | Redis cache without persistence |
-| REL009 | No graceful-shutdown (`preStop`) hook |
-| REL011 | Autoscale without CPU limits (HPA can't compute utilization) |
-| REL012 | Autoscale plus a fixed `replicas` (conflicting) |
-| REL013 | Database without resource allocation |
-| REL014 | Kafka with a single replica (no fault tolerance) |
-
-## CLI Reference
-
-| Command    | Options | Description |
-|------------|---------|-------------|
-| `infra compile` | `-t`, `-o`, `--split`, `--var`, `--dry-run`, `--watch` | Compile to a backend |
-| `infra validate` | `--strict`, `--format`, `--var` | Validate without compiling |
-| `infra fmt` | `--check`, `--diff`, `--indent` | Format .infra files |
-| `infra repl` | `--target`, `--history` | Interactive REPL |
-| `infra init` | `--template`, `--target` | Scaffold a project |
-| `infra check` | — | Quick syntax check |
-| `infra graph` | — | Print dependency graph |
-| `infra docs` | `-o` | Generate a Markdown inventory |
-| `infra diff` | `--format`, `--only-changes` | Compare two .infra files |
-| `infra lsp` | `--tcp`, `--host`, `--port` | Start the language server |
-| `infra feedback` | `--on`, `--off`, `--project` | Manage opt-in error reporting |
-
-## Language Reference
-
-Each structure uses `{}` blocks; fields are `name: value`.
-
-**Service:**
-
-```infra
-service api {
-    image: "myapp:1.0"
-    replicas: 3
-    port 8080
-    env { MODE: "prod" }
-    resources { requests { cpu: 100m, memory: 128Mi } }
-    health http("/health")
-}
-```
-
-**Database:**
-
-```infra
-database db {
-    type: postgres
-    version: "15"
-    storage: 20Gi
-    backup { enabled: true, schedule: "0 2 * * *" }
-}
-```
-
-**Pipeline:**
-
-```infra
-pipeline ci {
-    trigger { branches: ["main"] }
-    stages {
-        test: { runsOn: "ubuntu-latest" steps { t: { run: "pytest" } } }
-    }
-}
-```
-
-**Variables, template strings and imports:**
-
-```infra
-const VERSION = "1.2.3"
-import "./base.infra"
-
-service api {
-    image: `myapp:{VERSION}`
-}
-```
+Not every resource type maps to every target — for example, `pipeline` compiles
+only to GitHub Actions, and `cluster` only to Terraform. See the
+[support matrix](https://TuviDev.github.io/infra-lang/support_matrix/) for the
+full mapping.
 
 ## Documentation
 
+The documentation is hosted at **[TuviDev.github.io/infra-lang](https://TuviDev.github.io/infra-lang/)**.
+
 | Doc | What it covers |
 |-----|----------------|
-| [Language spec](docs/language_spec.md) | Full DSL reference (blocks, fields, errors) |
-| [Tutorial](docs/tutorial.md) | 5-lesson guided intro |
-| [Quickstart](docs/quickstart.md) | 5-minute start |
-| [Design decisions](docs/language_decisions.md) | Syntax conventions & rationale |
-| [Support matrix](docs/support_matrix.md) | Backend / K8s version support |
-| [Known limitations](docs/known_limitations.md) | Honest boundaries of the project |
-| [Versioning policy](docs/versioning.md) | Semantic versioning & deprecation |
-| [Feedback policy](docs/feedback_policy.md) | Opt-in telemetry: what's sent, what's not |
-| [Troubleshooting](docs/troubleshooting.md) | Common issues & how to report bugs |
-| [LSP](docs/lsp.md) | Language server capabilities |
-| [Roadmap v0.2.0](docs/roadmap_v0.2.0.md) | Upcoming plans |
+| [Quickstart](https://TuviDev.github.io/infra-lang/quickstart/) | 5-minute first run |
+| [Language spec](https://TuviDev.github.io/infra-lang/language_spec/) | Full DSL reference (blocks, fields, error codes) |
+| [Support matrix](https://TuviDev.github.io/infra-lang/support_matrix/) | Which resources map to which targets |
+| [LSP / editor support](https://TuviDev.github.io/infra-lang/lsp/) | VS Code extension and language server |
+| [Known limitations](https://TuviDev.github.io/infra-lang/known_limitations/) | Honest boundaries of the project |
 
-## Examples
+## Contributing
 
-| File | Shows |
-|------|-------|
-| `examples/01_hello_world.infra` | The simplest single service |
-| `examples/02_web_app.infra` | API + database + cache + secrets |
-| `examples/03_microservices.infra` | Three services sharing a DB and a queue |
-| `examples/04_cicd_pipeline.infra` | A full CI/CD pipeline (**GitHub target only**; no K8s output — expected) |
-| `examples/demo/` | A complete commented microservices project (multi-file, validate + compile) |
-
-```bash
-infra compile examples/01_hello_world.infra --target kubernetes
-```
-
-## Development
-
-```bash
-git clone https://github.com/infra-lang/infra-lang
-cd infra-lang
-pip install -e ".[dev]"
-
-# run tests (parallel)
-pytest -n auto
-
-# quality gates
-ruff check src/
-mypy src/infra --ignore-missing-imports
-
-# build a wheel
-python -m build
-```
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to
+set up a dev environment, add a backend or a grammar rule, and the coding
+standards (ruff, mypy). Please read our [Security policy](SECURITY.md) before
+reporting a vulnerability.
 
 ## License
 
-MIT
+Licensed under the [MIT License](LICENSE).
+
+---
+
+Infra Lang is inspired by the ideas behind [Terraform](https://www.terraform.io/),
+[Score](https://score.dev/), and [Pulumi](https://www.pulumi.com/): declarative
+infrastructure that is easy to read and hard to get wrong.
