@@ -39,7 +39,7 @@ class TestWatchFlag:
         time.sleep(5)
         proc.terminate()
         try:
-            proc.wait(timeout=5)
+            proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
         yaml_files = list(out.rglob("*.yaml")) + list(out.rglob("*.yml"))
@@ -115,7 +115,7 @@ class TestWatchFlag:
         time.sleep(3)
         proc.terminate()
         try:
-            proc.wait(timeout=5)
+            proc.communicate(timeout=5)
         except subprocess.TimeoutExpired:
             proc.kill()
         assert proc.returncode is not None

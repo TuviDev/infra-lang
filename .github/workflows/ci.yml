@@ -60,9 +60,18 @@ jobs:
       - name: Tests + coverage
         shell: bash
         run: |
-          pytest tests/ -q -n auto --dist=loadfile \
-            --cov=src/infra --cov-report=term \
-            --cov-fail-under=90
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            # Windows runners: xdist "-n auto" + coverage + server/watchdog/
+            # subprocess tests can deadlock on pipe buffer / file locks
+            # (CI Run 33263853504). Two workers keep I/O contention bounded.
+            pytest tests/ -q -n 2 --dist=loadfile \
+              --cov=src/infra --cov-report=term \
+              --cov-fail-under=90
+          else
+            pytest tests/ -q -n auto --dist=loadfile \
+              --cov=src/infra --cov-report=term \
+              --cov-fail-under=90
+          fi
 
       - name: Verify package (twine check)
         shell: bash
