@@ -1,4 +1,4 @@
-"""Tests that verify the package is ready for PyPI.
+﻿"""Tests that verify the package is ready for PyPI.
 
 These run locally before any publish attempt. See MANUAL_PUBLISH_STEPS.md.
 """
@@ -115,4 +115,4 @@ class TestPublishReadiness:
             timeout=30,
         )
         assert result.returncode == 0
-        assert "0.5.2" in result.stdout or "infra" in result.stdout.lower()
+        assert "0.5.3" in result.stdout or "infra" in result.stdout.lower()

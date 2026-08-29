@@ -1,7 +1,7 @@
-"""Unit tests for the Helm backend.
+﻿"""Unit tests for the Helm backend.
 
 Verifies the generated chart structure, values.yaml, template files, and edge
-cases — plus that the generated chart passes ``helm lint --strict`` and renders
+cases â€” plus that the generated chart passes ``helm lint --strict`` and renders
 with ``helm template`` when the binary is available.
 """
 
@@ -70,7 +70,7 @@ class TestChartStructure:
         assert data["apiVersion"] == "v2"
         assert data["name"]
         assert data["type"] == "application"
-        assert data["version"] == "0.5.2"
+        assert data["version"] == "0.5.3"
         assert "appVersion" in data
 
     def test_values_yaml_is_valid_yaml(self):
@@ -425,7 +425,7 @@ class TestValuesSchema:
         import json
 
         content = _chart_files(SERVICE_SRC)["values.schema.json"]
-        data = json.loads(content)  # no header comment — must be pure JSON
+        data = json.loads(content)  # no header comment â€” must be pure JSON
         assert data["$schema"] == "http://json-schema.org/draft-07/schema#"
         assert data["type"] == "object"
         assert "service" in data["properties"]
@@ -449,7 +449,7 @@ class TestValuesSchema:
         assert kinds["enum"] == ["deployment", "statefulset"]
 
     def test_schema_no_header_comment(self):
-        # Helm parses values.schema.json as JSON — a leading # would be invalid
+        # Helm parses values.schema.json as JSON â€” a leading # would be invalid
         content = _chart_files(SERVICE_SRC)["values.schema.json"]
         assert not content.startswith("#")
 

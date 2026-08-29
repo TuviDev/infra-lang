@@ -1,4 +1,4 @@
-name: Extension
+﻿name: Extension
 
 on:
   push:
@@ -17,11 +17,11 @@ jobs:
     name: Build & package .vsix
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: "20"
+          node-version: "22"
           cache: npm
           cache-dependency-path: vscode-infra-lang/package-lock.json
 
@@ -38,7 +38,7 @@ jobs:
         run: npx @vscode/vsce package --no-dependencies
 
       - name: Upload .vsix artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: infra-lang-vsix
           path: vscode-infra-lang/*.vsix

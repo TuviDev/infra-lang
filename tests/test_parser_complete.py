@@ -1,4 +1,4 @@
-"""Completeness: parser/lexer/expression/CLI edge cases."""
+﻿"""Completeness: parser/lexer/expression/CLI edge cases."""
 
 from __future__ import annotations
 
@@ -170,7 +170,7 @@ class TestCLISmoke:
         from infra.cli.main import app
 
         result = CliRunner().invoke(app, ["--version"])
-        assert "0.5.2" in result.output
+        assert "0.5.3" in result.output
 
     def test_help_lists_commands(self):
         from typer.testing import CliRunner
