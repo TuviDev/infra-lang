@@ -16,7 +16,7 @@ class TestPackageStructure:
         import infra
 
         assert hasattr(infra, "__version__")
-        assert infra.__version__ == "0.5.2"
+        assert infra.__version__ == "0.5.3"
 
     def test_version_format_valid(self):
         from infra.version import VERSION_INFO, __version__
@@ -26,6 +26,7 @@ class TestPackageStructure:
         assert all(p.isdigit() for p in parts)
         assert isinstance(VERSION_INFO, tuple)
         assert len(VERSION_INFO) == 3
+        assert VERSION_INFO == tuple(int(p) for p in __version__.split("."))
 
     def test_public_api_complete(self):
         from infra import __version__, parse, validate
@@ -104,7 +105,7 @@ class TestCLISubprocess:
     def test_version_exit_0(self):
         r = self._run("--version")
         assert r.returncode == 0
-        assert "0.5.2" in r.stdout
+        assert "0.5.3" in r.stdout
 
     def test_compile_help_exit_0(self):
         assert self._run("compile", "--help").returncode == 0
