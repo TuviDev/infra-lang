@@ -1,4 +1,4 @@
-﻿"""Completeness: parser/lexer/expression/CLI edge cases."""
+"""Completeness: parser/lexer/expression/CLI edge cases."""
 
 from __future__ import annotations
 

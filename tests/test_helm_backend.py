@@ -1,4 +1,4 @@
-﻿"""Unit tests for the Helm backend.
+"""Unit tests for the Helm backend.
 
 Verifies the generated chart structure, values.yaml, template files, and edge
 cases â€” plus that the generated chart passes ``helm lint --strict`` and renders
