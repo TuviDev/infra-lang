@@ -1,5 +1,9 @@
 # Infra Lang v0.1.0
 
+> **⚠️ DOKUMENT ARCHIWALNY.** Noty wydania pierwszej wersji publicznej (0.1.0).
+> Bieżące informacje o wydaniach znajdują się w `CHANGELOG.md` oraz na
+> stronie GitHub Releases. Plik zachowany dla historii projektu.
+
 **Release date:** 2026-08-16 · **Version:** 0.1.0
 
 Infra Lang is an Infrastructure-as-Code DSL that compiles a single `.infra`

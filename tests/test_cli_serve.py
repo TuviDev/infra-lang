@@ -8,6 +8,7 @@ the file changes, port-conflict handling and browser-open control.
 
 from __future__ import annotations
 
+import re
 import socket
 import threading
 import urllib.error
@@ -300,8 +301,11 @@ class TestServeFlow:
     def test_serve_help_lists_all_options(self):
         result = runner.invoke(app, ["serve", "--help"])
         assert result.exit_code == 0
+        # Rich may inject ANSI styling into --help on CI (forced color /
+        # non-TTY runners); strip escape codes before content assertions.
+        clean_output = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
         for flag in ("--port", "--no-browser", "--env", "--output-html"):
-            assert flag in result.output
+            assert flag in clean_output
 
     def test_ui_help_shows_alias_text(self):
         result = runner.invoke(app, ["ui", "--help"])

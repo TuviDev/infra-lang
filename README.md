@@ -122,9 +122,31 @@ infra compile app.infra --target github
   with a `--dry-run` to preview commands.
 - **Cost estimation** — `infra cost` estimates the monthly cloud cost of a
   `.infra` file (per-resource table, `--json` for CI gates, `--currency`).
+- **Visual infrastructure dashboard** — `infra serve` / `infra ui` render any
+  `.infra` file as an interactive, fully-offline HTML dashboard (see below).
 - **Reusable pieces** — template-string interpolation, `import` with cycle
   detection, `extends` inheritance, 25+ stdlib functions and a prelude of
   shared constants.
+
+## Visual Infrastructure Dashboard (`infra serve` / `infra ui`)
+
+Since **0.5.2** Infra Lang ships a local, zero-dependency dashboard that
+renders any `.infra` file as a single self-contained HTML page:
+
+```bash
+infra serve app.infra                    # http://localhost:8080 (opens browser)
+infra serve app.infra --port 9000        # custom port (loopback only)
+infra serve app.infra --no-browser       # serve without opening a browser
+infra serve app.infra -e staging         # preview an environment overlay
+infra serve app.infra -o report.html     # one-shot static export, then exit
+infra ui app.infra                       # alias for `infra serve`
+```
+
+The dashboard shows the **architecture DAG** (services, databases, caches and
+queues with `depends_on` edges), a **FinOps cost report** (monthly estimate
+with a per-resource share chart), a **live-drift panel** and a switcher for
+every `environment` overlay declared in the file. It inlines all CSS/JS — no
+CDN, no external requests — and binds to `127.0.0.1` only.
 
 ## Try it in Codespaces
 

@@ -184,6 +184,9 @@ class GitHubActionsBackend(Backend, BaseYAMLBackend):
                 "actions/setup-java@v4",
                 {"distribution": "temurin", "java-version": version},
             )
+        # Intentional no-op: ``setup-python`` is already handled (and returned
+        # from) above, so this branch is unreachable — it is kept as a
+        # documented fall-through marker for the setup-* ladder below.
         if u.startswith("setup-python"):
             pass
         if "@" in u:

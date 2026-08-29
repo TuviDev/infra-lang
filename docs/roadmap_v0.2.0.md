@@ -1,5 +1,11 @@
 # Infra Lang v0.2.0 Roadmap
 
+> **⚠️ DOKUMENT ARCHIWALNY.** Roadmapa ery v0.2.0 — zaplanowane tutaj pozycje
+> zostały zrealizowane (m.in. LSP, backend Helm, secret_store, custom
+> resources, dashboard `infra serve/ui`). Aktualny stan rozwoju śledź w
+> `CHANGELOG.md`. Plik zachowany dla historii projektu; nie edytować
+> przy bieżących milestone'ach.
+
 ## Theme
 "Developer experience and real-world adoption"
 

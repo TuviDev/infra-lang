@@ -33,6 +33,12 @@ except ImportError:  # pragma: no cover - pygls not installed
 
 pytestmark = pytest.mark.skipif(not HAS_LSP, reason="pygls not installed")
 
+# pygls 1.3.x pins lsprotocol 2023.x, which lacks PrepareRenamePlaceholder;
+# the prepare-rename handler falls back to a plain Range there (the guarded
+# import in infra.lsp.server leaves the name as ``None``), so assertions on
+# ``result.placeholder`` only hold on the pygls 2.x / lsprotocol 2024+ stack.
+HAS_PYGLS2 = HAS_LSP and mod.PrepareRenamePlaceholder is not None
+
 A_SRC = "service api {\n    depends: [db]\n}\n"
 B_SRC = "database db {}\n"
 
@@ -305,6 +311,10 @@ class TestCrossFileRenameOnDisk:
 
 
 class TestPrepareRename:
+    @pytest.mark.skipif(
+        not HAS_PYGLS2,
+        reason="PrepareRenamePlaceholder requires pygls 2.x / lsprotocol 2025",
+    )
     def test_returns_placeholder_for_block(self):
         ls = _make_ls({"file:///a.infra": A_SRC})
         from lsprotocol.types import PrepareRenameParams

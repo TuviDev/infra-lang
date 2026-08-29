@@ -579,7 +579,7 @@ class TestHelmBackend:
         deployment = chart["templates/deployment.yaml"]
         assert "initContainers:" in deployment
         assert "wait-for-{{ .name }}" in deployment
-        assert "{{ .Release.Name }}-{{ .name }} {{ .port }}" in deployment
+        assert "{{ $.Release.Name }}-{{ .name }} {{ .port }}" in deployment
 
     def test_no_dependencies_no_depends_on_values(self):
         import yaml

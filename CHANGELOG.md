@@ -2,6 +2,38 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.5.3] - 2026-08-27
+
+### Fixed
+- **CI dual-stack LSP tests** — `test_returns_placeholder_for_block` is now
+  skipped with a precise reason on the pygls 1.3.x / lsprotocol 2023.x stack
+  (where `PrepareRenamePlaceholder` does not exist and the handler's plain
+  `Range` fallback applies), so the full suite passes on both stacks.
+- **CLI `--help` assertions** — `infra serve --help` output is stripped of
+  ANSI escape codes before flag assertions (Rich may style help output on
+  non-TTY CI runners).
+
+### Changed
+- **GitHub Actions upgraded to the Node 24 runtime** ahead of the Node 20
+  removal from runners (2026-09-16): `actions/checkout@v5`,
+  `actions/setup-python@v6`, `actions/setup-node@v5`,
+  `actions/upload-artifact@v5`, `actions/upload-pages-artifact@v4`, and the
+  extension toolchain pinned to **Node 22 LTS** (`node-version: "22"`).
+- **Runtime dependencies gained upper bounds** — `lark<2.0.0`, `typer<1.0.0`,
+  `rich<16.0.0`, `ruamel.yaml<1.0.0`, `pyyaml<7.0`, `watchdog<7.0.0`,
+  `prompt_toolkit<4.0.0` — protecting installs from unreviewed future
+  major-version breakages (all currently-latest releases satisfy the ranges).
+- **Test coverage push** — 107 new edge-case tests; `cli/lsp_cmd.py`
+  77%→100%, `analyzer/environments.py` 86%→99%, `diff/engine.py` 86%→100%,
+  `cli/init.py` 87%→100%, `config.py` 87%→100%, `feedback.py` 88%→100%,
+  `backends/helm.py` 89%→96%, `cli/printer.py` 89%→95%. Totals: LINE 97.6%,
+  BRANCH 93.5%.
+- **README** now documents the `infra serve` / `infra ui` dashboard section
+  with command examples; `docs/roadmap_v0.2.0.md` and
+  `docs/release_notes_v0.1.0.md` carry archival banners; a no-op branch in
+  the GitHub Actions backend (`backends/github.py`) gained an explanatory
+  comment.
+
 ## [0.5.2] - 2026-08-26
 
 ### Added
