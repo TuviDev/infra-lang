@@ -199,6 +199,7 @@ def serve_cmd(
     try:
         server.serve_forever(poll_interval=0.25)
     except KeyboardInterrupt:
+        # Ctrl+C is the intended shutdown path — fall through to server_close.
         pass
     finally:
         server.server_close()

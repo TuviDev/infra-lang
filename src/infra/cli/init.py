@@ -223,6 +223,8 @@ def init(
                 timeout=60,
             )
         except Exception:  # pragma: no cover
+            # `git init` is convenience only — scaffolding still succeeds
+            # when git is absent or the target dir is not writable.
             pass
 
     typer.echo(f"[OK] Created project {name}/ (template: {template})")

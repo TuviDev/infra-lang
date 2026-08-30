@@ -2,6 +2,45 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.5.4] - 2026-08-30
+
+**Quality & CI Foundation release** — no DSL grammar or dashboard/UI changes.
+Consolidates the post-0.5.3 hotfix line and hardens tests, CI and docs ahead
+of the 0.5.5 feature track.
+
+### Fixed
+- **`infra serve` port conflict now fails fast and correctly on Windows** —
+  `_DashboardHTTPServer` no longer sets `SO_REUSEADDR` (Windows reuse semantics
+  allowed a silent port hijack, so a busy port did not raise `EADDRINUSE` and
+  the CLI hung in `serve_forever` instead of exiting 1). The port-conflict
+  test also pins the blocker with `SO_EXCLUSIVEADDRUSE` on win32.
+- **Idempotent PyPI publish** — `publish.yml` now uploads with
+  `twine upload --skip-existing`, so re-tagging the same version (or a retried
+  publish run) stays green instead of HTTP 400.
+
+### Changed
+- **CI profiles** — Windows runs a sequential smoke profile
+  (`pytest -q -o addopts="" -m "not slow"`, no xdist/coverage) after diagnosing
+  xdist+coverage deadlocks on Windows pipe buffers / file locks; Unix keeps
+  parallel full runs with the coverage gate. New `nightly.yml` workflow
+  (schedule + `workflow_dispatch`) runs the FULL suite incl. the `slow`
+  sections on all 3 OSes; every job now has `timeout-minutes` (15 PR, 45
+  nightly).
+- **Test suite hygiene** — `pytest-timeout` (60 s global, 300 s on `slow`
+  classes), `slow` markers on the chaos/CLI-subprocess/packaging groups,
+  idempotence loop trimmed 50→10 iterations, 2 new public-API edge tests
+  (`infra.parse_file`, `infra.compile(source: str)`) lifting
+  `src/infra/__init__.py` to 100% line coverage.
+- **Docs** — CONTRIBUTING gained a “Running tests on Windows vs Unix” section;
+  intent comments added to previously bare `pass` sites
+  (`compile.py`, `init.py`, `serve_cmd.py`, `feedback.py`).
+- **pytest config** — `addopts` no longer forces xdist by default (CI passes
+  `-n auto` explicitly), so local/Windows runs are sequential out of the box.
+
+### Internal
+- Foundation audit report committed as `FOUNDATION_AUDIT.md` (baseline numbers,
+  TOP-30 slow map, dependency and security review, P0/P1/P2 backlog).
+
 ## [0.5.3] - 2026-08-27
 
 ### Fixed

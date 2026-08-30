@@ -13,7 +13,7 @@ from infra.cli.main import app
 
 runner = CliRunner()
 
-pytestmark = pytest.mark.slow
+pytestmark = [pytest.mark.slow, pytest.mark.timeout(300)]
 
 
 def write(tmp_path, content):

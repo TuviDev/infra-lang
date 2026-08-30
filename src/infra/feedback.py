@@ -136,6 +136,7 @@ def report_error(
             method="POST",
         )
         with urllib.request.urlopen(req, timeout=2):  # noqa: S310
+            # Fire-and-forget: the response body is intentionally unread.
             pass
         return True
     except Exception:  # noqa: BLE001 - feedback must never break the caller

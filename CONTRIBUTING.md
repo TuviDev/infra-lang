@@ -3,9 +3,11 @@
 ## Quick start
 
 ```bash
-git clone https://github.com/infra-lang/infra-lang
+git clone https://github.com/TuviDev/infra-lang
 cd infra-lang
 pip install -e ".[dev]"
+# pin the LSP stack (the server targets pygls 1.x / lsprotocol 2023.0.1):
+pip install "pygls==1.3.1" "lsprotocol==2023.0.1"
 pytest tests/ -n auto -q  # should pass
 ```
 
@@ -51,6 +53,19 @@ Rule requirements:
 - Has a clear hint explaining how to fix
 - Severity: ERROR blocks compilation, WARNING does not
 
+## Adding a new backend
+
+The backends live in `src/infra/backends/` and share a common interface
+(`base.py`):
+
+1. Create `src/infra/backends/<name>.py` with a class extending
+   `backend.Backend` (and `backend.BaseYAMLBackend` if it emits YAML).
+2. Implement `get_version()`, `compile()`, `compile_service()` and
+   `compile_database()` (see the ABC in `base.py`).
+3. Register the backend in `src/infra/backends/__init__.py` `get_backend()`.
+4. Add tests under `tests/test_backends.py` (or a new `test_<name>.py`).
+5. Update the support matrix in `docs/support_matrix.md`.
+
 ## Running tests
 
 ```bash
@@ -58,15 +73,53 @@ pytest tests/ -n auto -q           # fast (parallel)
 pytest tests/ -m behavioral -v     # behavioral only
 pytest tests/ -m slow              # performance tests
 pytest tests/test_contracts.py -v  # contract tests
+pytest tests -m "not live_e2e"     # everything except live kind tests
+pytest tests -m live_e2e           # real Docker/kind/kubectl (tools required)
 ```
+
+## Running tests on Windows vs Unix
+
+- **Unix (Linux/macOS):** full suite in parallel with coverage, same as CI:
+  `pytest tests/ -q -n auto --dist=loadfile --cov=src/infra --cov-report=term --cov-fail-under=90`
+- **Windows:** run the **smoke profile** (sequential, no xdist/coverage, without
+  the `slow` sections) — this is what CI runs on `windows-latest`:
+  `pytest tests/ -q -o addopts="" -m "not slow"`
+  A full sequential run also works: `pytest tests/ -q -o addopts=""`.
+  (Background: xdist `-n auto` + coverage + server/watchdog subprocesses can
+  deadlock on Windows pipe buffers / file locks; see `TEST_PERF_DIAG.md` and
+  `FOUNDATION_AUDIT.md`.)
+- **LSP dual-stack:** the server targets `pygls==1.3.1` / `lsprotocol==2023.0.1`;
+  with pygls 2.x installed, pygls-1-only tests are skipped by design (and the
+  mirror-image pygls-2-only tests skip on the 1.3.1 stack).
+- **Timeouts:** `pytest-timeout` is global at 60 s; `slow` classes override it
+  to 300 s via `@pytest.mark.timeout(300)`.
+
+## Reporting a bug
+
+1. Open an issue using the [bug report template](.github/ISSUE_TEMPLATE/bug_report.md).
+2. Include the **minimal** `.infra` file that reproduces the problem — redact
+   any secrets or tokens.
+3. Include the command you ran and the full output.
+4. For valid-syntax-that-fails-to-parse, use the dedicated
+   [parser bug template](.github/ISSUE_TEMPLATE/parser_bug.md).
 
 ## Code style
 
 - `ruff` for linting (run: `ruff check src/`)
-- `mypy` for type checking (run: `mypy src/infra`)
+- `mypy` for type checking (run: `mypy src/infra`); it should pass with
+  `--check-untyped-defs` too
 - No magic numbers — use named constants
 - Test names: `test_<what>_<when>_<expected>`
+- One test per contract; assert on behavior, not internals
 - Docstrings: Given/When/Then format
+
+## PR process
+
+1. Branch from `main`; keep the change focused.
+2. Run the full suite and quality gates before pushing:
+   `pytest tests/ -n auto`, `ruff check src/`, `mypy src/infra`.
+3. Add a CHANGELOG entry under `## [Unreleased]` (or the next version).
+4. Open a PR against `main` and fill in the pull request template.
 
 ## Commit message format
 
@@ -75,4 +128,5 @@ feat: add X support
 fix: handle Y edge case
 test: add contract tests for Z
 docs: update tutorial with example
+refactor: extract shared helper
 ```

@@ -187,6 +187,8 @@ def _collect_watched_files(source_path: Path, program: Any) -> Set[Path]:
             if candidate.exists():
                 files.add(candidate.resolve())
     except Exception:
+        # Best-effort discovery: one unreadable/broken import path must not
+        # abort collection of the remaining candidates.
         pass
     return files
 

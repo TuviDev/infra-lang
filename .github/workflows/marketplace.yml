@@ -8,6 +8,7 @@ on:
 
 jobs:
   publish:
+    timeout-minutes: 15
     name: Publish .vsix to Marketplace / Open VSX
     runs-on: ubuntu-latest
     steps:

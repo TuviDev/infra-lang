@@ -10,6 +10,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # NOTE: the `secrets` context is not available in a job-level `if` (the
     # GitHub Actions parser rejects the whole workflow), so the token guard
     # lives on the upload step below via the `env` context instead.
@@ -35,6 +36,8 @@ jobs:
         # push without secrets skips publishing instead of failing. Build and
         # `twine check` above still validate every tagged release.
         if: env.TWINE_PASSWORD != ''
+        # Idempotent: re-tagging the same version (or a retried publish run)
+        # makes PyPI return 400 for already-uploaded files; skip them.
         run: twine upload --skip-existing dist/*
         env:
           TWINE_USERNAME: __token__

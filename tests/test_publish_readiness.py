@@ -19,6 +19,7 @@ import pytest
 # gated separately by CI steps; mark slow so the Windows smoke profile
 # (`-m "not slow"`) can skip it without losing the Linux gate.
 @pytest.mark.slow
+@pytest.mark.timeout(300)
 class TestPublishReadiness:
     def test_wheel_exists(self):
         wheels = list(Path("dist").glob("*.whl"))
@@ -121,4 +122,4 @@ class TestPublishReadiness:
             timeout=30,
         )
         assert result.returncode == 0
-        assert "0.5.3" in result.stdout or "infra" in result.stdout.lower()
+        assert "0.5.4" in result.stdout or "infra" in result.stdout.lower()

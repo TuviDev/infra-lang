@@ -16,7 +16,7 @@ class TestPackageStructure:
         import infra
 
         assert hasattr(infra, "__version__")
-        assert infra.__version__ == "0.5.3"
+        assert infra.__version__ == "0.5.4"
 
     def test_version_format_valid(self):
         from infra.version import VERSION_INFO, __version__
@@ -34,6 +34,22 @@ class TestPackageStructure:
         assert callable(parse)
         assert callable(validate)
         assert isinstance(__version__, str)
+
+    def test_top_level_parse_file_wrapper(self, tmp_path):
+        # covers src/infra/__init__.py:31-33 (only module below 90% per audit)
+        import infra
+
+        p = tmp_path / "app.infra"
+        p.write_text('service api { image: "nginx" }', encoding="utf-8")
+        prog = infra.parse_file(p)
+        assert prog.statements, "expected parsed statements from parse_file"
+
+    def test_top_level_compile_accepts_source_string(self):
+        # covers src/infra/__init__.py:67 (compile from raw source text)
+        import infra
+
+        result = infra.compile('service api { image: "nginx" }', "kubernetes")
+        assert result.files, "compile(source, target) should produce files"
 
     def test_cli_importable(self):
         from infra.cli.main import app
@@ -89,6 +105,7 @@ class TestPackageStructure:
 
 
 @pytest.mark.slow  # spawns a real `python -m infra` per test (~1-3 s each)
+@pytest.mark.timeout(300)
 class TestCLISubprocess:
     def _run(self, *args, timeout=30):
         return subprocess.run(
@@ -106,7 +123,7 @@ class TestCLISubprocess:
     def test_version_exit_0(self):
         r = self._run("--version")
         assert r.returncode == 0
-        assert "0.5.3" in r.stdout
+        assert "0.5.4" in r.stdout
 
     def test_compile_help_exit_0(self):
         assert self._run("compile", "--help").returncode == 0

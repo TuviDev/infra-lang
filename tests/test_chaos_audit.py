@@ -44,6 +44,7 @@ def _large_source(n_services: int = 100, n_dbs: int = 20) -> str:
 
 @pytest.mark.slow
 @pytest.mark.slow
+@pytest.mark.timeout(300)
 class TestLargeFileStress:
     def test_large_file_parse_validate_compile(self):
         source = _large_source(100, 20)
@@ -140,6 +141,7 @@ PARALLEL_SOURCE = (
 
 @pytest.mark.slow
 @pytest.mark.slow
+@pytest.mark.timeout(300)
 class TestParallelCompilation:
     def test_parallel_parse_validate_compile(self):
         def work(_):
@@ -161,6 +163,7 @@ class TestParallelCompilation:
 
 @pytest.mark.slow
 @pytest.mark.slow
+@pytest.mark.timeout(300)
 class TestRepeatedCompile:
     def test_repeated_compile_stable(self):
         program = parse(PARALLEL_SOURCE)
