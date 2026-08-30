@@ -313,7 +313,16 @@ class TestServeFlow:
         # Rich may inject ANSI styling into --help on CI (forced color /
         # non-TTY runners); strip escape codes before content assertions.
         clean_output = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
-        for flag in ("--port", "--no-browser", "--env", "--output-html"):
+        for flag in (
+            "--port",
+            "--no-browser",
+            "--env",
+            "--output-html",
+            "--compare",
+            "--live-drift",
+            "--target",
+            "--namespace",
+        ):
             assert flag in clean_output
 
     def test_ui_help_shows_alias_text(self):
@@ -323,3 +332,202 @@ class TestServeFlow:
 
     def test_command_function_exists(self):
         assert callable(serve_cmd)
+
+
+# --------------------------------------------------------------------------- #
+# Live drift integration (v0.5.6)
+# --------------------------------------------------------------------------- #
+
+
+def _fake_clean_report(program, target, namespace):
+    from infra.analyzer.drift import DriftReport
+
+    return DriftReport(target=target, in_sync=["api", "db", "frontend"])
+
+
+def _fake_drifted_report(program, target, namespace):
+    from infra.analyzer.drift import DriftItem, DriftReport
+
+    return DriftReport(
+        target=target,
+        items=[
+            DriftItem(
+                resource="api",
+                parameter="replicas",
+                expected="2",
+                live="1",
+            )
+        ],
+        in_sync=["db", "frontend"],
+    )
+
+
+def _fake_error_report(program, target, namespace):
+    from infra.analyzer.drift import DriftReport
+
+    hint = (
+        "kubectl is not available or the cluster is unreachable"
+        if target == "k8s"
+        else "docker is not available or the daemon is not running"
+    )
+    return DriftReport(target=target, error=hint)
+
+
+class TestLiveDriftRender:
+    def test_clean_probe_renders_in_sync(self, infra_file, monkeypatch):
+        monkeypatch.setattr(
+            "infra.analyzer.drift.detect_live_drift_program",
+            _fake_clean_report,
+        )
+        html = render_dashboard(infra_file, None, live_drift=True)
+        assert 'data-state="clean"' in html
+        assert "IN-SYNC" in html
+
+    def test_drifted_probe_renders_table(self, infra_file, monkeypatch):
+        monkeypatch.setattr(
+            "infra.analyzer.drift.detect_live_drift_program",
+            _fake_drifted_report,
+        )
+        html = render_dashboard(infra_file, None, live_drift=True)
+        assert 'data-state="drifted"' in html
+        assert 'data-resource="api"' in html
+        assert '<td class="drift-live">1</td>' in html
+
+    def test_missing_tool_renders_error_state(self, infra_file, monkeypatch):
+        monkeypatch.setattr(
+            "infra.analyzer.drift.detect_live_drift_program",
+            _fake_error_report,
+        )
+        html = render_dashboard(infra_file, None, live_drift=True)
+        assert 'data-state="error"' in html
+        assert "kubectl is not available" in html
+
+    def test_engine_exception_is_fail_safe(self, infra_file, monkeypatch):
+        def _boom(program, target, namespace):
+            raise RuntimeError("kaboom")
+
+        monkeypatch.setattr(
+            "infra.analyzer.drift.detect_live_drift_program", _boom
+        )
+        html = render_dashboard(infra_file, None, live_drift=True)
+        assert 'data-state="error"' in html
+        assert "drift probe failed: kaboom" in html
+
+    def test_real_probe_without_tools_does_not_crash(self, infra_file):
+        # No kubectl/docker in the sandbox: the engine must surface a
+        # readable error report instead of raising (read-only, fail-safe).
+        html = render_dashboard(infra_file, None, live_drift=True)
+        assert 'data-state="error"' in html
+        assert "kubectl" in html
+
+    def test_no_flag_keeps_none_state(self, infra_file):
+        html = render_dashboard(infra_file, None)
+        assert 'data-state="none"' in html
+        assert "Live drift was not collected" in html
+
+    def test_target_and_namespace_are_forwarded(self, infra_file, monkeypatch):
+        seen = {}
+
+        def _spy(program, target, namespace):
+            seen["target"] = target
+            seen["namespace"] = namespace
+            return _fake_clean_report(program, target, namespace)
+
+        monkeypatch.setattr(
+            "infra.analyzer.drift.detect_live_drift_program", _spy
+        )
+        render_dashboard(
+            infra_file, None, live_drift=True, target="compose", namespace="ns-a"
+        )
+        assert seen == {"target": "compose", "namespace": "ns-a"}
+
+
+class TestLiveDriftCLI:
+    def test_export_with_live_drift(self, infra_file, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "infra.analyzer.drift.detect_live_drift_program",
+            _fake_clean_report,
+        )
+        out = tmp_path / "drift.html"
+        result = runner.invoke(
+            app,
+            [
+                "serve",
+                str(infra_file),
+                "--live-drift",
+                "-t",
+                "compose",
+                "-o",
+                str(out),
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "[OK] HTML report written:" in result.output
+        body = out.read_text(encoding="utf-8")
+        assert 'data-state="clean"' in body
+
+    def test_drift_alias_works(self, infra_file, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            "infra.analyzer.drift.detect_live_drift_program",
+            _fake_clean_report,
+        )
+        out = tmp_path / "drift.html"
+        result = runner.invoke(
+            app,
+            ["ui", str(infra_file), "--drift", "-o", str(out)],
+        )
+        assert result.exit_code == 0, result.output
+        assert 'data-state="clean"' in out.read_text(encoding="utf-8")
+
+    def test_live_serve_announces_probe(self, infra_file, monkeypatch):
+        monkeypatch.setattr(
+            "infra.analyzer.drift.detect_live_drift_program",
+            _fake_clean_report,
+        )
+        monkeypatch.setattr(
+            _DashboardHTTPServer, "serve_forever", _interrupting_serve_forever
+        )
+        result = runner.invoke(
+            app,
+            [
+                "serve",
+                str(infra_file),
+                "--live-drift",
+                "--port",
+                "0",
+                "--no-browser",
+            ],
+        )
+        assert result.exit_code == 0, result.output
+        assert "[OK] Live drift probe enabled (target: k8s" in result.output
+        assert "[OK] Server stopped." in result.output
+
+    def test_live_drift_rejected_with_compare(self, infra_file):
+        result = runner.invoke(
+            app,
+            [
+                "serve",
+                str(infra_file),
+                "--live-drift",
+                "--compare",
+                "base",
+                "prod",
+            ],
+        )
+        assert result.exit_code == 1
+        assert "drift panel" in result.output
+
+    def test_make_server_forwards_live_drift(self, infra_file, monkeypatch):
+        monkeypatch.setattr(
+            "infra.analyzer.drift.detect_live_drift_program",
+            _fake_error_report,
+        )
+        server = make_server(
+            infra_file, 0, live_drift=True, target="compose", namespace="ns-x"
+        )
+        try:
+            body = server.RequestHandlerClass.render_fn()
+            assert 'data-state="error"' in body
+            assert "(compose)" in body
+        finally:
+            server.server_close()

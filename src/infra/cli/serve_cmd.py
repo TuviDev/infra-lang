@@ -5,7 +5,9 @@ panel, environment preview) for a single ``.infra`` file using **only the
 Python standard library** — no Flask/FastAPI/Django. The page is
 regenerated on every HTTP request, so edits to the file are reflected on
 reload. With ``--output-html`` a static single-file report is written to
-disk instead (fully offline), without starting the HTTP server.
+disk instead (fully offline), without starting the HTTP server. With
+``--live-drift`` the drift panel shows a read-only live probe
+(``kubectl``/``docker compose``) instead of an empty placeholder (v0.5.6).
 """
 
 from __future__ import annotations
@@ -21,8 +23,10 @@ from typing import Callable, ClassVar, Optional, Tuple
 import typer
 
 from infra.analyzer.cost import estimate_cost
+from infra.analyzer.drift import DriftReport
 from infra.analyzer.ui_generator import generate_compare_html, generate_ui_html
 from infra.errors.exceptions import InfraError
+from infra.parser import ast_nodes as n
 from infra.parser import parse_file
 
 #: Default HTTP port for the dashboard server.
@@ -35,12 +39,41 @@ _BIND_HOST = "127.0.0.1"
 _LOG = logging.getLogger("infra.serve")
 
 
-def render_dashboard(file: Path, environment: Optional[str]) -> str:
+def _probe_drift_safely(
+    program: n.Program, target: str, namespace: str
+) -> DriftReport:
+    """Run the live drift probe, converting ANY failure into a report error.
+
+    The dashboard HTTP handler must never 500 just because a probe blew up:
+    the drift engine already reports tool/connection problems via
+    :attr:`DriftReport.error`, and this wrapper additionally catches engine-
+    level exceptions (fail-safe UI, read-only contract preserved).
+    """
+    from infra.analyzer.drift import detect_live_drift_program
+
+    try:
+        return detect_live_drift_program(
+            program, target=target, namespace=namespace
+        )
+    except Exception as exc:  # noqa: BLE001 - fail-safe by design
+        _LOG.warning("live drift probe failed: %s", exc)
+        return DriftReport(target=target, error=f"drift probe failed: {exc}")
+
+
+def render_dashboard(
+    file: Path,
+    environment: Optional[str],
+    live_drift: bool = False,
+    target: str = "k8s",
+    namespace: str = "default",
+) -> str:
     """Parse + estimate *file* and return the current dashboard HTML.
 
     Raises ``typer.Exit(1)`` for unknown environment overlays (mirrors the
     behavior of `infra cost`) and ``InfraError`` on parse problems, leaving
-    the caller to render a readable message.
+    the caller to render a readable message. When *live_drift* is on, the
+    drift panel is fed with a read-only live probe (never raises — probe
+    failures surface as an ``error`` report rendered as a readable badge).
     """
     from dataclasses import replace as _dc_replace
 
@@ -53,10 +86,13 @@ def render_dashboard(file: Path, environment: Optional[str]) -> str:
         # backends never re-apply it) — but the dashboard's environment
         # switcher needs the original list to stay selectable.
         program = _dc_replace(program, environments=base.environments)
+    drift_report: Optional[DriftReport] = None
+    if live_drift:
+        drift_report = _probe_drift_safely(program, target, namespace)
     return generate_ui_html(
         program,
         estimate_cost(program),
-        drift_report=None,
+        drift_report=drift_report,
         env_name=environment or None,
     )
 
@@ -126,6 +162,9 @@ def make_server(
     port: int,
     environment: Optional[str] = None,
     static_html: Optional[str] = None,
+    live_drift: bool = False,
+    target: str = "k8s",
+    namespace: str = "default",
 ) -> _DashboardHTTPServer:
     """Build (not yet start) a dashboard HTTP server bound to ``file``.
 
@@ -133,7 +172,9 @@ def make_server(
     is then available as ``server.server_port``). Raises ``OSError`` when the
     address is already in use. With *static_html* the server answers with the
     given page instead of re-rendering on each request (compare reports are
-    snapshots — re-parsing on every reload would be wasteful).
+    snapshots — re-parsing on every reload would be wasteful). With
+    *live_drift* each request also runs the read-only drift probe for
+    *target* (``k8s``/``compose``) in *namespace*.
     """
     render_fn: Callable[[], str]
     if static_html is not None:
@@ -142,7 +183,14 @@ def make_server(
             return static_html
 
     else:
-        render_fn = partial(render_dashboard, file, environment)
+        render_fn = partial(
+            render_dashboard,
+            file,
+            environment,
+            live_drift,
+            target,
+            namespace,
+        )
     handler_cls = type(
         "_BoundDashboardHandler",
         (_DashboardHandler,),
@@ -183,11 +231,33 @@ def serve_cmd(
         help="Compare two environment overlays side by side "
         "(e.g. --compare base prod); 'base' = the unoverlaid file.",
     ),
+    live_drift: bool = typer.Option(
+        False,
+        "--live-drift",
+        "--drift",
+        help="Probe the live state (kubectl / docker compose, strictly "
+        "read-only) and render it in the Drift panel.",
+    ),
+    target: str = typer.Option(
+        "k8s",
+        "--target",
+        "-t",
+        help="Live drift probe target: k8s or compose (needs --live-drift).",
+    ),
+    namespace: str = typer.Option(
+        "default",
+        "--namespace",
+        "-n",
+        help="Kubernetes namespace for the k8s live drift probe.",
+    ),
 ) -> None:
     """Serve (or export with ``-o``) the visual dashboard for a .infra file.
 
     With ``--compare <env_a> <env_b>`` the served/exported page is a static
     side-by-side comparison of the two overlays instead of the dashboard.
+    With ``--live-drift`` the Drift panel shows a read-only live probe —
+    missing tools and unreachable clusters render as readable badges, never
+    crash the server.
     """
     from rich.console import Console
 
@@ -203,13 +273,22 @@ def serve_cmd(
         )
         raise typer.Exit(code=1)
 
+    if compare is not None and live_drift:
+        console.print(
+            "[red]--live-drift renders the dashboard drift panel; the "
+            "compare report has none — use one or the other.[/red]"
+        )
+        raise typer.Exit(code=1)
+
     # Render once up-front so syntax/validation/unknown-overlay problems
     # surface before the server socket is announced as ready.
     try:
         if compare is not None:
             html_text = render_compare(file, compare[0], compare[1])
         else:
-            html_text = render_dashboard(file, environment)
+            html_text = render_dashboard(
+                file, environment, live_drift, target, namespace
+            )
     except InfraError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
@@ -224,7 +303,14 @@ def serve_cmd(
         if compare is not None:
             server = make_server(file, port, static_html=html_text)
         else:
-            server = make_server(file, port, environment)
+            server = make_server(
+                file,
+                port,
+                environment,
+                live_drift=live_drift,
+                target=target,
+                namespace=namespace,
+            )
     except OSError as exc:
         console.print(
             f"[red]Cannot bind {_BIND_HOST}:{port}[/red] — {exc}"
@@ -234,6 +320,11 @@ def serve_cmd(
     url = f"http://localhost:{server.server_port}"
     label = "Compare report" if compare is not None else "Dashboard"
     console.print(f"[OK] {label} ready: {url}  (Ctrl+C to stop)")
+    if live_drift:
+        console.print(
+            f"[OK] Live drift probe enabled (target: {target}, "
+            f"namespace: {namespace}, read-only)."
+        )
     if no_browser:
         console.print("[SKIP] Browser auto-open disabled (--no-browser).")
     elif not _open_browser(url):

@@ -644,6 +644,24 @@ def _finops_html(estimate: CostEstimate) -> str:
     )
 
 
+def _probe_error_badge(error: str) -> str:
+    """Classify a live-probe error into a readable badge label (fail-safe UI).
+
+    ``timed out`` → the cluster/daemon did not answer in time; ``not
+    available`` → the CLI tool (``kubectl``/``docker``) is missing or its
+    daemon is down; ``unreachable`` → the endpoint exists but cannot be
+    reached. Anything else is a generic probe error.
+    """
+    low = error.lower()
+    if "timed out" in low:
+        return "PROBE TIMEOUT"
+    if "not available" in low:
+        return "CLI TOOL MISSING"
+    if "unreachable" in low:
+        return "CLUSTER UNREACHABLE"
+    return "PROBE ERROR"
+
+
 def _drift_html(report: Optional[DriftReport]) -> Tuple[str, str]:
     """Drift panel body and the machine-readable state (``data-state``)."""
     if report is None:
@@ -655,8 +673,9 @@ def _drift_html(report: Optional[DriftReport]) -> Tuple[str, str]:
         )
     if report.error is not None:
         return (
-            '<p class="drift-error">Drift probe unavailable: '
-            f"{_esc(report.error)}</p>",
+            f'<p class="badge badge-err">{_probe_error_badge(report.error)}</p>'
+            '<p class="drift-error">Live drift probe '
+            f"({_esc(report.target)}): {_esc(report.error)}</p>",
             "error",
         )
     if not report.has_drift:
@@ -859,6 +878,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
  font-weight: 700; font-size: 12px; }
 .badge-ok { background: #dcfce7; color: #166534; }
 .badge-warn { background: #fef3c7; color: #92400e; }
+.badge-err { background: #fee2e2; color: #991b1b; }
 .drift-error { color: #b91c1c; font-size: 13px; }
 .drift-exp { background: #dcfce7; }
 .drift-live { background: #fee2e2; }

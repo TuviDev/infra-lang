@@ -198,6 +198,27 @@ The dashboard's Architecture tab also has a **Download SVG** button that
 embeds exactly this document. PNG/PDF rasterization is intentionally not
 bundled (it would require native rendering dependencies).
 
+### Watch live drift in the dashboard (since 0.5.6)
+
+The Drift tab can compare the file against the **live** state, using the
+same read-only probe engine as `infra doctor --check-drift --live`
+(`kubectl get` / `docker compose ps` + `docker inspect` — never a
+mutation):
+
+```bash
+infra serve app.infra --live-drift                # k8s probe (kubectl)
+infra serve app.infra --live-drift -t compose     # Docker Compose probe
+infra serve app.infra --live-drift -n my-ns       # k8s namespace
+infra serve app.infra --live-drift -o report.html # static export
+```
+
+The panel shows a green **IN-SYNC** badge, an amber **DRIFTED** badge with
+a per-field diff table, or a red failure badge (``CLI TOOL MISSING``,
+``PROBE TIMEOUT``, ``CLUSTER UNREACHABLE``) — a missing `kubectl`/`docker`
+or an unreachable cluster degrades gracefully and never crashes the
+server. `--live-drift` cannot be combined with `--compare` (the compare
+report has no drift panel).
+
 ## Validate
 ```bash
 infra validate app.infra

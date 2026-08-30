@@ -234,6 +234,56 @@ class TestDriftSection:
         assert 'data-state="error"' in html_out
         assert "docker daemon unreachable" in html_out
 
+    def test_missing_cli_tool_badge(self):
+        report = DriftReport(
+            target="k8s",
+            error="kubectl is not available or the cluster is unreachable",
+        )
+        html_out = render(drift_report=report)
+        assert 'class="badge badge-err">CLI TOOL MISSING' in html_out
+        assert "Live drift probe (k8s)" in html_out
+
+    def test_timeout_badge(self):
+        report = DriftReport(
+            target="compose",
+            error="`docker inspect` timed out after 30.0s",
+        )
+        html_out = render(drift_report=report)
+        assert 'class="badge badge-err">PROBE TIMEOUT' in html_out
+
+    def test_unreachable_badge(self):
+        report = DriftReport(
+            target="k8s", error="api server 10.0.0.1:6443 unreachable"
+        )
+        html_out = render(drift_report=report)
+        assert 'class="badge badge-err">CLUSTER UNREACHABLE' in html_out
+
+    def test_generic_error_badge(self):
+        report = DriftReport(target="k8s", error="unexpected probe output")
+        html_out = render(drift_report=report)
+        assert 'class="badge badge-err">PROBE ERROR' in html_out
+
+
+class TestProbeErrorBadge:
+    def test_classification_matrix(self):
+        from infra.analyzer.ui_generator import _probe_error_badge
+
+        assert _probe_error_badge("x timed out after 1s") == "PROBE TIMEOUT"
+        assert _probe_error_badge("kubectl is not available") == (
+            "CLI TOOL MISSING"
+        )
+        assert _probe_error_badge("cluster unreachable") == (
+            "CLUSTER UNREACHABLE"
+        )
+        assert _probe_error_badge("something else") == "PROBE ERROR"
+
+    def test_timeout_wins_over_unavailable(self):
+        from infra.analyzer.ui_generator import _probe_error_badge
+
+        # partial probes can report a timeout alongside a tool problem
+        msg = "tool not available; probe timed out"
+        assert _probe_error_badge(msg) == "PROBE TIMEOUT"
+
 
 class TestEnvironmentSelector:
     def test_options_for_both_environment_forms(self):

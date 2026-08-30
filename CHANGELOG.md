@@ -2,6 +2,38 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.5.6] - 2026-08-30
+
+**Block B: Live Drift UI** — the interactive dashboard can now probe the
+live state (read-only `kubectl` / `docker compose` probes, the same engine
+as `infra doctor --check-drift --live`) instead of showing an empty drift
+placeholder. No DSL grammar changes, no new runtime dependencies.
+
+### Added
+- **`infra serve` / `infra ui` `--live-drift` (alias `--drift`)** with
+  `-t/--target [k8s|compose]` and `-n/--namespace` — every served
+  (or `-o` exported) dashboard page runs the read-only probe and feeds the
+  resulting `DriftReport` into the Drift panel, re-rendered on each
+  request. A probe line is announced on startup
+  (`[OK] Live drift probe enabled (target: k8s, namespace: default, read-only).`).
+  `--live-drift` cannot be combined with `--compare` (the compare report
+  has no drift panel) — the CLI exits 1 with a readable message.
+- **Fail-safe drift UI states** — the Drift panel renders a green
+  `IN-SYNC` badge (with the verified workload names), an amber `DRIFTED`
+  badge with a per-field diff table (resource / parameter / expected /
+  live / status), or a red failure badge classified from the probe error:
+  `CLI TOOL MISSING` (kubectl/docker not installed or daemon down),
+  `PROBE TIMEOUT`, `CLUSTER UNREACHABLE`, or a generic `PROBE ERROR`.
+  Engine-level exceptions are converted to an error report inside
+  `serve_cmd` (`_probe_drift_safely`), so the HTTP server never 500s on a
+  broken probe; all probes stay strictly read-only.
+- **Tests** — mocked-probe integration tests for the render path
+  (clean/drifted/missing-tool/engine-crash), CLI flag coverage
+  (`--live-drift`, `--drift`, `-t`, `-n`, export and live-serve flows,
+  guard combinations), a badge-classification matrix for
+  `_probe_error_badge`, and a real no-tools sandbox run proving graceful
+  degradation. Zero real network connections in the suite.
+
 ## [0.5.5] - 2026-08-30
 
 **Block A: Use-Cases** — side-by-side environment comparison and a

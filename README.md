@@ -162,6 +162,20 @@ infra graph app.infra -o dag.svg                   # or: --format svg
 dashboard additionally embeds a **Download SVG** button with the very same
 document.
 
+Since **0.5.6** the Drift tab can also probe the **live** state (read-only
+`kubectl` / `docker compose` probes — the same engine as
+`infra doctor --check-drift --live`):
+
+```bash
+infra serve app.infra --live-drift            # k8s probe (kubectl)
+infra serve app.infra --live-drift -t compose # Docker Compose probe
+```
+
+The panel renders **IN-SYNC** / **DRIFTED** badges with a per-field diff
+table, or a readable failure badge (``CLI TOOL MISSING``, ``PROBE
+TIMEOUT``, ``CLUSTER UNREACHABLE``) when the tool or cluster is
+unreachable — it never crashes the server.
+
 ## Try it in Codespaces
 
 Click the button below to open this project in GitHub Codespaces:
