@@ -58,7 +58,7 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
-            pytest tests/ -q --cov=src/infra --cov-report=term --cov-fail-under=90
+            pytest tests/ -q -o addopts="" --cov=src/infra --cov-report=term --cov-fail-under=90
           else
             pytest tests/ -q -n auto --dist=loadfile --cov=src/infra --cov-report=term --cov-fail-under=90
           fi
