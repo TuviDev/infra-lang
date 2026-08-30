@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import re
 import socket
+import sys
 import threading
 import urllib.error
 import urllib.request
@@ -230,7 +231,15 @@ class TestLiveServer:
 class TestServeFlow:
     def test_port_conflict_exits_1(self, infra_file):
         blocker = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        if sys.platform == "win32" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            # Windows-only: SO_REUSEADDR on both sockets would let the server
+            # *hijack* the busy port (bind succeeds, no EADDRINUSE) and the
+            # CLI would spin in serve_forever instead of exiting 1.
+            blocker.setsockopt(
+                socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1
+            )
+        else:
+            blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         blocker.bind(("127.0.0.1", 0))
         blocker.listen(1)
         busy_port = blocker.getsockname()[1]

@@ -64,7 +64,12 @@ class _DashboardHTTPServer(ThreadingMixIn, HTTPServer):
     """Thread-per-request HTTP server whose workers die with the process."""
 
     daemon_threads = True
-    allow_reuse_address = True
+    # Reuse-address OFF on purpose: on Windows, a socket created with
+    # SO_REUSEADDR may bind a port already held by another reuse-address
+    # socket (port hijack), so a busy port would NOT fail with EADDRINUSE
+    # and `infra serve` would silently "succeed" instead of exiting 1.
+    # Trade-off: a few seconds of TIME_WAIT rebind delay on POSIX restarts.
+    allow_reuse_address = False
 
 
 class _DashboardHandler(SimpleHTTPRequestHandler):

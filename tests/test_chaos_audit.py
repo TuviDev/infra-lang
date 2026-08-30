@@ -43,6 +43,7 @@ def _large_source(n_services: int = 100, n_dbs: int = 20) -> str:
 
 
 @pytest.mark.slow
+@pytest.mark.slow
 class TestLargeFileStress:
     def test_large_file_parse_validate_compile(self):
         source = _large_source(100, 20)
@@ -138,6 +139,7 @@ PARALLEL_SOURCE = (
 
 
 @pytest.mark.slow
+@pytest.mark.slow
 class TestParallelCompilation:
     def test_parallel_parse_validate_compile(self):
         def work(_):
@@ -158,13 +160,16 @@ class TestParallelCompilation:
 # --------------------------------------------------------------------------- #
 
 @pytest.mark.slow
+@pytest.mark.slow
 class TestRepeatedCompile:
     def test_repeated_compile_stable(self):
         program = parse(PARALLEL_SOURCE)
         backend = KubernetesBackend()
         first = "\n".join(backend.compile(program).files.values())
-        # run the loop; each result must be identical (idempotent / no state bleed)
-        for _ in range(50):
+        # run the loop; each result must be identical (idempotent / no state
+        # bleed). 10 iterations prove the invariant (a state bleed would show
+        # on iteration 2); the previous 50x loop cost ~18 s for no extra signal.
+        for _ in range(10):
             out = "\n".join(backend.compile(program).files.values())
             assert out == first, "compiled output changed across iterations"
 

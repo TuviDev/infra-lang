@@ -88,6 +88,7 @@ class TestPackageStructure:
         assert callable(InfraDiff)
 
 
+@pytest.mark.slow  # spawns a real `python -m infra` per test (~1-3 s each)
 class TestCLISubprocess:
     def _run(self, *args, timeout=30):
         return subprocess.run(

@@ -12,7 +12,13 @@ import sys
 import zipfile
 from pathlib import Path
 
+import pytest
 
+
+# Packaging integration (wheel/sdist build, twine, clean-venv install) is
+# gated separately by CI steps; mark slow so the Windows smoke profile
+# (`-m "not slow"`) can skip it without losing the Linux gate.
+@pytest.mark.slow
 class TestPublishReadiness:
     def test_wheel_exists(self):
         wheels = list(Path("dist").glob("*.whl"))

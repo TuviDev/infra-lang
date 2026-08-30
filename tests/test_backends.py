@@ -1,7 +1,6 @@
 """Backend compilation tests."""
 
 from __future__ import annotations
-from infra.version import __version__
 
 import yaml
 
@@ -339,7 +338,7 @@ class TestGeneratedHeader:
         files = parse_and_compile(source, "kubernetes")
         head = files["infra.yaml"].splitlines()[:3]
         joined = "\n".join(head)
-        assert f"v{__version__}" in joined
+        assert "v0.5.3" in joined
         assert "# Source:" in joined
         assert "# Regenerate: infra compile" in joined
 

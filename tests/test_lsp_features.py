@@ -63,9 +63,13 @@ class TestDiagnosticsEnhancement:
             assert d.source == "infra-lang"
             assert d.code
             assert d.code_description is not None
-            assert d.code_description.href.startswith(
-                "https://TuviDev.github.io/infra-lang/language_spec/"
-            )
+            href = d.code_description.href
+            # Canonical base lives in src/infra/lsp/server.py (_DOCS_BASE);
+            # assert suffix path + code anchor, never a hardcoded owner name
+            # (stale trees kept asserting the old kakukpl.github.io prefix).
+            assert href.startswith(mod._DOCS_BASE)
+            assert "/infra-lang/language_spec/" in href
+            assert href.rsplit("#", 1)[-1] == d.code.lower()
 
     def test_related_info_for_duplicate_name(self):
         src = 'service api { image: "x" }\nservice api { image: "y" }\n'
