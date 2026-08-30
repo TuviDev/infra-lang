@@ -168,6 +168,36 @@ started):
 infra serve app.infra --output-html report.html
 ```
 
+### Compare environments side by side and export the DAG (since 0.5.5)
+
+One command renders both environment overlays next to each other, with a
+diff table (``+`` added, ``−`` removed, ``Δ`` changed) and per-panel
+cost estimates. The special name `base` is the unoverlaid file:
+
+```bash
+infra serve app.infra --compare base prod          # live on localhost
+infra serve app.infra --compare base prod -o cmp.html   # static report
+infra ui    app.infra --compare base prod          # alias works too
+```
+
+`--compare` cannot be combined with `-e/--environment`; unknown overlay
+names exit with code 1 and list the available environments. Identical
+environments render a readable "No differences" empty state.
+
+The architecture DAG used by the dashboard can be exported as a
+self-contained `.svg` document (same collector and layout; opens in any
+browser, no external assets):
+
+```bash
+infra graph app.infra -o dag.svg              # format inferred from .svg
+infra graph app.infra --format svg            # to stdout
+infra graph app.infra --format svg -e prod    # with overlay applied
+```
+
+The dashboard's Architecture tab also has a **Download SVG** button that
+embeds exactly this document. PNG/PDF rasterization is intentionally not
+bundled (it would require native rendering dependencies).
+
 ## Validate
 ```bash
 infra validate app.infra

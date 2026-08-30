@@ -21,10 +21,13 @@ from __future__ import annotations
 
 import html
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Sequence, Tuple, TypeAlias
+from dataclasses import replace as _dc_replace
+from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeAlias
+from urllib.parse import quote as _urlquote
 
-from infra.analyzer.cost import CostEstimate
+from infra.analyzer.cost import CostEstimate, estimate_cost
 from infra.analyzer.drift import DriftReport
+from infra.analyzer.environments import apply_environment_overlay
 from infra.parser import ast_nodes as n
 from infra.version import __version__
 
@@ -217,6 +220,390 @@ def _dag_svg(nodes: List[_DagNode], edges: List[Tuple[str, str]]) -> str:
     return "".join(parts)
 
 
+# ---------------------------------------------------------------------- #
+# Standalone SVG DAG export (v0.5.5)
+# ---------------------------------------------------------------------- #
+
+_SVG_FONT = 'font-family="system-ui,Segoe UI,Roboto,sans-serif"'
+
+
+def _dag_svg_standalone(nodes: List[_DagNode], edges: List[Tuple[str, str]]) -> str:
+    """Self-contained ``.svg`` document (XML header + inline styles)."""
+    width, height = _canvas_size(nodes, edges)
+    by_name = {nd.name: nd for nd in nodes}
+    parts: List[str] = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {width} {height}" '
+        f'width="{width}" height="{height}" role="img" '
+        'aria-label="Architecture DAG">',
+        f'<rect width="{width}" height="{height}" fill="#f8fafc"/>',
+        '<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" '
+        'markerWidth="7" markerHeight="7" orient="auto-start-reverse">'
+        '<path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker></defs>',
+    ]
+    for src, dst in edges:
+        a, b = by_name.get(src), by_name.get(dst)
+        if a is None or b is None:  # defensive: unknown endpoint
+            continue
+        x1, y1 = a.x + _NODE_W, a.y + _NODE_H / 2
+        x2, y2 = b.x, b.y + _NODE_H / 2
+        parts.append(
+            f'<line data-from="{_esc(src)}" data-to="{_esc(dst)}" '
+            f'x1="{x1:.0f}" y1="{y1:.0f}" x2="{x2:.0f}" y2="{y2:.0f}" '
+            'stroke="#94a3b8" stroke-width="1.6" marker-end="url(#arrow)"/>'
+        )
+    for nd in nodes:
+        color = _LANE_COLORS.get(nd.kind) or _KIND_COLORS.get(nd.kind, "#334155")
+        sub = f" · {_esc(nd.sub)}" if nd.sub != nd.kind else ""
+        parts.append(
+            f'<g data-name="{_esc(nd.name)}" data-kind="{_esc(nd.kind)}" '
+            f'transform="translate({nd.x:.0f},{nd.y:.0f})">'
+            f'<rect width="{_NODE_W}" height="{_NODE_H}" rx="8" fill="{color}"/>'
+            f'<text x="12" y="20" {_SVG_FONT} fill="#ffffff" font-size="13" '
+            f'font-weight="600">{_esc(nd.name)}</text>'
+            f'<text x="12" y="37" {_SVG_FONT} fill="#e2e8f0" font-size="10">'
+            f"{_esc(nd.kind)}{sub}</text>"
+            "</g>"
+        )
+    if not nodes:
+        parts.append(
+            f'<text x="{_MARGIN}" y="{_MARGIN}" {_SVG_FONT} fill="#475569" '
+            'font-size="14">No workloads declared.</text>'
+        )
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
+def generate_dag_svg(spec: InfrastructureSpec) -> str:
+    """Render the architecture DAG of *spec* as a standalone ``.svg`` file.
+
+    Same collector and longest-path layout as the dashboard, but the output
+    inlines all styles, so it opens in any browser/viewer with no external
+    resources. (PNG/PDF rasterization is intentionally deferred — it would
+    pull in a native rasterizer dependency.)
+    """
+    nodes, edges = _collect_dag(spec)
+    _layout(nodes, edges)
+    return _dag_svg_standalone(nodes, edges)
+
+
+def _dag_download_link(spec: InfrastructureSpec) -> str:
+    """Small ``Download SVG`` anchor embedding the standalone SVG as data URI."""
+    uri = _urlquote(generate_dag_svg(spec), safe="")
+    style = (
+        "display:inline-block;margin-left:12px;padding:2px 10px;"
+        "border:1px solid #cbd5e1;border-radius:6px;background:#ffffff;"
+        "color:#0f172a;text-decoration:none;font-size:12px;font-weight:600;"
+        "vertical-align:middle"
+    )
+    return (
+        f'<a download="infra-dag.svg" style="{style}" '
+        f'href="data:image/svg+xml;charset=utf-8,{uri}">Download SVG</a>'
+    )
+
+
+# ---------------------------------------------------------------------- #
+# Side-by-side environment comparison (v0.5.5)
+# ---------------------------------------------------------------------- #
+
+
+def _expr_text(value: Any) -> str:
+    """Flatten a literal-ish AST expression to short display text."""
+    if value is None:
+        return ""
+    if isinstance(value, n.Literal):
+        return str(value.value)
+    if isinstance(value, n.Identifier):
+        return value.name
+    if isinstance(value, n.TemplateString):
+        return "".join(p if isinstance(p, str) else "…" for p in value.parts)
+    return str(value)
+
+
+def _env_var_text(entry: n.EnvEntry) -> str:
+    """Display text for one env var (value or its advisory source reference)."""
+    if entry.value is not None:
+        return _expr_text(entry.value)
+    if entry.from_secret:
+        return f"from secret {entry.from_secret}"
+    if entry.from_config:
+        return f"from configmap {entry.from_config}"
+    if entry.from_field:
+        return f"from field {entry.from_field}"
+    if entry.from_env:
+        return f"from env {entry.from_env}"
+    return ""
+
+
+_CompareRow = Tuple[str, str, str, str, str]  # (badge, service, field, old, new)
+
+
+def _workload_summary(spec: InfrastructureSpec) -> Dict[str, Dict[str, Any]]:
+    """Key parameters of every workload, keyed by name (compare panels/diff)."""
+    out: Dict[str, Dict[str, Any]] = {}
+    for stmt in spec.statements:
+        if isinstance(stmt, n.ServiceDef):
+            resources: Dict[str, str] = {}
+            if stmt.resources is not None:
+                for section in ("requests", "limits"):
+                    data = getattr(stmt.resources, section, None)
+                    if data is None:
+                        continue
+                    if data.cpu is not None:
+                        resources[f"{section}.cpu"] = data.cpu.to_kubernetes()
+                    if data.memory is not None:
+                        resources[f"{section}.memory"] = (
+                            data.memory.to_kubernetes()
+                        )
+            out[stmt.name] = {
+                "kind": "service",
+                "image": stmt.image
+                or ("dockerfile build" if stmt.build else "(none)"),
+                "replicas": stmt.replicas,
+                "ports": ",".join(
+                    sorted(
+                        f"{p.host}:{p.target}"
+                        if p.host and p.target
+                        else str(p.target or p.host)
+                        for p in stmt.ports
+                    )
+                ),
+                "expose": str(bool(getattr(stmt, "expose", False))).lower(),
+                "env": {e.name: _env_var_text(e) for e in stmt.env},
+                "resources": resources,
+                "storage": "",
+            }
+        elif isinstance(stmt, (n.DatabaseDef, n.CacheDef, n.QueueDef)):
+            kind = type(stmt).__name__.replace("Def", "").lower()
+            storage = ""
+            if isinstance(stmt, n.DatabaseDef):
+                volume = stmt.storage or stmt.size
+                if volume is not None:
+                    storage = volume.to_kubernetes()
+            out[stmt.name] = {
+                "kind": kind,
+                "image": f"{stmt.type}:{stmt.version or 'latest'}",
+                "replicas": stmt.replicas,
+                "ports": "",
+                "expose": "false",
+                "env": {},
+                "resources": {},
+                "storage": storage,
+            }
+    return out
+
+
+def _workload_line(meta: Dict[str, Any]) -> str:
+    short = f"{meta['kind']} · {meta['image']} · replicas: {meta['replicas']}"
+    if meta.get("storage"):
+        short += f" · {meta['storage']}"
+    return short
+
+
+_DIFF_FIELDS = ("kind", "image", "replicas", "ports", "expose", "storage")
+
+
+def _diff_workloads(
+    wa: Dict[str, Dict[str, Any]], wb: Dict[str, Dict[str, Any]]
+) -> List[_CompareRow]:
+    """Per-service comparison rows: added / removed / changed (field-level)."""
+    rows: List[_CompareRow] = []
+    for name in sorted(set(wb) - set(wa)):
+        rows.append(("added", name, "", "", _workload_line(wb[name])))
+    for name in sorted(set(wa) - set(wb)):
+        rows.append(("removed", name, "", _workload_line(wa[name]), ""))
+    for name in sorted(set(wa) & set(wb)):
+        ma, mb = wa[name], wb[name]
+        for field in _DIFF_FIELDS:
+            va, vb = ma[field], mb[field]
+            if va != vb:
+                rows.append(("changed", name, field, str(va or "—"), str(vb or "—")))
+        for prefix in ("env", "resources"):
+            da: Dict[str, str] = ma[prefix]
+            db: Dict[str, str] = mb[prefix]
+            for key in sorted(set(da) | set(db)):
+                va, vb = da.get(key, "—"), db.get(key, "—")
+                if va != vb:
+                    rows.append(("changed", name, f"{prefix}.{key}", va, vb))
+    return rows
+
+
+def _fmt_cell(text: str) -> str:
+    return _esc(text) if text else '<span class="cmp-na">—</span>'
+
+
+def _compare_summary_html(rows: List[_CompareRow], env_a: str, env_b: str) -> str:
+    if not rows:
+        return (
+            '<p class="cmp-empty">No differences between '
+            f"<b>{_esc(env_a)}</b> and <b>{_esc(env_b)}</b> "
+            "— the environments deploy identical workloads.</p>"
+        )
+    lis = [
+        '<table class="cmp-table"><thead><tr>'
+        "<th></th><th>Service</th><th>Field</th>"
+        f"<th>{_esc(env_a)}</th><th>{_esc(env_b)}</th></tr></thead><tbody>"
+    ]
+    words = {"added": "+", "removed": "−", "changed": "Δ"}
+    for badge, name, field, old, new in rows:
+        lis.append(
+            f'<tr class="cmp-{badge}">'
+            f'<td class="cmp-badge">{words[badge]}</td>'
+            f"<td>{_esc(name)}</td>"
+            f"<td>{_esc(field) if field else '&nbsp;'}</td>"
+            f"<td>{_fmt_cell(old)}</td><td>{_fmt_cell(new)}</td></tr>"
+        )
+    lis.append("</tbody></table>")
+    return "".join(lis)
+
+
+def _env_panel_html(
+    env_name: str,
+    workloads: Dict[str, Dict[str, Any]],
+    estimate: CostEstimate,
+    changed: Dict[str, set[str]],
+) -> str:
+    rows_html: List[str] = []
+    for name in sorted(workloads):
+        meta = workloads[name]
+        svc_changed = changed.get(name, set())
+
+        def cell(field: str, value: Any, mono: bool = False) -> str:
+            text = _esc(str(value) if value not in (None, "") else "—")
+            cls = ' class="cmp-hl"' if field in svc_changed else ""
+            if mono:
+                text = f"<code>{text}</code>"
+            return f"<td{cls}>{text}</td>"
+
+        env_bits = ", ".join(
+            f"{k}={v}" for k, v in sorted(meta["env"].items())
+        )
+        res_bits = ", ".join(
+            f"{k}: {v}" for k, v in sorted(meta["resources"].items())
+        )
+        rows_html.append(
+            f"<tr><td><b>{_esc(name)}</b><br><small>{_esc(meta['kind'])}</small></td>"
+            + cell("image", meta["image"], mono=True)
+            + cell("replicas", meta["replicas"])
+            + cell("env", env_bits or "—")
+            + cell("resources", res_bits or "—")
+            + "</tr>"
+        )
+    if not rows_html:
+        rows_html.append(
+            '<tr><td colspan="5" class="cmp-na">(no workloads)</td></tr>'
+        )
+    return (
+        f'<section class="cmp-panel"><h3>{_esc(env_name)}</h3>'
+        f'<p class="cmp-cost">estimated: <b>${estimate.total_monthly_usd}/mo</b></p>'
+        '<table class="cmp-wl"><thead><tr><th>Service</th><th>Image</th>'
+        "<th>Replicas</th><th>Env</th><th>Resources</th></tr></thead>"
+        f"<tbody>{''.join(rows_html)}</tbody></table></section>"
+    )
+
+
+def generate_compare_html(spec: InfrastructureSpec, env_a: str, env_b: str) -> str:
+    """Render a single-file side-by-side comparison of two environments.
+
+    The program is parsed once; each side applies its own overlay (the special
+    name ``base`` keeps the unoverlaid file). Raises
+    :class:`EnvironmentNotFoundError` for unknown overlay names — callers
+    decide how to present the error.
+    """
+
+    def _select(name: str) -> n.Program:
+        if name == "base":
+            return spec
+        merged = apply_environment_overlay(spec, name)
+        # Same quirk handling as the dashboard: applying the overlay strips
+        # the overlay list; restore it so selectors/diff keep full context.
+        return _dc_replace(merged, environments=spec.environments)
+
+    prog_a, prog_b = _select(env_a), _select(env_b)
+    wa, wb = _workload_summary(prog_a), _workload_summary(prog_b)
+    est_a, est_b = estimate_cost(prog_a), estimate_cost(prog_b)
+    rows = _diff_workloads(wa, wb)
+    if est_a.total_monthly_usd != est_b.total_monthly_usd:
+        rows.append(
+            (
+                "changed",
+                "(finops)",
+                "est. monthly",
+                f"${est_a.total_monthly_usd}/mo",
+                f"${est_b.total_monthly_usd}/mo",
+            )
+        )
+    changed: Dict[str, set[str]] = {}
+    for _badge, name, field, _old, _new in rows:
+        changed.setdefault(name, set()).add(field.split(".", 1)[0])
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Infra Lang — compare {html.escape(env_a)} vs {html.escape(env_b)}</title>
+<style>{_COMPARE_CSS}</style>
+</head>
+<body>
+<header class="page-header">
+<h1>Infra Lang — environment comparison</h1>
+<p class="page-meta">infra-lang v{__version__} · <b>{_esc(env_a)}</b> vs
+ <b>{_esc(env_b)}</b> · (+) added in {html.escape(env_b)},
+ (−) removed from {html.escape(env_b)}, (Δ) changed</p>
+</header>
+<main>
+<h2>Diff summary</h2>
+{_compare_summary_html(rows, env_a, env_b)}
+<div class="cmp-grid">
+{_env_panel_html(env_a, wa, est_a, changed)}
+{_env_panel_html(env_b, wb, est_b, changed)}
+</div>
+</main>
+<footer class="page-footer">Generated by infra-lang v{__version__}
+ — fully offline, single-file report.</footer>
+</body>
+</html>
+"""
+
+
+_COMPARE_CSS = """
+:root { --fg:#0f172a; --muted:#64748b; --line:#e2e8f0; --bg:#f8fafc; }
+* { box-sizing:border-box; }
+body { margin:0; color:var(--fg); background:var(--bg);
+  font-family:system-ui,Segoe UI,Roboto,sans-serif; }
+.page-header { padding:20px 28px 10px; background:#fff;
+  border-bottom:1px solid var(--line); }
+.page-header h1 { margin:0 0 4px; font-size:20px; }
+.page-meta { margin:0; color:var(--muted); font-size:13px; }
+main { padding:20px 28px; }
+h2 { font-size:15px; margin:0 0 10px; }
+.cmp-empty { padding:14px 16px; background:#ecfdf5; color:#065f46;
+  border:1px solid #a7f3d0; border-radius:8px; }
+.cmp-table, .cmp-wl { width:100%; border-collapse:collapse; background:#fff;
+  border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+.cmp-table th, .cmp-table td, .cmp-wl th, .cmp-wl td { padding:7px 10px;
+  border-bottom:1px solid var(--line); text-align:left;
+  font-size:13px; vertical-align:top; }
+.cmp-table th, .cmp-wl th { background:#f1f5f9; font-size:12px;
+  text-transform:uppercase; letter-spacing:.04em; color:var(--muted); }
+.cmp-badge { font-weight:700; text-align:center; width:34px; }
+.cmp-added .cmp-badge { color:#059669; }
+.cmp-removed .cmp-badge { color:#dc2626; }
+.cmp-changed .cmp-badge { color:#d97706; }
+.cmp-added td { background:#f0fdf4; }
+.cmp-removed td { background:#fef2f2; }
+.cmp-changed td { background:#fffbeb; }
+.cmp-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-top:18px; }
+@media (max-width: 900px) { .cmp-grid { grid-template-columns:1fr; } }
+.cmp-panel h3 { margin:0 0 6px; font-size:16px; }
+.cmp-cost { margin:0 0 8px; color:var(--muted); font-size:13px; }
+.cmp-hl { outline:2px solid #f59e0b; outline-offset:-2px; }
+.cmp-na { color:var(--muted); }
+code { background:#f1f5f9; padding:1px 4px; border-radius:4px; }
+.page-footer { padding:14px 28px; color:var(--muted); font-size:12px; }
+"""
+
+
 def _finops_html(estimate: CostEstimate) -> str:
     """FinOps panel: breakdown table + monthly total + share bar chart."""
     if not estimate.items:
@@ -404,7 +791,7 @@ def generate_ui_html(
 </nav>
 <main>
 <section id="panel-dag" class="panel active">
-<h2>Architecture DAG</h2>
+<h2>Architecture DAG{_dag_download_link(spec)}</h2>
 {_dag_svg(dag_nodes, dag_edges)}
 </section>
 <section id="panel-finops" class="panel">

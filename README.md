@@ -148,6 +148,20 @@ with a per-resource share chart), a **live-drift panel** and a switcher for
 every `environment` overlay declared in the file. It inlines all CSS/JS — no
 CDN, no external requests — and binds to `127.0.0.1` only.
 
+Since **0.5.5** the same commands also compare two environments side by side
+(diff table with added/removed/changed rows and per-side cost estimates) and
+export the architecture DAG as a self-contained SVG:
+
+```bash
+infra serve app.infra --compare base prod          # served compare page
+infra serve app.infra --compare base prod -o cmp.html   # static report
+infra graph app.infra -o dag.svg                   # or: --format svg
+```
+
+`base` refers to the file without any overlay. The Architecture tab of the
+dashboard additionally embeds a **Download SVG** button with the very same
+document.
+
 ## Try it in Codespaces
 
 Click the button below to open this project in GitHub Codespaces:

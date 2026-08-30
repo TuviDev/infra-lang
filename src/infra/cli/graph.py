@@ -19,9 +19,11 @@ _SHAPES = {
 
 
 def _collect(
-    files: List[Path],
+    files: List[Path], environment: str = ""
 ) -> Tuple[Dict[str, Dict[str, Any]], List[Tuple[str, str]]]:
     """Return {name: {kind, sub, ingress_host}} nodes and depends edges."""
+    from infra.cli.compile import _apply_environment
+
     parser = _parser()
     nodes: Dict[str, Dict[str, Any]] = {}
     edges: Set[Tuple[str, str]] = set()
@@ -33,7 +35,7 @@ def _collect(
             nodes[name] = {"kind": kind, "sub": sub, "ingress_host": ingress_host}
 
     for f in files:
-        program = parser.parse_file(f)
+        program = _apply_environment(parser.parse_file(f), environment)
         for stmt in program.statements:
             if isinstance(stmt, n.ServiceDef):
                 host = None
@@ -108,20 +110,54 @@ def _render_mermaid(
 def graph(
     files: List[Path] = typer.Argument(..., help=".infra file(s)"),
     format: str = typer.Option(
-        "ascii", "--format", help="Output format: ascii, dot, mermaid"
+        "ascii", "--format", help="Output format: ascii, dot, mermaid, svg"
     ),
-    output: Optional[Path] = typer.Option(None, "--output", help="Write to file"),
+    output: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Write to file"
+    ),
+    environment: Optional[str] = typer.Option(
+        None, "--environment", "-e", "--env", help="Environment overlay name"
+    ),
 ) -> None:
-    """Print the infrastructure dependency graph."""
-    nodes, edges = _collect(files)
-    if not nodes:
-        body = "(no infrastructure)"
-    elif format == "dot":
-        body = _render_dot(nodes, edges)
-    elif format == "mermaid":
-        body = _render_mermaid(nodes, edges)
-    else:  # ascii
-        body = _render_ascii(nodes, edges)
+    """Print the infrastructure dependency graph (or export it to SVG).
+
+    The ``svg`` format renders the architecture DAG exactly like the
+    dashboard (same collector and layout) as a self-contained ``.svg``
+    document and requires exactly one input file. ``-o out.svg`` without an
+    explicit ``--format`` implies ``--format svg``.
+    """
+    from infra.cli.compile import _apply_environment
+
+    env_name = environment or ""
+    fmt = format
+    if output is not None and output.suffix.lower() == ".svg" and fmt == "ascii":
+        # ``-o out.svg`` says more than the (default) ascii format.
+        fmt = "svg"
+
+    if fmt == "svg":
+        from infra.analyzer.ui_generator import generate_dag_svg
+
+        if len(files) != 1:
+            typer.echo(
+                "[FAIL] SVG export requires exactly one .infra file "
+                f"(got {len(files)}).",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        program = _apply_environment(
+            _parser().parse_file(files[0]), env_name
+        )
+        body = generate_dag_svg(program)
+    else:
+        nodes, edges = _collect(files, env_name)
+        if not nodes:
+            body = "(no infrastructure)"
+        elif fmt == "dot":
+            body = _render_dot(nodes, edges)
+        elif fmt == "mermaid":
+            body = _render_mermaid(nodes, edges)
+        else:  # ascii
+            body = _render_ascii(nodes, edges)
 
     if output is not None:
         output.write_text(body + "\n", encoding="utf-8")

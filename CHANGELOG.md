@@ -2,6 +2,43 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.5.5] - 2026-08-30
+
+**Block A: Use-Cases** — side-by-side environment comparison and a
+shareable SVG export of the architecture DAG. No DSL grammar changes, no
+new runtime dependencies.
+
+### Added
+- **Side-by-side environment comparison** —
+  `infra serve app.infra --compare <env_a> <env_b>` (and the `infra ui`
+  alias) serves a static compare page on the loopback server, or writes it
+  with `-o compare.html` (`[OK] Compare report written:`). The single-file
+  report contains a diff table (`+` added, `−` removed, `Δ` changed at
+  field level: replicas, image, ports, expose, storage, env vars,
+  resources, plus a FinOps delta row) and two panels with per-side
+  workload tables and monthly cost estimates. The special name `base`
+  selects the unoverlaid file; overlays are applied with
+  `apply_environment_overlay`, and the `program.environments` list is
+  restored after each overlay (same quirk handling as the dashboard).
+  Error states are explicit: unknown overlay name exits 1 listing the
+  available environments, `--compare` cannot be combined with
+  `-e/--environment`, and identical environments render a readable
+  "No differences" empty state.
+- **Architecture DAG export to SVG** — `infra graph app.infra -o out.svg`
+  (format inferred from the `.svg` suffix) or `--format svg` writes a
+  self-contained SVG document using the same DAG collector and
+  longest-path layout as the dashboard; nodes/edges carry
+  `data-name`/`data-from`/`data-to` attributes. Requires exactly one input
+  file and supports `-e/--env`. The dashboard's Architecture tab gains a
+  **Download SVG** button embedding exactly the same document as a data
+  URI. `infra graph` also gained `-o` (short for `--output`) and
+  `-e/--env` for all formats.
+- **PNG export consciously deferred** (candidate for 0.5.7 if a cheap,
+  pure-Python path materializes) — rasterizing SVG requires either
+  `cairosvg` (native cairo) or a browser driver (playwright/chromium),
+  both ruled out by the zero-native-deps policy for this line. PDF export
+  stays out of scope.
+
 ## [0.5.4] - 2026-08-30
 
 **Quality & CI Foundation release** — no DSL grammar or dashboard/UI changes.

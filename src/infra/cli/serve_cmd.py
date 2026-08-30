@@ -12,15 +12,16 @@ from __future__ import annotations
 
 import logging
 import webbrowser
+from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from socketserver import ThreadingMixIn
-from typing import Callable, ClassVar, Optional
+from typing import Callable, ClassVar, Optional, Tuple
 
 import typer
 
 from infra.analyzer.cost import estimate_cost
-from infra.analyzer.ui_generator import generate_ui_html
+from infra.analyzer.ui_generator import generate_compare_html, generate_ui_html
 from infra.errors.exceptions import InfraError
 from infra.parser import parse_file
 
@@ -58,6 +59,16 @@ def render_dashboard(file: Path, environment: Optional[str]) -> str:
         drift_report=None,
         env_name=environment or None,
     )
+
+
+def render_compare(file: Path, env_a: str, env_b: str) -> str:
+    """Parse *file* once and return the side-by-side comparison HTML.
+
+    Raises ``InfraError`` on parse problems and
+    ``EnvironmentNotFoundError`` (itself an ``InfraError``) for unknown
+    overlay names — the special name ``base`` selects the unoverlaid file.
+    """
+    return generate_compare_html(parse_file(file), env_a, env_b)
 
 
 class _DashboardHTTPServer(ThreadingMixIn, HTTPServer):
@@ -111,18 +122,31 @@ class _DashboardHandler(SimpleHTTPRequestHandler):
 
 
 def make_server(
-    file: Path, port: int, environment: Optional[str] = None
+    file: Path,
+    port: int,
+    environment: Optional[str] = None,
+    static_html: Optional[str] = None,
 ) -> _DashboardHTTPServer:
     """Build (not yet start) a dashboard HTTP server bound to ``file``.
 
     ``port=0`` lets the OS pick a free port (used by tests; the chosen port
     is then available as ``server.server_port``). Raises ``OSError`` when the
-    address is already in use.
+    address is already in use. With *static_html* the server answers with the
+    given page instead of re-rendering on each request (compare reports are
+    snapshots — re-parsing on every reload would be wasteful).
     """
+    render_fn: Callable[[], str]
+    if static_html is not None:
+
+        def render_fn() -> str:  # snapshot page (compare report)
+            return static_html
+
+    else:
+        render_fn = partial(render_dashboard, file, environment)
     handler_cls = type(
         "_BoundDashboardHandler",
         (_DashboardHandler,),
-        {"render_fn": staticmethod(lambda: render_dashboard(file, environment))},
+        {"render_fn": staticmethod(render_fn)},
     )
     return _DashboardHTTPServer((_BIND_HOST, port), handler_cls)
 
@@ -153,8 +177,18 @@ def serve_cmd(
         "-o",
         help="Write a standalone HTML report and exit (no HTTP server).",
     ),
+    compare: Optional[Tuple[str, str]] = typer.Option(
+        None,
+        "--compare",
+        help="Compare two environment overlays side by side "
+        "(e.g. --compare base prod); 'base' = the unoverlaid file.",
+    ),
 ) -> None:
-    """Serve (or export with ``-o``) the visual dashboard for a .infra file."""
+    """Serve (or export with ``-o``) the visual dashboard for a .infra file.
+
+    With ``--compare <env_a> <env_b>`` the served/exported page is a static
+    side-by-side comparison of the two overlays instead of the dashboard.
+    """
     from rich.console import Console
 
     console = Console()
@@ -163,26 +197,34 @@ def serve_cmd(
         console.print(f"[red]Source file not found:[/red] {file}")
         raise typer.Exit(code=1)
 
-    if output_html is not None:
-        try:
-            html_text = render_dashboard(file, environment)
-        except InfraError as exc:
-            console.print(f"[red]{exc}[/red]")
-            raise typer.Exit(code=1) from exc
-        output_html.write_text(html_text, encoding="utf-8")
-        console.print(f"[OK] HTML report written: {output_html.as_posix()}")
-        return
+    if compare is not None and environment:
+        console.print(
+            "[red]--compare cannot be combined with -e/--environment[/red]"
+        )
+        raise typer.Exit(code=1)
 
-    # Render once up-front so syntax/validation problems surface before the
-    # server socket is announced as ready.
+    # Render once up-front so syntax/validation/unknown-overlay problems
+    # surface before the server socket is announced as ready.
     try:
-        render_dashboard(file, environment)
+        if compare is not None:
+            html_text = render_compare(file, compare[0], compare[1])
+        else:
+            html_text = render_dashboard(file, environment)
     except InfraError as exc:
         console.print(f"[red]{exc}[/red]")
         raise typer.Exit(code=1) from exc
 
+    if output_html is not None:
+        output_html.write_text(html_text, encoding="utf-8")
+        label = "Compare report" if compare is not None else "HTML report"
+        console.print(f"[OK] {label} written: {output_html.as_posix()}")
+        return
+
     try:
-        server = make_server(file, port, environment)
+        if compare is not None:
+            server = make_server(file, port, static_html=html_text)
+        else:
+            server = make_server(file, port, environment)
     except OSError as exc:
         console.print(
             f"[red]Cannot bind {_BIND_HOST}:{port}[/red] — {exc}"
@@ -190,7 +232,8 @@ def serve_cmd(
         raise typer.Exit(code=1) from exc
 
     url = f"http://localhost:{server.server_port}"
-    console.print(f"[OK] Dashboard ready: {url}  (Ctrl+C to stop)")
+    label = "Compare report" if compare is not None else "Dashboard"
+    console.print(f"[OK] {label} ready: {url}  (Ctrl+C to stop)")
     if no_browser:
         console.print("[SKIP] Browser auto-open disabled (--no-browser).")
     elif not _open_browser(url):
