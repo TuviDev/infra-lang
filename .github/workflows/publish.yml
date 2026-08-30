@@ -35,7 +35,7 @@ jobs:
         # push without secrets skips publishing instead of failing. Build and
         # `twine check` above still validate every tagged release.
         if: env.TWINE_PASSWORD != ''
-        run: twine upload dist/*
+        run: twine upload --skip-existing dist/*
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
