@@ -6,6 +6,7 @@ with ``helm template`` when the binary is available.
 """
 
 from __future__ import annotations
+from infra.version import __version__
 
 import os
 import shutil
@@ -70,7 +71,7 @@ class TestChartStructure:
         assert data["apiVersion"] == "v2"
         assert data["name"]
         assert data["type"] == "application"
-        assert data["version"] == "0.5.3"
+        assert data["version"] == __version__
         assert "appVersion" in data
 
     def test_values_yaml_is_valid_yaml(self):
