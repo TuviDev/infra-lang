@@ -10,6 +10,7 @@ jobs:
   test:
     name: Test (py ${{ matrix.python-version }} @ ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
@@ -58,9 +59,11 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
-            pytest tests/ -q -o addopts="" --cov=src/infra --cov-report=term --cov-fail-under=90
+            # No xdist (pyproject addopts), no cov — avoid 1h+ / IPC hangs on Windows
+            pytest tests/ -q -o addopts=""
           else
-            pytest tests/ -q -n auto --dist=loadfile --cov=src/infra --cov-report=term --cov-fail-under=90
+            pytest tests/ -q -n auto --dist=loadfile \
+              --cov=src/infra --cov-report=term --cov-fail-under=90
           fi
 
       - name: Verify package (twine check)
