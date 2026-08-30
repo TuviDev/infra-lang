@@ -1,7 +1,7 @@
-from infra.version import __version__
 """Backend compilation tests."""
 
 from __future__ import annotations
+from infra.version import __version__
 
 import yaml
 
