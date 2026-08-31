@@ -1,6 +1,7 @@
 """Distribution and packaging tests."""
 
 from __future__ import annotations
+from infra.version import __version__
 
 import pytest
 
@@ -16,7 +17,7 @@ class TestPackageStructure:
         import infra
 
         assert hasattr(infra, "__version__")
-        assert infra.__version__ == "0.5.6"
+        assert infra.__version__ == __version__
 
     def test_version_format_valid(self):
         from infra.version import VERSION_INFO, __version__
@@ -123,7 +124,7 @@ class TestCLISubprocess:
     def test_version_exit_0(self):
         r = self._run("--version")
         assert r.returncode == 0
-        assert "0.5.6" in r.stdout
+        assert __version__ in r.stdout
 
     def test_compile_help_exit_0(self):
         assert self._run("compile", "--help").returncode == 0
