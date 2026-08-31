@@ -219,6 +219,38 @@ or an unreachable cluster degrades gracefully and never crashes the
 server. `--live-drift` cannot be combined with `--compare` (the compare
 report has no drift panel).
 
+### Run the compiler in a browser: Web Playground + Web API (since 0.6.0)
+
+The `web/` directory contains a complete **static playground** (Monaco
+editor, Compose/Kubernetes/Terraform/SVG/dashboard tabs, shareable URLs,
+waitlist section) that runs the real Python compiler in WebAssembly via
+Pyodide. Host it on GitHub Pages or Vercel together with the
+`infra_lang-0.6.0-py3-none-any.whl` — the page installs the wheel in the
+browser at load time (no backend required):
+
+```bash
+python -m build                        # produces dist/infra_lang-0.6.0-py3-none-any.whl
+cp dist/infra_lang-0.6.0-py3-none-any.whl web/
+python -m http.server -d web 8000      # then open http://localhost:8000
+```
+
+The same in-memory surface is usable from any embedded Python through
+**`infra.web_api`**:
+
+```python
+from infra import web_api
+web_api.compile_to_target(source, target="compose", env_name=None)
+# -> {"success": True, "files": {"docker-compose.yml": "...", ...}, "errors": []}
+web_api.generate_ui_report(source)   # single-file dashboard/compare HTML
+web_api.export_dag_svg(source)       # standalone architecture SVG
+web_api.get_ast_json(source)         # JSON-safe AST dict
+web_api.list_examples()              # embedded hello_world/web_app/microservices
+```
+
+`web_api` is guaranteed free of disk/process/browser side effects
+(checked by dedicated tests), which makes it safe for WASM sandboxes and
+serverless embeddings.
+
 ## Validate
 ```bash
 infra validate app.infra

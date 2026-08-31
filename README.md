@@ -176,6 +176,32 @@ table, or a readable failure badge (``CLI TOOL MISSING``, ``PROBE
 TIMEOUT``, ``CLUSTER UNREACHABLE``) when the tool or cluster is
 unreachable — it never crashes the server.
 
+## Web Playground & In-Memory Web API (since 0.6.0)
+
+The full compiler can run **in your browser** via WebAssembly (Pyodide) —
+no installation, no server round-trip. The `web/` directory ships a
+static playground (host it on GitHub Pages/Vercel along with the
+`infra_lang-*-py3-none-any.whl`): Monaco editor with `.infra` syntax
+highlighting, example picker, one-click outputs for Docker Compose /
+Kubernetes / Terraform, the architecture SVG and the visual dashboard, a
+`?code=<base64>` share link, and an enterprise waitlist section.
+
+The browser talks to **`infra.web_api`** — a pure in-memory API that also
+works in any embedded Python (notebooks, serverless, CI bots):
+
+```python
+from infra import web_api
+
+result = web_api.compile_to_target(source, "compose")  # success/files/errors
+html   = web_api.generate_ui_report(source)            # dashboard (or compare)
+svg    = web_api.export_dag_svg(source)                # architecture graph
+ast    = web_api.get_ast_json(source)                  # JSON-safe AST
+web_api.list_examples()                                # hello_world, web_app, …
+```
+
+`web_api` never touches the disk, processes or a browser API — errors are
+returned as data — so it is safe to embed anywhere.
+
 ## Try it in Codespaces
 
 Click the button below to open this project in GitHub Codespaces:

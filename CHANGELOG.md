@@ -2,6 +2,45 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.6.0] - Playground Ready — 2026-08-30
+
+**Block I: Playground Ready & Web API Foundation** — the full compiler
+now runs in-memory (and therefore in WebAssembly/Pyodide) behind a clean
+Web API, plus a complete static Web Playground for free hosting. No DSL
+grammar changes, no new runtime dependencies, 0 PLN budget.
+
+### Added
+- **`infra.web_api` — in-memory Web API for WASM/Pyodide** —
+  `compile_to_target(source, target="kubernetes", env_name=None)` returns
+  `{"success", "files", "errors"}` as data (never raises, never exits);
+  `generate_ui_report(source, env_name=None, compare_env=None)` renders
+  the single-file dashboard or the side-by-side compare report;
+  `export_dag_svg(source, env_name=None)` returns the standalone
+  architecture SVG; `get_ast_json(source)` returns a JSON-safe AST;
+  `list_examples()` returns the embedded example programs
+  (`hello_world`, `web_app`, `microservices`) so nothing is read from
+  disk inside a Pyodide sandbox. WASM guarantees are enforced by tests:
+  no `sys.exit` / `webbrowser` / `subprocess` / OS calls, no local-disk
+  reads.
+- **Static Web Playground (`web/`)** — `index.html`, `app.js`,
+  `style.css`: hero with the elevator pitch, split-screen layout with a
+  Monaco editor (custom `.infra` Monarch tokenizer, dark theme), example
+  dropdown fed by `list_examples()`, output tabs for 🐳 Docker Compose,
+  ☸️ Kubernetes, 🏗️ Terraform, 📐 Architecture SVG and 📊 Visual
+  Dashboard (iframe/blob), a Share button encoding the editor state into
+  `?code=<base64url>`, and an enterprise waitlist section (Tally.so
+  placeholder). `app.js` bootstraps Pyodide from CDN and installs the
+  `infra_lang-0.6.0-py3-none-any.whl` (file next to the page, falling
+  back to the PyPI release; `?wheel=` override for local dev).
+- **Tests** — `tests/test_web_api.py` (30 tests): every API function
+  (success + parse/semantic/target/env error channels, HTML/SVG/AST
+  contracts, example validity), WASM-guarantee AST scans, defensive
+  copies — `src/infra/web_api.py` at **100% line and branch coverage**.
+- **Docs** — README gained a "Web Playground & In-Memory Web API"
+  section; the quickstart documents how to self-host the playground
+  (`python -m build` → copy the wheel next to `web/`) and the Web API
+  signatures.
+
 ## [0.5.6] - 2026-08-30
 
 **Block B: Live Drift UI** — the interactive dashboard can now probe the

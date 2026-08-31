@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Infra Lang — Web Playground</title>
+<meta name="description" content="Declarative cloud infrastructure language that compiles to Docker Compose, Kubernetes and Terraform — with a native cost and drift dashboard. Try it in your browser.">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="hero">
+  <div class="hero-inner">
+    <h1>Infra&nbsp;Lang <span class="hero-tag">Web Playground</span></h1>
+    <p class="pitch">
+      Infra Lang to deklaratywny język do opisu infrastruktury chmurowej,
+      który automatycznie generuje Docker Compose, Kubernetes i Terraform
+      oraz daje natywny dashboard kosztów i driftu.
+    </p>
+    <div class="hero-badges">
+      <span class="hb">100% in-browser (Pyodide / WASM)</span>
+      <span class="hb">No signup</span>
+      <span class="hb">Open source</span>
+    </div>
+  </div>
+</header>
+
+<main class="split">
+  <!-- left: editor -->
+  <section class="pane editor-pane">
+    <div class="pane-bar">
+      <label for="example-select" class="bar-label">Example:</label>
+      <select id="example-select" aria-label="Load example">
+        <option value="">— loading examples… —</option>
+      </select>
+      <button id="share-btn" class="btn" title="Copy a shareable URL with your code">Share</button>
+      <span id="engine-status" class="status" role="status">Loading Pyodide…</span>
+    </div>
+    <div id="editor" class="editor"></div>
+  </section>
+
+  <!-- right: outputs -->
+  <section class="pane output-pane">
+    <nav class="tabs" role="tablist" aria-label="Compilation outputs">
+      <button class="tab active" data-tab="compose"    role="tab" aria-selected="true">🐳 Docker Compose</button>
+      <button class="tab" data-tab="kubernetes" role="tab" aria-selected="false">☸️ Kubernetes</button>
+      <button class="tab" data-tab="terraform"  role="tab" aria-selected="false">🏗️ Terraform</button>
+      <button class="tab" data-tab="svg"        role="tab" aria-selected="false">📐 Architecture SVG</button>
+      <button class="tab" data-tab="dashboard"  role="tab" aria-selected="false">📊 Visual Dashboard</button>
+    </nav>
+    <div class="outputs">
+      <pre id="out-compose"    class="output active"><code>…</code></pre>
+      <pre id="out-kubernetes" class="output"><code>…</code></pre>
+      <pre id="out-terraform"  class="output"><code>…</code></pre>
+      <div id="out-svg"        class="output output-svg">…</div>
+      <div id="out-dashboard"  class="output output-dash"><iframe id="dash-frame" title="Infra Lang dashboard preview" sandbox="allow-scripts"></iframe></div>
+    </div>
+    <div id="error-panel" class="error-panel hidden" role="alert">
+      <h2>Compilation problems</h2>
+      <ul id="error-list"></ul>
+    </div>
+  </section>
+</main>
+
+<section class="waitlist" id="waitlist">
+  <div class="wait-inner">
+    <h2>Infra Cloud — Enterprise Waitlist</h2>
+    <p>
+      Managed drift alerts, team dashboards, cost guardrails in CI and
+      policy-as-code — hosted for you. Join the waitlist and get early
+      access plus migration support from raw YAML/compose.
+    </p>
+    <!-- Replace the action URL with your live Tally.so / Google Forms endpoint. -->
+    <form id="waitlist-form" method="post" action="https://tally.so/r/YOUR-FORM-ID">
+      <input type="email" name="email" required placeholder="you@company.com" aria-label="E-mail address">
+      <button type="submit" class="btn btn-primary">Join the waitlist</button>
+    </form>
+    <p class="wait-note">Free during the beta. No card, no lock-in — your <code>.infra</code> files stay 100% compatible with the open-source CLI.</p>
+  </div>
+</section>
+
+<footer class="foot">
+  <span>Infra Lang v0.6.0 — open source under MIT.</span>
+  <span>Compiler runs entirely in your browser via WebAssembly; nothing you type leaves this page.</span>
+</footer>
+
+<noscript><p class="noscript">The playground needs JavaScript (Pyodide) to compile locally.</p></noscript>
+
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,329 @@
+/* Infra Lang Web Playground — Monaco + Pyodide (v0.6.0).
+ * Everything below runs client-side only; the compiler executes in
+ * WebAssembly inside the browser tab. */
+"use strict";
+
+const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
+const MONACO_CDN = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min";
+const WHEEL_NAME = "infra_lang-0.6.0-py3-none-any.whl";
+
+const statusEl = document.getElementById("engine-status");
+const errorPanel = document.getElementById("error-panel");
+const errorList = document.getElementById("error-list");
+const exampleSelect = document.getElementById("example-select");
+const dashFrame = document.getElementById("dash-frame");
+
+let pyodide = null;
+let webApi = null;
+let editor = null;
+let dashBlobUrl = null;
+let activeTab = "compose";
+let compileTimer = null;
+
+function setStatus(text, cls) {
+  statusEl.textContent = text;
+  statusEl.className = "status " + (cls || "");
+}
+
+/* ---------- Monaco ---------- */
+
+function setupMonaco() {
+  // Cross-origin worker bootstrap required for the CDN build.
+  window.MonacoEnvironment = {
+    getWorkerUrl: function () {
+      return (
+        "data:text/javascript;charset=utf-8," +
+        encodeURIComponent(
+          "self.MonacoEnvironment={baseUrl:'" + MONACO_CDN + "/'};" +
+            "importScripts('" + MONACO_CDN + "/vs/base/worker/workerMain.js');"
+        )
+      );
+    },
+  };
+  require.config({ paths: { vs: MONACO_CDN + "/vs" } });
+  require(["vs/editor/editor.main"], function () {
+    registerInfraLanguage();
+    editor = monaco.editor.create(document.getElementById("editor"), {
+      value: initialCode(),
+      language: "infra",
+      theme: "infra-dark",
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 13,
+      tabSize: 2,
+      scrollBeyondLastLine: false,
+    });
+    editor.onDidChangeModelContent(function () {
+      clearTimeout(compileTimer);
+      compileTimer = setTimeout(runActiveTab, 500);
+    });
+  });
+}
+
+function registerInfraLanguage() {
+  monaco.languages.register({ id: "infra" });
+  monaco.editor.defineTheme("infra-dark", {
+    base: "vs-dark",
+    inherit: true,
+    rules: [
+      { token: "keyword.infra", foreground: "38bdf8", fontStyle: "bold" },
+      { token: "type.infra", foreground: "818cf8" },
+      { token: "number.infra", foreground: "fbbf24" },
+      { token: "string.infra", foreground: "34d399" },
+      { token: "comment.infra", foreground: "64748b", fontStyle: "italic" },
+    ],
+    colors: { "editor.background": "#0f172a" },
+  });
+  monaco.languages.setMonarchTokensProvider("infra", {
+    defaultToken: "",
+    keywords: [
+      "service", "database", "cache", "queue", "secret", "secret_store",
+      "network", "network_policy", "environment", "ingress", "env", "env_from",
+      "import", "as", "extends", "if", "else", "for", "in", "const",
+      "depends", "depends_on", "resources", "requests", "limits", "health",
+      "port", "ports", "expose", "image", "replicas", "type", "version",
+      "storage", "size", "labels", "annotations", "from", "build",
+      "dockerfile", "context", "schedule", "backup", "volumes", "strategy",
+    ],
+    sourcekinds: ["secret", "configmap", "field", "env"],
+    tokenizer: {
+      root: [
+        [/#.*$/, "comment.infra"],
+        [/"/, { token: "string.infra", next: "@string" }],
+        [/\d+(\.\d+)?(m|Mi|Gi|Ki|Ti|cores|s|min|h)?\b/, "number.infra"],
+        [
+          /@?[a-zA-Z_][\w-]*/,
+          {
+            cases: {
+              "@keywords": "keyword.infra",
+              "@sourcekinds": "type.infra",
+              "@default": "identifier",
+            },
+          },
+        ],
+        [/->/, "operator"],
+        [/[:{}[\],]/, "delimiter"],
+      ],
+      string: [
+        [/[^\\"]+/, "string.infra"],
+        [/\\./, "string.escape"],
+        [/"/, { token: "string.infra", next: "@pop" }],
+      ],
+    },
+  });
+  monaco.languages.setLanguageConfiguration("infra", {
+    comments: { lineComment: "#" },
+    brackets: [["{", "}"], ["[", "]"]],
+    autoClosingPairs: [
+      { open: "{", close: "}" },
+      { open: "[", close: "]" },
+      { open: '"', close: '"' },
+    ],
+  });
+}
+
+/* ---------- shared code state (URL) ---------- */
+
+function encodeShare(code) {
+  return btoa(unescape(encodeURIComponent(code)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+function decodeShare(b64) {
+  var s = b64.replace(/-/g, "+").replace(/_/g, "/");
+  while (s.length % 4) s += "=";
+  return decodeURIComponent(escape(atob(s)));
+}
+
+function initialCode() {
+  var params = new URLSearchParams(window.location.search);
+  var shared = params.get("code");
+  if (shared) {
+    try {
+      return decodeShare(shared);
+    } catch (e) {
+      /* fall through to the default example */
+    }
+  }
+  return (
+    '# Welcome to the Infra Lang playground!\n' +
+    '# Pick an example above — the Python compiler is loading…\n\n' +
+    'service hello {\n' +
+    '    image: "nginx:1.25.3"\n' +
+    "    port 80\n" +
+    '    health http("/")\n' +
+    "}\n"
+  );
+}
+
+/* ---------- Pyodide ---------- */
+
+async function setupPyodide() {
+  try {
+    setStatus("Loading Pyodide…");
+    pyodide = await loadPyodide({ indexURL: PYODIDE_CDN });
+    setStatus("Installing compiler…");
+    await pyodide.loadPackage("micropip");
+    const micropip = pyodide.pyimport("micropip");
+    // Pure-Python runtime deps of the compiler chain used by infra.web_api.
+    await micropip.install(["lark", "ruamel.yaml", "pyyaml"]);
+    const params = new URLSearchParams(window.location.search);
+    const wheel = params.get("wheel") || ("./" + WHEEL_NAME);
+    try {
+      // Prefer the wheel shipped next to the page (works for GitHub Pages).
+      await micropip.install(wheel, { deps: false });
+    } catch (localErr) {
+      await micropip.install("infra-lang"); // released package from PyPI
+    }
+    webApi = pyodide.pyimport("infra.web_api");
+    fillExamples();
+    setStatus("Compiler ready (WASM)", "ready");
+    runActiveTab();
+  } catch (err) {
+    console.error(err);
+    setStatus("Compiler failed to load — " + err, "error");
+    showErrors(["Pyodide / wheel bootstrap failed: " + err]);
+  }
+}
+
+function fillExamples() {
+  const examples = webApi.list_examples().toJs({ dict_converter: Object.fromEntries });
+  exampleSelect.innerHTML = "";
+  for (const name of Object.keys(examples)) {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    exampleSelect.appendChild(opt);
+  }
+  exampleSelect.onchange = function () {
+    if (this.value && examples[this.value]) {
+      editor.setValue(examples[this.value]);
+      runActiveTab();
+    }
+  };
+  // First real example replaces the placeholder when no ?code= was given.
+  if (!new URLSearchParams(window.location.search).get("code") && editor) {
+    editor.setValue(examples[Object.keys(examples)[0]]);
+  }
+}
+
+/* ---------- compile / render ---------- */
+
+function toJs(value) {
+  return value.toJs ? value.toJs({ dict_converter: Object.fromEntries }) : value;
+}
+
+function showErrors(messages) {
+  errorList.innerHTML = "";
+  messages.forEach(function (m) {
+    const li = document.createElement("li");
+    li.textContent = m;
+    errorList.appendChild(li);
+  });
+  errorPanel.classList.remove("hidden");
+}
+function clearErrors() {
+  errorPanel.classList.add("hidden");
+  errorList.innerHTML = "";
+}
+
+function setCodeOutput(id, text) {
+  document.querySelector("#out-" + id + " code").textContent = text;
+}
+
+function runActiveTab() {
+  if (!webApi || !editor) return;
+  const source = editor.getValue();
+  clearErrors();
+  if (activeTab === "dashboard") return renderDashboard(source);
+  if (activeTab === "svg") return renderSvg(source);
+  return renderCompile(source, activeTab);
+}
+
+function renderCompile(source, target) {
+  try {
+    const result = toJs(webApi.compile_to_target(source, target));
+    if (result.success) {
+      const parts = Object.keys(result.files).map(function (name) {
+        return "# ── " + name + " ──\n" + result.files[name];
+      });
+      setCodeOutput(target, parts.join("\n"));
+    } else {
+      setCodeOutput(target, "# compilation failed — see below");
+      showErrors(result.errors || ["Unknown compilation error."]);
+    }
+  } catch (err) {
+    showErrors([String(err)]);
+  }
+}
+
+function renderSvg(source) {
+  const host = document.getElementById("out-svg");
+  try {
+    host.innerHTML = String(webApi.export_dag_svg(source));
+  } catch (err) {
+    host.textContent = "DAG render failed — see below";
+    showErrors([pythonMessage(err)]);
+  }
+}
+
+function renderDashboard(source) {
+  try {
+    const html = String(webApi.generate_ui_report(source));
+    if (dashBlobUrl) URL.revokeObjectURL(dashBlobUrl);
+    dashBlobUrl = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    dashFrame.src = dashBlobUrl;
+  } catch (err) {
+    showErrors([pythonMessage(err)]);
+  }
+}
+
+function pythonMessage(err) {
+  // Pyodide wraps Python tracebacks; surface the last meaningful line.
+  const msg = String(err && err.message ? err.message : err);
+  const lines = msg.trim().split("\n");
+  return lines[lines.length - 1];
+}
+
+/* ---------- tabs ---------- */
+
+document.querySelectorAll(".tab").forEach(function (btn) {
+  btn.addEventListener("click", function () {
+    document.querySelectorAll(".tab").forEach(function (b) {
+      b.classList.toggle("active", b === btn);
+      b.setAttribute("aria-selected", b === btn ? "true" : "false");
+    });
+    document.querySelectorAll(".output").forEach(function (o) {
+      o.classList.remove("active");
+    });
+    activeTab = btn.dataset.tab;
+    document.getElementById("out-" + activeTab).classList.add("active");
+    runActiveTab();
+  });
+});
+
+/* ---------- share ---------- */
+
+document.getElementById("share-btn").addEventListener("click", function () {
+  if (!editor) return;
+  const url = new URL(window.location.href);
+  url.searchParams.set("code", encodeShare(editor.getValue()));
+  url.searchParams.delete("wheel");
+  history.replaceState(null, "", url);
+  const btn = this;
+  navigator.clipboard.writeText(url.toString()).then(
+    function () {
+      btn.textContent = "Copied!";
+      setTimeout(function () { btn.textContent = "Share"; }, 1500);
+    },
+    function () {
+      window.prompt("Share URL:", url.toString());
+    }
+  );
+});
+
+/* ---------- boot ---------- */
+
+setupMonaco();
+setupPyodide();

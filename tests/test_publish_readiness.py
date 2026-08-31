@@ -122,4 +122,26 @@ class TestPublishReadiness:
             timeout=30,
         )
         assert result.returncode == 0
-        assert "0.5.6" in result.stdout or "infra" in result.stdout.lower()
+        # Read the version from the package ACTUALLY installed in the clean
+        # venv (via its own interpreter) — never from an unqualified global
+        # name, which NameErrors when the symbol is not in module scope.
+        pyexec = bindir / ("python.exe" if os.name == "nt" else "python")
+        vresult = subprocess.run(
+            [
+                str(pyexec),
+                "-c",
+                "from infra.version import __version__; print(__version__)",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert vresult.returncode == 0, vresult.stderr
+        installed_version = vresult.stdout.strip()
+        assert installed_version == "0.6.0", (
+            f"clean-venv installed version: {installed_version!r} != 0.6.0"
+        )
+        assert (
+            installed_version in result.stdout
+            or "infra" in result.stdout.lower()
+        )
