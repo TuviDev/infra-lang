@@ -2,6 +2,51 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.8.0] - Interactive & Product Polish — 2026-09-01
+
+**The Interactive & Product Polish Block** — developer experience and
+onboarding: a built-in interactive terminal course that teaches the DSL
+step by step, a richer Web Playground with ready-made architecture
+templates, one-click manifest bundles and a live DAG view, plus modern
+VS Code snippets for every block introduced in the 0.7.x series.
+
+### Added
+- **`infra learn` — interactive terminal tutor** — five structured
+  lessons, from a single service to advanced policies: (1) Single
+  Service & Image, (2) Database, Secrets & Environment, (3)
+  depends_on & Network, (4) Health / Autoscale / Disruption, (5)
+  NetworkPolicy / SecretStore / Cron Schedule. Every lesson ships a
+  goal, theory with a runnable example, a task and an expected pattern;
+  the default mode walks through them with prompts. Deterministic flags
+  for CI: `--list` (lesson table), `--lesson N` (render one lesson) and
+  `--verify N <file.infra>` — verification runs the real parser and the
+  semantic validator plus per-lesson structural checks, printing
+  actionable `[FAIL]` lines (and `[OK]` on success).
+- **Web Playground: architecture templates** — the example selector now
+  groups four curated templates (`01_web_app` — Nginx+Redis+Postgres,
+  `02_microservices` — API+Worker+RabbitMQ+Auth, `03_cloud_native` —
+  autoscaling/ingress/NetworkPolicy/SecretStore,
+  `04_scheduled_pipeline` — Cron Schedule + CI/CD pipeline) ahead of the
+  engine examples; templates load instantly, before the compiler boots.
+- **Web Playground: "Download All Manifests (.zip)"** — compiles the
+  editor contents to all four backends (Compose, Kubernetes, Terraform
+  and Helm) and bundles every generated file into one ZIP right in the
+  browser (JSZip, no server round-trip); any backend failure surfaces in
+  the problem panel instead of producing a partial archive.
+- **Web Playground: "DAG Graph" tab** — a dedicated tab renders the
+  live vector dependency graph as you type, powered by the existing
+  `infra.web_api.export_dag_svg` entry point (100% WASM-safe, no native
+  imports).
+- **VS Code snippets for the 0.7.x language surface** — six new
+  snippets: `infra-netpol` (inline `network_policy` with
+  `allow_from`/`deny_from`), `infra-secstore` (`secret_store` with
+  provider choice vault/aws/gcp/k8s), `infra-autoscale` (HPA window with
+  `min`/`max`/`target_cpu`), `infra-schedule` (cron-driven replicas),
+  `infra-disruption` (`min_available`/`max_unavailable` budget) and
+  `infra-schema` (file header pointing at the exported JSON Schema).
+  Every snippet body is regression-tested to still parse with its
+  default placeholders.
+
 ## [0.7.1] - Visualization, Schema & Quality — 2026-09-01
 
 **The Visualization, Schema & Quality Block** — native PNG rendering of

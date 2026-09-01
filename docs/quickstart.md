@@ -251,6 +251,23 @@ web_api.list_examples()              # embedded hello_world/web_app/microservice
 (checked by dedicated tests), which makes it safe for WASM sandboxes and
 serverless embeddings.
 
+## Interactive tutorial & playground polish (since 0.8.0)
+
+```bash
+# Built-in terminal course (5 lessons, verified by the real validator)
+infra learn                 # interactive mode
+infra learn --list          # lesson table
+infra learn --lesson 3      # render one lesson
+infra learn app.infra --verify 3   # grade your solution
+```
+
+The Web Playground gained curated **architecture templates**
+(`01_web_app` … `04_scheduled_pipeline`), a live **DAG Graph** tab and
+a **Download All Manifests (.zip)** button bundling Compose, Kubernetes,
+Terraform and Helm outputs. The VS Code extension ships `infra-*`
+snippets for `network_policy`, `secret_store`, `autoscale`, `schedule`,
+`disruption` and a schema header.
+
 ## Visualization & schema tooling (since 0.7.1)
 
 ```bash

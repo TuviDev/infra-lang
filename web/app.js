@@ -1,17 +1,152 @@
-/* Infra Lang Web Playground — Monaco + Pyodide (v0.6.0).
+/* Infra Lang Web Playground — Monaco + Pyodide (v0.8.0).
  * Everything below runs client-side only; the compiler executes in
  * WebAssembly inside the browser tab. */
 "use strict";
 
 const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 const MONACO_CDN = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min";
-const WHEEL_NAME = "infra_lang-0.6.0-py3-none-any.whl";
+const WHEEL_NAME = "infra_lang-0.8.0-py3-none-any.whl";
 
 const statusEl = document.getElementById("engine-status");
 const errorPanel = document.getElementById("error-panel");
 const errorList = document.getElementById("error-list");
 const exampleSelect = document.getElementById("example-select");
 const dashFrame = document.getElementById("dash-frame");
+
+/* Architecture templates (v0.8.0). Convention: sources are backtick
+ * literals without backticks or ${ inside — tests extract them with a
+ * regex and check they still parse + validate. New entries keep this. */
+const TEMPLATES = [
+  {
+    id: "01_web_app",
+    label: "01_web_app — Nginx + Redis + Postgres",
+    source: `# 01_web_app — a classic web app: Nginx fronted service backed by
+# a Redis cache and a PostgreSQL database.
+secret db-creds {
+    password: from env "DB_PASSWORD"
+}
+
+database main-db {
+    type: postgres
+}
+
+cache session {
+    type: redis
+    maxmemory: 256Mi
+}
+
+service web {
+    image: "nginx:1.25"
+    port 80
+    replicas: 2
+    env {
+      DB_PASS: from secret "db-creds".password
+    }
+    depends: [main-db, session]
+    health http("/")
+}
+`,
+  },
+  {
+    id: "02_microservices",
+    label: "02_microservices — API + Worker + RabbitMQ + Auth",
+    source: `# 02_microservices — three cooperating services exchanging work
+# through a RabbitMQ queue, with a dedicated auth service.
+queue events {
+    type: rabbitmq
+}
+
+service auth {
+    image: "myapp/auth:1.0"
+    port 3001
+    replicas: 2
+    health http("/health")
+}
+
+service api {
+    image: "myapp/api:1.0"
+    port 8080
+    env {
+      AUTH_URL: "http://auth:3001"
+    }
+    depends_on: [auth, events]
+    health http("/health")
+}
+
+service worker {
+    image: "myapp/worker:1.0"
+    env {
+      QUEUE_URL: "amqp://events:5672"
+    }
+    depends_on: [events]
+    health http("/health")
+}
+`,
+  },
+  {
+    id: "03_cloud_native",
+    label: "03_cloud_native — Autoscaling + Ingress + NetworkPolicy + SecretStore",
+    source: `# 03_cloud_native — hardened production profile: autoscaling,
+# TLS ingress, traffic whitelisting and an external secret store.
+secret_store "vault-prod" {
+    provider: "vault"
+    address: "https://vault.internal:8200"
+}
+
+network_policy "api-ingress" {
+    target: api
+    allow_ingress: [frontend]
+}
+
+service frontend {
+    image: "myapp/frontend:3.0"
+    port 80
+    health http("/")
+}
+
+service api {
+    image: "myapp/api:3.0"
+    port 8080
+    ingress {
+      host: "api.example.com"
+      tls: true
+    }
+    autoscale {
+      min: 2
+      max: 12
+      target_cpu: 75
+    }
+    health http("/health")
+}
+`,
+  },
+  {
+    id: "04_scheduled_pipeline",
+    label: "04_scheduled_pipeline — Cron Schedule + CI/CD Pipeline",
+    source: `# 04_scheduled_pipeline — a nightly CI/CD pipeline plus a service
+# whose replicas follow a cron schedule (business hours only).
+pipeline nightly {
+    trigger {
+      schedule: "0 2 * * *"
+      branches: ["main"]
+    }
+    stages {
+      test: { runsOn: "ubuntu-latest" steps { s: { run: "make test" } } }
+      deploy: { needs: [test] runsOn: "ubuntu-latest" steps { d: { run: "make deploy" } } }
+    }
+}
+
+service report {
+    image: "myapp/report:1.2"
+    schedule {
+      default: replicas 0
+      "0 8 * * 1-5": replicas 1
+    }
+    health http("/health")
+}
+`,
+  },
+];
 
 let pyodide = null;
 let webApi = null;
@@ -57,6 +192,7 @@ function setupMonaco() {
       clearTimeout(compileTimer);
       compileTimer = setTimeout(runActiveTab, 500);
     });
+    fillTemplateSelect(); // templates need no compiler — load instantly
   });
 }
 
@@ -187,25 +323,106 @@ async function setupPyodide() {
   }
 }
 
-function fillExamples() {
-  const examples = webApi.list_examples().toJs({ dict_converter: Object.fromEntries });
-  exampleSelect.innerHTML = "";
-  for (const name of Object.keys(examples)) {
+/* ---------- template / example selector ---------- */
+
+// Templates are local JS — the selector works even while the compiler
+// is still booting. Engine examples are appended once Pyodide is ready.
+function fillTemplateSelect() {
+  const group = document.createElement("optgroup");
+  group.label = "Architecture templates";
+  for (const tpl of TEMPLATES) {
     const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
-    exampleSelect.appendChild(opt);
+    opt.value = "tpl:" + tpl.id;
+    opt.textContent = tpl.label;
+    group.appendChild(opt);
   }
+  exampleSelect.innerHTML = "";
+  exampleSelect.appendChild(group);
   exampleSelect.onchange = function () {
-    if (this.value && examples[this.value]) {
-      editor.setValue(examples[this.value]);
-      runActiveTab();
+    const value = this.value;
+    if (value.startsWith("tpl:")) {
+      const tpl = TEMPLATES.find(function (t) { return "tpl:" + t.id === value; });
+      if (tpl && editor) {
+        editor.setValue(tpl.source);
+        runActiveTab();
+      }
+      return;
+    }
+    if (value.startsWith("ex:")) {
+      const source = exampleSelect._engineSources || {};
+      if (source[value] && editor) {
+        editor.setValue(source[value]);
+        runActiveTab();
+      }
     }
   };
-  // First real example replaces the placeholder when no ?code= was given.
+  // First template replaces the placeholder when no ?code= was given.
   if (!new URLSearchParams(window.location.search).get("code") && editor) {
-    editor.setValue(examples[Object.keys(examples)[0]]);
+    editor.setValue(TEMPLATES[0].source);
   }
+}
+
+function fillExamples() {
+  const examples = webApi.list_examples().toJs({ dict_converter: Object.fromEntries });
+  const sources = {};
+  const group = document.createElement("optgroup");
+  group.label = "Engine examples (from compiler)";
+  for (const name of Object.keys(examples)) {
+    const opt = document.createElement("option");
+    opt.value = "ex:" + name;
+    opt.textContent = name;
+    group.appendChild(opt);
+    sources["ex:" + name] = examples[name];
+  }
+  exampleSelect._engineSources = sources;
+  exampleSelect.appendChild(group);
+}
+
+/* ---------- compile all backends -> ZIP bundle ---------- */
+
+const BUNDLE_TARGETS = ["compose", "kubernetes", "terraform", "helm"];
+
+async function downloadAllManifests() {
+  if (!webApi || !editor) {
+    showErrors(["The compiler is still loading — try again in a moment."]);
+    return;
+  }
+  if (typeof JSZip === "undefined") {
+    showErrors(["JSZip failed to load from the CDN — cannot build the bundle."]);
+    return;
+  }
+  const source = editor.getValue();
+  clearErrors();
+
+  const zip = new JSZip();
+  const failures = [];
+  for (const target of BUNDLE_TARGETS) {
+    const result = toJs(webApi.compile_to_target(source, target));
+    if (result.success) {
+      const folder = zip.folder(target);
+      for (const name of Object.keys(result.files)) {
+        folder.file(name, result.files[name]);
+      }
+    } else {
+      (result.errors || ["unknown error"]).forEach(function (m) {
+        failures.push(target + ": " + m);
+      });
+    }
+  }
+  if (failures.length) {
+    showErrors(failures);
+    return;
+  }
+
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = "infra-manifests.zip";
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+  setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
 }
 
 /* ---------- compile / render ---------- */
@@ -237,7 +454,7 @@ function runActiveTab() {
   const source = editor.getValue();
   clearErrors();
   if (activeTab === "dashboard") return renderDashboard(source);
-  if (activeTab === "svg") return renderSvg(source);
+  if (activeTab === "dag") return renderDag(source);
   return renderCompile(source, activeTab);
 }
 
@@ -258,8 +475,8 @@ function renderCompile(source, target) {
   }
 }
 
-function renderSvg(source) {
-  const host = document.getElementById("out-svg");
+function renderDag(source) {
+  const host = document.getElementById("out-dag");
   try {
     host.innerHTML = String(webApi.export_dag_svg(source));
   } catch (err) {
@@ -321,6 +538,12 @@ document.getElementById("share-btn").addEventListener("click", function () {
       window.prompt("Share URL:", url.toString());
     }
   );
+});
+
+/* ---------- bundle download ---------- */
+
+document.getElementById("bundle-btn").addEventListener("click", function () {
+  downloadAllManifests();
 });
 
 /* ---------- boot ---------- */

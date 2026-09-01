@@ -148,5 +148,88 @@
       "autoscale { min: ${1:2} max: ${2:10} target_cpu: ${3:70} }"
     ],
     "description": "Horizontal Pod Autoscaler block with min, max and target CPU"
+  },
+  "network policy inline": {
+    "prefix": "infra-netpol",
+    "scope": "infra",
+    "body": [
+      "service ${1:name} {",
+      "    image: \"${2:your-image}:${3:1.0.0}\"",
+      "    network_policy {",
+      "        allow_from: [${4:frontend}]",
+      "        deny_from: [\"*\"]",
+      "    }",
+      "}"
+    ],
+    "description": "Service with network_policy (allow_from / deny_from)"
+  },
+  "secret store external": {
+    "prefix": "infra-secstore",
+    "scope": "infra",
+    "body": [
+      "secret_store \"${1:corp-store}\" {",
+      "    provider: \"${2|vault,aws,gcp,k8s|}\"",
+      "    address:  \"${3:https://vault.internal:8200}\"",
+      "    region:   \"${4:eu-central-1}\"",
+      "}"
+    ],
+    "description": "External secret_store (vault / aws / gcp / k8s providers)"
+  },
+  "autoscale hpa": {
+    "prefix": "infra-autoscale",
+    "scope": "infra",
+    "body": [
+      "service ${1:name} {",
+      "    image: \"${2:your-image}:${3:1.0.0}\"",
+      "    replicas: ${4:2}",
+      "    autoscale {",
+      "        min: ${5:2}",
+      "        max: ${6:10}",
+      "        target_cpu: ${7:75}",
+      "    }",
+      "}"
+    ],
+    "description": "Service with HPA autoscale block (min/max/target_cpu)"
+  },
+  "schedule cron": {
+    "prefix": "infra-schedule",
+    "scope": "infra",
+    "body": [
+      "service ${1:name} {",
+      "    image: \"${2:your-image}:${3:1.0.0}\"",
+      "    schedule {",
+      "        default: replicas ${4:1}",
+      "        \"${5:0 9 * * 1-5}\": replicas ${6:5}",
+      "        \"${7:0 22 * * *}\": replicas ${8:1}",
+      "    }",
+      "}"
+    ],
+    "description": "Service with cron schedule block (time-windowed replicas)"
+  },
+  "disruption budget": {
+    "prefix": "infra-disruption",
+    "scope": "infra",
+    "body": [
+      "service ${1:name} {",
+      "    image: \"${2:your-image}:${3:1.0.0}\"",
+      "    replicas: ${4:3}",
+      "    disruption {",
+      "        min_available: ${5:1}",
+      "        max_unavailable: ${6:1}",
+      "    }",
+      "}"
+    ],
+    "description": "Service with disruption budget (min_available / max_unavailable)"
+  },
+  "schema header": {
+    "prefix": "infra-schema",
+    "scope": "infra",
+    "body": [
+      "# --------------------------------------------------------------------",
+      "# ${1:app}.infra — Infra Lang infrastructure definition",
+      "# Editor schema: generate with  infra schema -o infra-schema.json",
+      "# --------------------------------------------------------------------"
+    ],
+    "description": "File header pointing at the exported JSON Schema (infra schema)"
   }
 }

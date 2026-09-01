@@ -54,6 +54,7 @@ def register_commands() -> None:
     from infra.cli.doctor import doctor
     from infra.cli.feedback_cmd import feedback_cmd
     from infra.cli.import_cmd import import_cmd
+    from infra.cli.learn_cmd import learn
     from infra.cli.lsp_cmd import lsp_cmd
     from infra.cli.policy_cmd import policy_check_cmd
     from infra.cli.schema_cmd import schema
@@ -98,6 +99,9 @@ def register_commands() -> None:
     app.command(
         name="schema", help="Export the JSON Schema of the .infra DSL."
     )(schema)
+    app.command(
+        name="learn", help="Interactive .infra DSL tutorial (5 lessons)."
+    )(learn)
     app.command(name="docs", help="Generate documentation from .infra files.")(
         docs.docs
     )

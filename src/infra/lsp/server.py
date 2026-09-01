@@ -142,7 +142,7 @@ except ImportError:  # pragma: no cover - tied to lsprotocol 2023.x installs
 
 server = LanguageServer(
     name="infra-lang",
-    version="0.7.1",
+    version="0.8.0",
 )
 
 #: Project-wide on-disk symbol index. Scanned after initialization; consulted by

@@ -202,6 +202,29 @@ web_api.list_examples()                                # hello_world, web_app, �
 `web_api` never touches the disk, processes or a browser API — errors are
 returned as data — so it is safe to embed anywhere.
 
+## Interactive learning & playground (since 0.8.0)
+
+**Learn the language in your terminal** — five guided lessons from a
+single service to network policies, with tasks verified by the real
+parser and validator:
+
+```bash
+infra learn                       # interactive walk-through
+infra learn --list                # the five lessons at a glance
+infra learn --lesson 2            # show one lesson
+infra learn my.infra --verify 2   # check your solution for lesson 2
+```
+
+**Upgraded Web Playground** (`web/`) — pick one of four architecture
+templates (web app, microservices, cloud-native profile, cron
+pipeline), watch the **DAG Graph** tab redraw live, then hit **Download
+All Manifests (.zip)** to get Compose + Kubernetes + Terraform + Helm
+outputs in a single archive — all inside the browser.
+
+**VS Code snippets** — type `infra-` and complete `network_policy`,
+`secret_store`, `autoscale`, `schedule`, `disruption` blocks or a schema
+header in seconds.
+
 ## Visualization & Schema export (since 0.7.1)
 
 **Native PNG architecture graphs** — the dashboard's architecture DAG

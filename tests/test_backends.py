@@ -404,7 +404,7 @@ class TestGeneratedHeader:
         files = parse_and_compile(source, "kubernetes")
         head = files["infra.yaml"].splitlines()[:3]
         joined = "\n".join(head)
-        assert "v0.7.1" in joined
+        assert "v0.8.0" in joined
         assert "# Source:" in joined
         assert "# Regenerate: infra compile" in joined
 

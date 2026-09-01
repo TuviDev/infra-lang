@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "infra-lang"
-version = "0.7.1"
+version = "0.8.0"
 description = "Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions"
 readme = "README.md"
 license = "MIT"

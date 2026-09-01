@@ -28,11 +28,12 @@
   <!-- left: editor -->
   <section class="pane editor-pane">
     <div class="pane-bar">
-      <label for="example-select" class="bar-label">Example:</label>
-      <select id="example-select" aria-label="Load example">
-        <option value="">— loading examples… —</option>
+      <label for="example-select" class="bar-label">Template:</label>
+      <select id="example-select" aria-label="Load architecture template or example">
+        <option value="">— loading templates… —</option>
       </select>
       <button id="share-btn" class="btn" title="Copy a shareable URL with your code">Share</button>
+      <button id="bundle-btn" class="btn" title="Compile to Compose, Kubernetes, Terraform and Helm, then download everything as one ZIP archive">⬇ Download All Manifests (.zip)</button>
       <span id="engine-status" class="status" role="status">Loading Pyodide…</span>
     </div>
     <div id="editor" class="editor"></div>
@@ -44,14 +45,14 @@
       <button class="tab active" data-tab="compose"    role="tab" aria-selected="true">🐳 Docker Compose</button>
       <button class="tab" data-tab="kubernetes" role="tab" aria-selected="false">☸️ Kubernetes</button>
       <button class="tab" data-tab="terraform"  role="tab" aria-selected="false">🏗️ Terraform</button>
-      <button class="tab" data-tab="svg"        role="tab" aria-selected="false">📐 Architecture SVG</button>
+      <button class="tab" data-tab="dag"        role="tab" aria-selected="false">🕸️ DAG Graph</button>
       <button class="tab" data-tab="dashboard"  role="tab" aria-selected="false">📊 Visual Dashboard</button>
     </nav>
     <div class="outputs">
       <pre id="out-compose"    class="output active"><code>…</code></pre>
       <pre id="out-kubernetes" class="output"><code>…</code></pre>
       <pre id="out-terraform"  class="output"><code>…</code></pre>
-      <div id="out-svg"        class="output output-svg">…</div>
+      <div id="out-dag"        class="output output-svg">…</div>
       <div id="out-dashboard"  class="output output-dash"><iframe id="dash-frame" title="Infra Lang dashboard preview" sandbox="allow-scripts"></iframe></div>
     </div>
     <div id="error-panel" class="error-panel hidden" role="alert">
@@ -79,7 +80,7 @@
 </section>
 
 <footer class="foot">
-  <span>Infra Lang v0.6.0 — open source under MIT.</span>
+  <span>Infra Lang v0.8.0 — open source under MIT.</span>
   <span>Compiler runs entirely in your browser via WebAssembly; nothing you type leaves this page.</span>
 </footer>
 
@@ -87,6 +88,7 @@
 
 <script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
