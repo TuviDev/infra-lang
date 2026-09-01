@@ -351,7 +351,8 @@ class TestCiCommentCLI:
     def test_help_mentions_gates(self):
         result = runner.invoke(app, ["ci-comment", "--help"])
         assert result.exit_code == 0
-        clean_out = re.sub(r"\x1b\[[0-9;]*m", "", result.output)`n        assert "max-monthly-cost" in clean_out
+        clean_out = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
+        assert "max-monthly-cost" in clean_out
 
 
 class TestActionAssets:
