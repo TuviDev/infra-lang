@@ -102,9 +102,7 @@ class TestDiamondImports:
             'import "./b.infra"\nimport "./c.infra"\nservice api { image: "x" }',
         )
         program = parse_file(root)
-        vars_seen = [
-            s.name for s in program.statements if isinstance(s, VariableDecl)
-        ]
+        vars_seen = [s.name for s in program.statements if isinstance(s, VariableDecl)]
         assert vars_seen.count("X") == 1
         assert vars_seen.count("Y") == 1  # full import still delivers Y
 
@@ -118,9 +116,7 @@ class TestDiamondImports:
             'service api { image: "x" }',
         )
         program = parse_file(root)
-        vars_seen = [
-            s.name for s in program.statements if isinstance(s, VariableDecl)
-        ]
+        vars_seen = [s.name for s in program.statements if isinstance(s, VariableDecl)]
         assert vars_seen.count("X") == 1
         assert vars_seen.count("Y") == 1
 
@@ -133,9 +129,7 @@ class TestDiamondImports:
             'import "./d.infra"\nimport "./d.infra"\nservice api { image: "x" }',
         )
         program = parse_file(root)
-        vars_seen = [
-            s.name for s in program.statements if isinstance(s, VariableDecl)
-        ]
+        vars_seen = [s.name for s in program.statements if isinstance(s, VariableDecl)]
         assert vars_seen.count("X") == 1
         from infra import validate
 
@@ -177,9 +171,7 @@ def _make_chain(root: Path, length: int) -> Path:
     for i in range(1, length + 1):
         nxt = f'import "./f{i + 1}.infra"\n' if i < length else ""
         _write(root, f"f{i}.infra", f'{nxt}service s{i} {{ image: "x" }}')
-    return _write(
-        root, "main.infra", 'import "./f1.infra"\nservice app { image: "x" }'
-    )
+    return _write(root, "main.infra", 'import "./f1.infra"\nservice app { image: "x" }')
 
 
 class TestDepthGuard:
@@ -257,9 +249,7 @@ class TestParserCachePerformance:
         from infra.parser import DEFAULT_GRAMMAR, Parser, _raw_lark
 
         custom = tmp_path / "grammar.lark"
-        custom.write_text(
-            DEFAULT_GRAMMAR.read_text(encoding="utf-8"), encoding="utf-8"
-        )
+        custom.write_text(DEFAULT_GRAMMAR.read_text(encoding="utf-8"), encoding="utf-8")
         parser = Parser(grammar_path=custom)
         assert parser._lark is not _raw_lark()
 
@@ -293,9 +283,5 @@ class TestParserCachePerformance:
         )
         # sanity: all imported symbols really resolved (the program also
         # carries the stdlib prelude, so check containment, not equality)
-        names = {
-            s.name
-            for s in program.statements
-            if isinstance(s, VariableDecl)
-        }
+        names = {s.name for s in program.statements if isinstance(s, VariableDecl)}
         assert {f"V{i}" for i in range(1, self.IMPORT_COUNT + 1)} <= names

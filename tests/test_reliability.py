@@ -11,16 +11,29 @@ def v(source: str):
 
 class TestREL001ThunderingHerd:
     def test_triggers_at_5_replicas(self):
-        assert any(w.code == "REL001" for w in v('service a { image:"nginx:1.0" replicas:5 }').warnings)
+        assert any(
+            w.code == "REL001"
+            for w in v('service a { image:"nginx:1.0" replicas:5 }').warnings
+        )
 
     def test_triggers_at_10_replicas(self):
-        assert any(w.code == "REL001" for w in v('service a { image:"nginx:1.0" replicas:10 }').warnings)
+        assert any(
+            w.code == "REL001"
+            for w in v('service a { image:"nginx:1.0" replicas:10 }').warnings
+        )
 
     def test_no_trigger_at_4_replicas(self):
-        assert not any(w.code == "REL001" for w in v('service a { image:"nginx:1.0" replicas:4 }').warnings)
+        assert not any(
+            w.code == "REL001"
+            for w in v('service a { image:"nginx:1.0" replicas:4 }').warnings
+        )
 
     def test_no_trigger_with_startup_probe(self):
-        src = 'service a { image:"nginx:1.0" replicas:5 probes { startup http("/ready") } }'
+        src = (
+            'service a { image:"nginx:1.0" replicas:5 probes { startup http("/ready") '
+            '} '
+            '}'
+        )
         assert not any(w.code == "REL001" for w in v(src).warnings)
 
     def test_hint_present(self):
@@ -36,51 +49,83 @@ class TestREL001ThunderingHerd:
 
 class TestREL002EvenReplicas:
     def test_triggers_even_replicas_ha(self):
-        assert any(w.code == "REL002" for w in v('database db { type:postgres replicas:2 ha:true }').warnings)
+        assert any(
+            w.code == "REL002"
+            for w in v("database db { type:postgres replicas:2 ha:true }").warnings
+        )
 
     def test_no_trigger_odd_replicas(self):
-        assert not any(w.code == "REL002" for w in v('database db { type:postgres replicas:3 ha:true }').warnings)
+        assert not any(
+            w.code == "REL002"
+            for w in v("database db { type:postgres replicas:3 ha:true }").warnings
+        )
 
     def test_no_trigger_without_ha(self):
-        assert not any(w.code == "REL002" for w in v('database db { type:postgres replicas:2 }').warnings)
+        assert not any(
+            w.code == "REL002"
+            for w in v("database db { type:postgres replicas:2 }").warnings
+        )
 
     def test_hint_suggests_odd(self):
-        r = v('database db { type:postgres replicas:2 ha:true }')
+        r = v("database db { type:postgres replicas:2 ha:true }")
         w = next(w for w in r.warnings if w.code == "REL002")
         assert "3" in w.hint
 
 
 class TestREL003MemoryLimit:
     def test_triggers_single_depended_on(self):
-        src = 'service proxy { image:"haproxy:2" replicas:1 }\nservice api { image:"myapp:1.0" depends: ["proxy"] }'
+        src = (
+            'service proxy { image:"haproxy:2" replicas:1 }\nservice api { '
+            'image:"myapp:1.0" depends: ["proxy"] }'
+        )
         assert any(w.code == "REL007" for w in v(src).warnings)
 
     def test_no_trigger_not_depended(self):
-        assert not any(w.code == "REL007" for w in v('service proxy { image:"haproxy:2" replicas:1 }').warnings)
+        assert not any(
+            w.code == "REL007"
+            for w in v('service proxy { image:"haproxy:2" replicas:1 }').warnings
+        )
 
 
 class TestREL009GracefulShutdown:
     def test_triggers_no_prestop(self):
-        assert any(w.code == "REL009" for w in v('service a { image:"nginx:1.0" replicas:2 }').warnings)
+        assert any(
+            w.code == "REL009"
+            for w in v('service a { image:"nginx:1.0" replicas:2 }').warnings
+        )
 
     def test_no_trigger_with_prestop(self):
-        src = 'service a { image:"nginx:1.0" replicas:2 lifecycle { preStop { exec: ["sleep","5"] } } }'
+        src = (
+            'service a { image:"nginx:1.0" replicas:2 lifecycle { preStop { exec: '
+            '["sleep","5"] } } }'
+        )
         assert not any(w.code == "REL009" for w in v(src).warnings)
 
 
 class TestMultipleRulesAccumulate:
     def test_many_warnings(self):
-        src = 'service api { image:"nginx:latest" replicas:6 }\ndatabase db { type:postgres replicas:2 ha:true }'
+        src = (
+            'service api { image:"nginx:latest" replicas:6 }\ndatabase db { '
+            'type:postgres replicas:2 ha:true }'
+        )
         r = v(src)
         codes = [w.code for w in r.warnings]
-        assert "REL001" in codes and "REL002" in codes and "REL003" in codes and "REL004" in codes
+        assert (
+            "REL001" in codes
+            and "REL002" in codes
+            and "REL003" in codes
+            and "REL004" in codes
+        )
 
     def test_warnings_dont_fail_valid(self):
         r = v('service api { image:"nginx:latest" replicas:6 }')
         assert r.is_valid and r.has_warnings
 
     def test_all_rel_have_hints(self):
-        r = v('service api { image:"nginx:1.0" replicas:6 }\ndatabase db { type:postgres replicas:2 ha:true }')
+        r = v(
+            'service api { image:"nginx:1.0" replicas:6 }\ndatabase db { type:postgres '
+            'replicas:2 ha:true }'
+        )
         for w in r.warnings:
             if w.code and w.code.startswith("REL"):
                 assert w.hint, f"{w.code} missing hint"

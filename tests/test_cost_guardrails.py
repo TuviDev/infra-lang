@@ -10,6 +10,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from typer.testing import CliRunner
+
 from infra.analyzer.cost import (
     COST_EXCEEDED_CODE,
     COST_EXCEEDED_HINT,
@@ -18,7 +20,6 @@ from infra.analyzer.cost import (
 )
 from infra.cli.main import app
 from infra.parser import parse
-from typer.testing import CliRunner
 
 runner = CliRunner()
 

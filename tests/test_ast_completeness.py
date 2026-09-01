@@ -54,10 +54,17 @@ class TestLiteralNode:
 
 
 class TestDurationNode:
-    @pytest.mark.parametrize("expr,unit,secs", [
-        ("1ms", "ms", 0.001), ("30s", "s", 30.0), ("5min", "min", 300.0),
-        ("2h", "h", 7200.0), ("7d", "d", 604800.0), ("1w", "w", 604800.0),
-    ])
+    @pytest.mark.parametrize(
+        "expr,unit,secs",
+        [
+            ("1ms", "ms", 0.001),
+            ("30s", "s", 30.0),
+            ("5min", "min", 300.0),
+            ("2h", "h", 7200.0),
+            ("7d", "d", 604800.0),
+            ("1w", "w", 604800.0),
+        ],
+    )
     def test_to_seconds(self, expr, unit, secs):
         d = first_stmt(f"let t = {expr}").value
         assert isinstance(d, n.Duration)
@@ -66,11 +73,17 @@ class TestDurationNode:
 
 
 class TestResourceValueNode:
-    @pytest.mark.parametrize("expr,val,unit,k8s", [
-        ("500m", 500, "m", "500m"), ("128Mi", 128, "Mi", "128Mi"),
-        ("2Gi", 2, "Gi", "2Gi"), ("1Ti", 1, "Ti", "1Ti"),
-        ("256Ki", 256, "Ki", "256Ki"), ("1cores", 1, "cores", "1cores"),
-    ])
+    @pytest.mark.parametrize(
+        "expr,val,unit,k8s",
+        [
+            ("500m", 500, "m", "500m"),
+            ("128Mi", 128, "Mi", "128Mi"),
+            ("2Gi", 2, "Gi", "2Gi"),
+            ("1Ti", 1, "Ti", "1Ti"),
+            ("256Ki", 256, "Ki", "256Ki"),
+            ("1cores", 1, "cores", "1cores"),
+        ],
+    )
     def test_units(self, expr, val, unit, k8s):
         svc = first_stmt(
             f'service s {{ image: "nginx:1.0" resources {{ cpu: {expr} }} }}'
@@ -97,7 +110,9 @@ class TestIdentifierNode:
 
 
 class TestBinaryOpNode:
-    @pytest.mark.parametrize("op", ["+", "-", "*", "/", "==", "!=", "<", ">", "<=", ">=", "&&", "||"])
+    @pytest.mark.parametrize(
+        "op", ["+", "-", "*", "/", "==", "!=", "<", ">", "<=", ">=", "&&", "||"]
+    )
     def test_operators(self, op):
         node = first_stmt(f"let x = 1 {op} 2")
         assert isinstance(node.value, n.BinaryOp)
@@ -122,7 +137,9 @@ class TestCallNode:
         assert isinstance(expr, n.Call)
         assert expr.callee.name == "foo"
         assert len(expr.args) == 1
-        assert expr.kwargs == (("key", n.Identifier(name="b", location=expr.kwargs[0][1].location)),)
+        assert expr.kwargs == (
+            ("key", n.Identifier(name="b", location=expr.kwargs[0][1].location)),
+        )
 
 
 class TestIndexNode:
@@ -232,7 +249,7 @@ class TestServiceDefAllFields:
             'env { A: "b" } resources { requests { cpu: 100m } } '
             'health http("/h") volumes { v: { mountPath: "/d" } } '
             'depends: ["db"] labels: { app: "x" } '
-            'security { user: 1000 } strategy: rolling '
+            "security { user: 1000 } strategy: rolling "
             'lifecycle { preStop { exec: ["sleep","5"] } } '
             'ingress { host: "a.com" } expose: true '
             'schedule { "0 9 * * 1-5": replicas 3 } }'
@@ -260,7 +277,7 @@ class TestDatabaseDefAllFields:
     def test_fields(self):
         db = first_stmt(
             'database db { type: postgres version: "15" replicas: 3 ha: true '
-            'ssl: true storage: 20Gi '
+            "ssl: true storage: 20Gi "
             'backup { enabled: true schedule: "0 2 * * *" } '
             'users { app: "pw" } }'
         )
@@ -277,14 +294,20 @@ class TestDatabaseDefAllFields:
 # ─── Cache / Queue / Storage / Network ──────────────────
 class TestCacheDef:
     def test_fields(self):
-        c = first_stmt('cache c { type: redis maxmemory: 512Mi policy: "x" persistence: true replicas: 2 }')
+        c = first_stmt(
+            'cache c { type: redis maxmemory: 512Mi policy: "x" persistence: true '
+            'replicas: 2 }'
+        )
         assert c.type == "redis" and c.maxmemory is not None and c.policy == "x"
         assert c.persistence is True and c.replicas == 2
 
 
 class TestQueueDef:
     def test_fields(self):
-        q = first_stmt('queue q { type: rabbitmq topics { t: { partitions: 3 } } users { u: "p" } }')
+        q = first_stmt(
+            'queue q { type: rabbitmq topics { t: { partitions: 3 } } users { u: "p" } '
+            '}'
+        )
         assert q.type == "rabbitmq"
         assert len(q.topics) == 1 and q.topics[0].partitions == 3
         assert len(q.users) == 1
@@ -292,14 +315,21 @@ class TestQueueDef:
 
 class TestStorageDef:
     def test_fields(self):
-        s = first_stmt('storage s { type: s3 bucket: "b" region: "r" lifecycle { expiration: 30d } }')
+        s = first_stmt(
+            'storage s { type: s3 bucket: "b" region: "r" lifecycle { expiration: 30d '
+            '} '
+            '}'
+        )
         assert s.type == "s3" and s.bucket == "b" and s.region == "r"
         assert s.lifecycle is not None
 
 
 class TestNetworkDef:
     def test_fields(self):
-        net = first_stmt('network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "1.1.1.1" } } policy { r: { from: "x" } } }')
+        net = first_stmt(
+            'network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "1.1.1.1" } } policy '
+            '{ r: { from: "x" } } }'
+        )
         assert net.cidr == "10.0.0.0/16"
         assert len(net.subnets) == 1
         assert net.policy is not None
@@ -341,14 +371,20 @@ class TestPipelineDef:
 # ─── Environment / Cluster ──────────────────────────────
 class TestEnvironmentDef:
     def test_fields(self):
-        e = first_stmt('environment dev { provider: aws region: "eu" namespace: "ns" labels: { a: "b" } }')
+        e = first_stmt(
+            'environment dev { provider: aws region: "eu" namespace: "ns" labels: { a: '
+            '"b" } }'
+        )
         assert e.provider == "aws" and e.region == "eu" and e.namespace == "ns"
         assert e.labels == (("a", "b"),)
 
 
 class TestClusterDef:
     def test_fields(self):
-        c = first_stmt('cluster c { provider: aws nodes { w: { machine type: "t3" min: 1 max: 5 } } }')
+        c = first_stmt(
+            'cluster c { provider: aws nodes { w: { machine type: "t3" min: 1 max: 5 } '
+            '} }'
+        )
         assert c.provider == "aws"
         assert len(c.nodes) == 1
         assert c.nodes[0].machine_type == "t3"

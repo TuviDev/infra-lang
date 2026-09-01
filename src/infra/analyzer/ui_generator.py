@@ -20,6 +20,7 @@ completely offline and inside sandboxed viewers.
 from __future__ import annotations
 
 import html
+from base64 import b64encode as _b64encode
 from dataclasses import dataclass
 from dataclasses import replace as _dc_replace
 from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeAlias
@@ -287,18 +288,39 @@ def generate_dag_svg(spec: InfrastructureSpec) -> str:
     return _dag_svg_standalone(nodes, edges)
 
 
-def _dag_download_link(spec: InfrastructureSpec) -> str:
-    """Small ``Download SVG`` anchor embedding the standalone SVG as data URI."""
-    uri = _urlquote(generate_dag_svg(spec), safe="")
-    style = (
-        "display:inline-block;margin-left:12px;padding:2px 10px;"
-        "border:1px solid #cbd5e1;border-radius:6px;background:#ffffff;"
-        "color:#0f172a;text-decoration:none;font-size:12px;font-weight:600;"
-        "vertical-align:middle"
-    )
+_DAG_LINK_STYLE = (
+    "display:inline-block;margin-left:12px;padding:2px 10px;"
+    "border:1px solid #cbd5e1;border-radius:6px;background:#ffffff;"
+    "color:#0f172a;text-decoration:none;font-size:12px;font-weight:600;"
+    "vertical-align:middle"
+)
+
+
+def _dag_png_download_link(spec: InfrastructureSpec) -> str:
+    """``Download PNG`` anchor with a base64 data URI of the rendered DAG.
+
+    Pillow is imported lazily (keeping the cycle-graph_png ↔ ui_generator
+    out of module import time); when Pillow is unavailable the link is
+    simply omitted and the dashboard still ships the SVG variant.
+    """
+    try:
+        from infra.analyzer.graph_png import render_dag_png_bytes
+    except ImportError:
+        return ""
+    uri = _b64encode(render_dag_png_bytes(spec)).decode("ascii")
     return (
-        f'<a download="infra-dag.svg" style="{style}" '
+        f'<a download="infra-dag.png" style="{_DAG_LINK_STYLE}" '
+        f'href="data:image/png;base64,{uri}">Download PNG</a>'
+    )
+
+
+def _dag_download_link(spec: InfrastructureSpec) -> str:
+    """``Download SVG``/``Download PNG`` anchors embedding data URIs."""
+    uri = _urlquote(generate_dag_svg(spec), safe="")
+    return (
+        f'<a download="infra-dag.svg" style="{_DAG_LINK_STYLE}" '
         f'href="data:image/svg+xml;charset=utf-8,{uri}">Download SVG</a>'
+        f"{_dag_png_download_link(spec)}"
     )
 
 

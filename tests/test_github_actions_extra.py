@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import yaml
-
-from infra import parse, validate
+from infra import parse
 from infra.backends.github import GitHubActionsBackend
-from infra.backends.kubernetes import KubernetesBackend
 
 
 def gh_content(src: str) -> str:
@@ -45,7 +42,8 @@ class TestGitHubExtraPaths:
 
     def test_step_continue_on_error(self):
         content = gh_content(
-            'pipeline p { stages { t: { steps { s: { run: "x", continueOnError: true } } } } }'
+            'pipeline p { stages { t: { steps { s: { run: "x", continueOnError: true } '
+            '} } } }'
         )
         assert "continue-on-error" in content
 
@@ -57,7 +55,8 @@ class TestGitHubExtraPaths:
 
     def test_step_env(self):
         content = gh_content(
-            'pipeline p { stages { t: { steps { s: { run: "x", env: { K: "v" } } } } } }'
+            'pipeline p { stages { t: { steps { s: { run: "x", env: { K: "v" } } } } } '
+            '}'
         )
         assert "K: v" in content
 
@@ -70,7 +69,7 @@ class TestGitHubExtraPaths:
 
     def test_needs_multiple(self):
         content = gh_content(
-            'pipeline p { stages { '
+            "pipeline p { stages { "
             'a: { steps { s: { run: "1" } } } '
             'b: { steps { s: { run: "2" } } } '
             'c: { needs: ["a", "b"] steps { s: { run: "3" } } } } }'
@@ -79,13 +78,15 @@ class TestGitHubExtraPaths:
 
     def test_tags_trigger(self):
         content = gh_content(
-            'pipeline p { trigger { tags: ["v*"] } stages { t: { steps { s: { run: "x" } } } } }'
+            'pipeline p { trigger { tags: ["v*"] } stages { t: { steps { s: { run: "x" '
+            '} } } } }'
         )
         assert "tags" in content
 
     def test_events_trigger(self):
         content = gh_content(
-            'pipeline p { trigger { events: ["push"] } stages { t: { steps { s: { run: "x" } } } } }'
+            'pipeline p { trigger { events: ["push"] } stages { t: { steps { s: { run: '
+            '"x" } } } } }'
         )
         assert "push" in content
 
@@ -126,7 +127,10 @@ class TestTransformerExtraPaths:
         assert v.value == 25.0
 
     def test_storage_lifecycle_full(self):
-        prog = parse('storage s { type: s3 lifecycle { retention: 7d prefix: "x" transition: "GLACIER" expiration: 30d } }')
+        prog = parse(
+            'storage s { type: s3 lifecycle { retention: 7d prefix: "x" transition: '
+            '"GLACIER" expiration: 30d } }'
+        )
         from infra.parser.ast_nodes import StorageDef, StorageLifecycle
 
         s = [x for x in prog.statements if isinstance(x, StorageDef)][0]
@@ -134,28 +138,39 @@ class TestTransformerExtraPaths:
         assert s.lifecycle.retention is not None
 
     def test_queue_topics_and_users(self):
-        prog = parse('queue q { type: kafka topics { t: { partitions: 3 } } users { u: "p" } }')
+        prog = parse(
+            'queue q { type: kafka topics { t: { partitions: 3 } } users { u: "p" } }'
+        )
         from infra.parser.ast_nodes import QueueDef
 
         q = [x for x in prog.statements if isinstance(x, QueueDef)][0]
         assert len(q.topics) == 1 and len(q.users) == 1
 
     def test_cluster_iam_block(self):
-        prog = parse('cluster c { provider: aws iam { role { actions: ["eks:DescribeCluster"] } } }')
+        prog = parse(
+            'cluster c { provider: aws iam { role { actions: ["eks:DescribeCluster"] } '
+            '} }'
+        )
         from infra.parser.ast_nodes import ClusterDef
 
         c = [x for x in prog.statements if isinstance(x, ClusterDef)][0]
         assert c.iam is not None and c.iam.role is not None
 
     def test_selinux_block(self):
-        prog = parse('service s { image: "x" security { selinux { level: "s0", role: "r", type: "t" } } }')
+        prog = parse(
+            'service s { image: "x" security { selinux { level: "s0", role: "r", type: '
+            '"t" } } }'
+        )
         from infra.parser.ast_nodes import ServiceDef
 
         svc = [x for x in prog.statements if isinstance(x, ServiceDef)][0]
         assert svc.security is not None and svc.security.selinux is not None
 
     def test_strategy_canary_steps(self):
-        prog = parse('service s { image: "x" strategy { type: "canary", canary: { weight: 10, steps: 5 } } }')
+        prog = parse(
+            'service s { image: "x" strategy { type: "canary", canary: { weight: 10, '
+            'steps: 5 } } }'
+        )
         from infra.parser.ast_nodes import ServiceDef
 
         svc = [x for x in prog.statements if isinstance(x, ServiceDef)][0]

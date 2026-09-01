@@ -156,9 +156,7 @@ def _assert_no_api_errors(content: str, label: str) -> None:
         input=content,
         timeout=_TIMEOUTS["apply"],
     )
-    assert apply.returncode == 0, (
-        f"{label}: kubectl apply failed:\n{apply.stderr}"
-    )
+    assert apply.returncode == 0, f"{label}: kubectl apply failed:\n{apply.stderr}"
 
 
 def _assert_contracts(docs, label: str) -> None:
@@ -272,7 +270,9 @@ class TestLiveK8sRegressionGuards:
         _assert_no_api_errors(content, "03_microservices")
         docs = _k8s_docs(content)
         events = next(
-            d for d in docs if d.get("kind") == "Service" and d["metadata"]["name"] == "events"
+            d
+            for d in docs
+            if d.get("kind") == "Service" and d["metadata"]["name"] == "events"
         )
         names = [p.get("name") for p in events["spec"]["ports"]]
         assert names == ["tcp-5672", "tcp-15672"]

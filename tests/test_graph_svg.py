@@ -91,9 +91,7 @@ class TestGraphSvgCLI:
     def test_output_file_created_by_format(self, tmp_path):
         f = _write(tmp_path)
         out = tmp_path / "dag.out"
-        r = runner.invoke(
-            app, ["graph", str(f), "--format", "svg", "-o", str(out)]
-        )
+        r = runner.invoke(app, ["graph", str(f), "--format", "svg", "-o", str(out)])
         assert r.exit_code == 0, r.output
         assert "[OK] Graph written to" in r.output
         body = out.read_text(encoding="utf-8")
@@ -117,9 +115,7 @@ class TestGraphSvgCLI:
 
     def test_env_flag_accepted_for_svg(self, tmp_path):
         f = _write(tmp_path)
-        r = runner.invoke(
-            app, ["graph", str(f), "--format", "svg", "-e", "prod"]
-        )
+        r = runner.invoke(app, ["graph", str(f), "--format", "svg", "-e", "prod"])
         assert r.exit_code == 0, r.output
         ET.fromstring(r.output)
 
@@ -132,9 +128,7 @@ class TestGraphSvgCLI:
     def test_unknown_env_exit_1(self, tmp_path):
         f = _write(tmp_path)
         out = tmp_path / "dag.svg"
-        r = runner.invoke(
-            app, ["graph", str(f), "-e", "nope", "-o", str(out)]
-        )
+        r = runner.invoke(app, ["graph", str(f), "-e", "nope", "-o", str(out)])
         assert r.exit_code == 1
         assert "Environment 'nope' is not defined" in r.output
         assert not out.exists()
@@ -143,9 +137,7 @@ class TestGraphSvgCLI:
         f = _write(tmp_path)
         g = tmp_path / "other.infra"
         g.write_text(SRC, encoding="utf-8")
-        r = runner.invoke(
-            app, ["graph", str(f), str(g), "--format", "svg"]
-        )
+        r = runner.invoke(app, ["graph", str(f), str(g), "--format", "svg"])
         assert r.exit_code == 1
         assert "exactly one" in r.output
 
@@ -169,9 +161,7 @@ class TestGraphCollectEdges:
         assert "(no infrastructure)" in r.output
 
     def test_dependency_on_undeclared_service_renders_bare_label(self, tmp_path):
-        f = _write(
-            tmp_path, 'service solo { image: "i:1" depends: [ghost] }\n'
-        )
+        f = _write(tmp_path, 'service solo { image: "i:1" depends: [ghost] }\n')
         r = runner.invoke(app, ["graph", str(f)])
         assert r.exit_code == 0, r.output
         assert "[service: solo] ──► [ghost]" in r.output

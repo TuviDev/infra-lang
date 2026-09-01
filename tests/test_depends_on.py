@@ -134,8 +134,7 @@ class TestValidation:
 
     def test_forward_reference_is_allowed(self):
         result = validate(
-            'service api { image: "app" depends_on: [db] }\n'
-            'service db { image: "pg" }'
+            'service api { image: "app" depends_on: [db] }\nservice db { image: "pg" }'
         )
         assert "DEPENDENCY_NOT_FOUND" not in codes(result)
 
@@ -327,15 +326,13 @@ class TestGraph:
 class TestBackwardsCompat:
     def test_files_without_depends_on_still_validate(self):
         result = validate(
-            'service api { image: "app" depends: [db] }\n'
-            'service db { image: "pg" }'
+            'service api { image: "app" depends: [db] }\nservice db { image: "pg" }'
         )
         assert result.is_valid
 
     def test_extended_service_without_depends_on(self):
         src = (
-            'service base { image: "app" }\n'
-            "service api extends base { replicas: 3 }\n"
+            'service base { image: "app" }\nservice api extends base { replicas: 3 }\n'
         )
         from infra.resolver.extends import ExtendsResolver
 
@@ -428,7 +425,7 @@ class TestKubernetesBackend:
 
     def test_service_target_uses_service_port(self):
         files = compile_files(
-            "service web { image: \"nginx\" port 8080:80 }\n"
+            'service web { image: "nginx" port 8080:80 }\n'
             'service api { image: "app" depends_on: [web] }',
             "kubernetes",
         )
@@ -563,13 +560,11 @@ class TestHelmBackend:
         import yaml
 
         chart = self._chart(
-            "service web { image: \"nginx\" port 8080:80 }\n"
+            'service web { image: "nginx" port 8080:80 }\n'
             'service api { image: "app" depends_on: [web] }'
         )
         values = yaml.safe_load(chart["values.yaml"])
-        assert values["service"]["api"]["dependsOn"] == [
-            {"name": "web", "port": 8080}
-        ]
+        assert values["service"]["api"]["dependsOn"] == [{"name": "web", "port": 8080}]
 
     def test_deployment_template_renders_init_containers(self):
         chart = self._chart(
@@ -641,7 +636,7 @@ class TestTerraformProviderRefs:
     def test_imageless_buildless_service_uses_unknown_image(self):
         # validator raises E010, but the backend must still not crash
         files = compile_files(
-            'service api { depends_on: [pg] }\ndatabase pg { type: postgres }',
+            "service api { depends_on: [pg] }\ndatabase pg { type: postgres }",
             "terraform",
         )
         assert 'image = "unknown"' in files["main.tf"]

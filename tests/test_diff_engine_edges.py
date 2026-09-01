@@ -29,9 +29,7 @@ class TestDiffResultFormatColor:
             added=[DiffItem("service", "api")],
             removed=[DiffItem("cache", "redis")],
             changed=[
-                ChangedItem(
-                    "database", "db", [FieldChange("version", "14", "15")]
-                )
+                ChangedItem("database", "db", [FieldChange("version", "14", "15")])
             ],
             unchanged=["queue q"],
         )

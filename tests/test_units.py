@@ -12,14 +12,14 @@ from infra import parse
 from infra.parser.ast_nodes import (
     Duration,
     ResourceValue,
-    ServiceDef,
     VariableDecl,
 )
 
 
 def _user_statements(program):
     return [
-        s for s in program.statements
+        s
+        for s in program.statements
         if getattr(getattr(s, "location", None), "file", "") != "<prelude>"
     ]
 
@@ -68,10 +68,17 @@ class TestTimeUnits:
         assert isinstance(v, Duration)
         assert v.to_seconds() == 604800.0
 
-    @pytest.mark.parametrize("unit,secs", [
-        ("ms", 0.001), ("s", 1.0), ("min", 60.0),
-        ("h", 3600.0), ("d", 86400.0), ("w", 604800.0),
-    ])
+    @pytest.mark.parametrize(
+        "unit,secs",
+        [
+            ("ms", 0.001),
+            ("s", 1.0),
+            ("min", 60.0),
+            ("h", 3600.0),
+            ("d", 86400.0),
+            ("w", 604800.0),
+        ],
+    )
     def test_all_time_units(self, unit, secs):
         v = _var_value(f"let t = 1{unit}", "t")
         assert isinstance(v, Duration)
@@ -104,8 +111,9 @@ class TestResourceUnits:
         storage = db.storage or db.size
         assert storage.value == 10 and storage.unit == "Gi"
 
-    @pytest.mark.parametrize("unit", ["Ki", "Mi", "Gi", "Ti",
-                                      "MB", "GB", "TB", "m", "cores"])
+    @pytest.mark.parametrize(
+        "unit", ["Ki", "Mi", "Gi", "Ti", "MB", "GB", "TB", "m", "cores"]
+    )
     def test_all_resource_units_parse(self, unit):
         program = parse(f'service a {{ image: "x" resources {{ memory: 1{unit} }} }}')
         svc = _first_user(program)

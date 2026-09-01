@@ -56,12 +56,9 @@ def k8s_payload(
                                 "containers": [
                                     {
                                         "image": image,
-                                        "ports": [
-                                            {"containerPort": p} for p in ports
-                                        ],
+                                        "ports": [{"containerPort": p} for p in ports],
                                         "env": [
-                                            {"name": k, "value": v}
-                                            for k, v in env
+                                            {"name": k, "value": v} for k, v in env
                                         ],
                                     }
                                 ]
@@ -78,9 +75,7 @@ def k8s_payload(
 
 @pytest.fixture
 def tools_on_path(monkeypatch):
-    monkeypatch.setattr(
-        drift_mod.shutil, "which", lambda name: f"/usr/bin/{name}"
-    )
+    monkeypatch.setattr(drift_mod.shutil, "which", lambda name: f"/usr/bin/{name}")
 
 
 @pytest.fixture
@@ -221,9 +216,7 @@ class TestDetectLiveDriftK8s:
 
         def fake_run(cmd, **kwargs):
             seen["cmd"] = cmd
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout=k8s_payload(), stderr=""
-            )
+            return subprocess.CompletedProcess(cmd, 0, stdout=k8s_payload(), stderr="")
 
         monkeypatch.setattr(drift_mod.subprocess, "run", fake_run)
         detect_live_drift(src, target="k8s", namespace="staging")
@@ -435,9 +428,7 @@ class TestLiveStateEdgeCases:
     ):
         src = write_spec(tmp_path, SPEC.replace("replicas: 3", "replicas: 1"))
         # no ID -> docker inspect is never called; image from ps row only
-        patch_docker(
-            monkeypatch, json.dumps({"Service": "api", "Image": "nginx:1.25"})
-        )
+        patch_docker(monkeypatch, json.dumps({"Service": "api", "Image": "nginx:1.25"}))
         report = detect_live_drift(src, target="compose")
         assert not any(i.parameter == "image" for i in report.items)
 
@@ -486,8 +477,7 @@ class TestLiveStateEdgeCases:
         )
         report = detect_live_drift(src, target="compose")
         assert any(
-            i.parameter == "image" and i.live == "nginx:1.24"
-            for i in report.items
+            i.parameter == "image" and i.live == "nginx:1.24" for i in report.items
         )
 
 
@@ -517,9 +507,7 @@ class TestDriftReportSerialization:
         report = DriftReport(
             target="k8s",
             items=[
-                DriftItem(
-                    resource="api", parameter="replicas", expected="3", live="1"
-                )
+                DriftItem(resource="api", parameter="replicas", expected="3", live="1")
             ],
             in_sync=["worker"],
         )
@@ -560,9 +548,7 @@ class TestDoctorLiveDriftCLI:
     def test_cli_in_sync_exit_0(self, tmp_path, monkeypatch, tools_on_path):
         src = write_spec(tmp_path)
         patch_kubectl(monkeypatch, k8s_payload())
-        result = runner.invoke(
-            app, ["doctor", "--check-drift", str(src), "--live"]
-        )
+        result = runner.invoke(app, ["doctor", "--check-drift", str(src), "--live"])
         assert result.exit_code == 0
         assert "In-Sync" in result.stdout
         assert "No live drift detected" in result.stdout
@@ -595,9 +581,7 @@ class TestDoctorLiveDriftCLI:
 
         def fake_run(cmd, **kwargs):
             seen["cmd"] = cmd
-            return subprocess.CompletedProcess(
-                cmd, 0, stdout=k8s_payload(), stderr=""
-            )
+            return subprocess.CompletedProcess(cmd, 0, stdout=k8s_payload(), stderr="")
 
         monkeypatch.setattr(drift_mod.subprocess, "run", fake_run)
         result = runner.invoke(
@@ -609,9 +593,7 @@ class TestDoctorLiveDriftCLI:
 
     def test_cli_tool_missing_exit_1(self, tmp_path, no_tools):
         src = write_spec(tmp_path)
-        result = runner.invoke(
-            app, ["doctor", "--check-drift", str(src), "--live"]
-        )
+        result = runner.invoke(app, ["doctor", "--check-drift", str(src), "--live"])
         assert result.exit_code == 1
         assert "kubectl" in result.stdout
 
@@ -686,9 +668,7 @@ class TestComposeProbeBudget:
         ps (t=4) -> inspect svc0 (t=8) -> inspect svc1 (t=12) -> the
         remaining 3 containers are skipped without spawning any process.
         """
-        src = write_spec(
-            tmp_path, 'service api { image: "nginx:1.25" replicas: 3 }'
-        )
+        src = write_spec(tmp_path, 'service api { image: "nginx:1.25" replicas: 3 }')
         clock = [0.0]
         calls: list = []
 
@@ -718,9 +698,7 @@ class TestComposeProbeBudget:
     ):
         """A hung `docker inspect` raises TimeoutExpired, is reported in the
         report's error, and does not abort the scan of other containers."""
-        src = write_spec(
-            tmp_path, 'service ok { image: "nginx:1.25" replicas: 1 }'
-        )
+        src = write_spec(tmp_path, 'service ok { image: "nginx:1.25" replicas: 1 }')
         ps = "\n".join(
             [
                 json.dumps({"Service": "hung", "Image": "x:1", "ID": "hung1"}),
@@ -746,9 +724,7 @@ class TestComposeProbeBudget:
     def test_inspect_called_process_error_is_reported(
         self, tmp_path, monkeypatch, tools_on_path
     ):
-        src = write_spec(
-            tmp_path, 'service api { image: "nginx:1.25" replicas: 1 }'
-        )
+        src = write_spec(tmp_path, 'service api { image: "nginx:1.25" replicas: 1 }')
 
         def run_with_cpe(cmd, **kwargs):
             if "inspect" in cmd:

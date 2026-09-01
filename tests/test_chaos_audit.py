@@ -27,7 +27,7 @@ from infra.errors.exceptions import InfraLexError, InfraParseError
 def _large_source(n_services: int = 100, n_dbs: int = 20) -> str:
     parts = [
         (
-            f"service svc{i} {{ image: \"app{i}:1.0\" replicas: {(i % 4) + 1} "
+            f'service svc{i} {{ image: "app{i}:1.0" replicas: {(i % 4) + 1} '
             f'port: {8000 + i} health http("/health") '
             "resources { requests { cpu: 100m, memory: 128Mi } "
             "limits { cpu: 500m, memory: 256Mi } } "
@@ -75,9 +75,7 @@ class TestLargeFileStress:
 # --------------------------------------------------------------------------- #
 
 FEATURE_SOURCES = {
-    "service_autoscale": (
-        'service s { image: "x:1" autoscale { min: 2 max: 10 } }'
-    ),
+    "service_autoscale": ('service s { image: "x:1" autoscale { min: 2 max: 10 } }'),
     "service_disruption": (
         'service s { image: "x:1" disruption { min_available: 1 } }'
     ),
@@ -87,9 +85,7 @@ FEATURE_SOURCES = {
     "service_topology": (
         'service s { image: "x:1" topology { spread_by: zone max_skew: 1 } }'
     ),
-    "service_affinity": (
-        'service s { image: "x:1" affinity { prefer_same: [a] } }'
-    ),
+    "service_affinity": ('service s { image: "x:1" affinity { prefer_same: [a] } }'),
     "database_backup_ssl": (
         "database d { type: postgres backup { enabled: true } ssl: true }"
     ),
@@ -132,8 +128,8 @@ class TestBackendFeatureMatrix:
 # --------------------------------------------------------------------------- #
 
 PARALLEL_SOURCE = (
-    "const VERSION = \"v1\"\n"
-    'service api { image: `app:{VERSION}` replicas: 3 }\n'
+    'const VERSION = "v1"\n'
+    "service api { image: `app:{VERSION}` replicas: 3 }\n"
     "database db { type: postgres }\n"
     "cache c { type: redis maxmemory: 256Mi }\n"
 )
@@ -160,6 +156,7 @@ class TestParallelCompilation:
 # --------------------------------------------------------------------------- #
 # 4. Repeated compile loop — memory/leak sanity
 # --------------------------------------------------------------------------- #
+
 
 @pytest.mark.slow
 @pytest.mark.slow
@@ -189,7 +186,7 @@ class TestMalformedInputStorm:
         "service {",
         "service api",
         "service api {",
-        'service api { image',
+        "service api { image",
         'service api { image: "',
         'service api { image: "x" replicas',
         'service api { image: "x" replicas: ',
@@ -205,7 +202,7 @@ class TestMalformedInputStorm:
         "#" * 500,
         "service " * 30,
         "database db { type ",
-        'pipeline p { stages { s { run ',
+        "pipeline p { stages { s { run ",
     ]
 
     @pytest.mark.slow
@@ -239,10 +236,10 @@ class TestLspRequestStorm:
 
     SOURCES = [
         "",
-        "service api { image: \"x:1\" }",
+        'service api { image: "x:1" }',
         'service api { image: "x:1" replicas: 0 }',
         "database db { type: postgres }",
-        'service api {\n    \n}',
+        "service api {\n    \n}",
         "service {",
         'env { PASSWORD: "bad" }',
     ]

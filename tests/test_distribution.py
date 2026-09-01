@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
-
-pytestmark = pytest.mark.e2e
-
 import subprocess
 import sys
 from pathlib import Path
+
+import pytest
+
+pytestmark = pytest.mark.e2e
 
 
 class TestPackageStructure:
@@ -16,7 +16,7 @@ class TestPackageStructure:
         import infra
 
         assert hasattr(infra, "__version__")
-        assert infra.__version__ == "0.7.0"
+        assert infra.__version__ == "0.7.1"
 
     def test_version_format_valid(self):
         from infra.version import VERSION_INFO, __version__
@@ -77,14 +77,15 @@ class TestPackageStructure:
         from infra.backends.kubernetes import KubernetesBackend
         from infra.backends.terraform import TerraformBackend
 
-        for cls in [KubernetesBackend, DockerComposeBackend,
-                    TerraformBackend, GitHubActionsBackend]:
+        for cls in [
+            KubernetesBackend,
+            DockerComposeBackend,
+            TerraformBackend,
+            GitHubActionsBackend,
+        ]:
             assert callable(cls)
 
     def test_all_analyzers_importable(self):
-        from infra.analyzer.reliability import ReliabilityChecker
-        from infra.analyzer.security import SecurityChecker
-        from infra.analyzer.symbols import SymbolTable
         from infra.analyzer.types import INT, STRING
         from infra.analyzer.validator import SemanticValidator
 
@@ -123,7 +124,7 @@ class TestCLISubprocess:
     def test_version_exit_0(self):
         r = self._run("--version")
         assert r.returncode == 0
-        assert "0.7.0" in r.stdout
+        assert "0.7.1" in r.stdout
 
     def test_compile_help_exit_0(self):
         assert self._run("compile", "--help").returncode == 0

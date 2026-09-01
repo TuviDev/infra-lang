@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from infra import parse, validate
 from infra.errors.exceptions import InfraParseError
 
@@ -45,15 +43,15 @@ class TestPorts:
 
 class TestStorage:
     def test_small_valid(self):
-        assert v('database db { type:postgres storage:1Mi }').is_valid
+        assert v("database db { type:postgres storage:1Mi }").is_valid
 
     def test_large_valid(self):
-        assert v('database db { type:postgres storage:100Ti }').is_valid
+        assert v("database db { type:postgres storage:100Ti }").is_valid
 
 
 class TestDatabase:
     def test_db_replicas_zero_error(self):
-        assert not v('database db { type:postgres replicas:0 }').is_valid
+        assert not v("database db { type:postgres replicas:0 }").is_valid
 
 
 class TestNames:

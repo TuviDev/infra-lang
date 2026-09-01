@@ -28,7 +28,9 @@ def kinds(source):
 
 class TestAutoscaleParsing:
     def test_parses_min_max_replicas(self):
-        svc = get_svc('service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } }')
+        svc = get_svc(
+            'service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } }'
+        )
         assert svc.autoscale is not None
         assert svc.autoscale.min_replicas == 2
         assert svc.autoscale.max_replicas == 10
@@ -38,15 +40,24 @@ class TestAutoscaleParsing:
         assert svc.autoscale.target_cpu == 70
 
     def test_custom_target_cpu(self):
-        svc = get_svc('service api { image: "nginx:1.0" autoscale { min: 2, max: 10, target_cpu: 80 } }')
+        svc = get_svc(
+            'service api { image: "nginx:1.0" autoscale { min: 2, max: 10, target_cpu: '
+            '80 } }'
+        )
         assert svc.autoscale.target_cpu == 80
 
     def test_target_memory(self):
-        svc = get_svc('service api { image: "nginx:1.0" autoscale { min: 2, max: 10, target_memory: 85 } }')
+        svc = get_svc(
+            'service api { image: "nginx:1.0" autoscale { min: 2, max: 10, '
+            'target_memory: 85 } }'
+        )
         assert svc.autoscale.target_memory == 85
 
     def test_scale_delays(self):
-        svc = get_svc('service api { image: "nginx:1.0" autoscale { min: 2, max: 10, scale_up_delay: 60s, scale_down_delay: 5min } }')
+        svc = get_svc(
+            'service api { image: "nginx:1.0" autoscale { min: 2, max: 10, '
+            'scale_up_delay: 60s, scale_down_delay: 5min } }'
+        )
         assert svc.autoscale.scale_up_delay is not None
         assert svc.autoscale.scale_down_delay is not None
 
@@ -61,42 +72,68 @@ class TestAutoscaleParsing:
 
 class TestAutoscaleKubernetes:
     def test_generates_hpa(self):
-        assert "HorizontalPodAutoscaler" in kinds('service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } }')
+        assert "HorizontalPodAutoscaler" in kinds(
+            'service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } }'
+        )
 
     def test_hpa_min(self):
-        docs = k8s_docs('service api { image: "nginx:1.0" autoscale { min: 3, max: 15 } }')
+        docs = k8s_docs(
+            'service api { image: "nginx:1.0" autoscale { min: 3, max: 15 } }'
+        )
         hpa = next(d for d in docs if d["kind"] == "HorizontalPodAutoscaler")
         assert hpa["spec"]["minReplicas"] == 3
 
     def test_hpa_max(self):
-        docs = k8s_docs('service api { image: "nginx:1.0" autoscale { min: 2, max: 20 } }')
+        docs = k8s_docs(
+            'service api { image: "nginx:1.0" autoscale { min: 2, max: 20 } }'
+        )
         hpa = next(d for d in docs if d["kind"] == "HorizontalPodAutoscaler")
         assert hpa["spec"]["maxReplicas"] == 20
 
     def test_hpa_cpu_metric(self):
-        docs = k8s_docs('service api { image: "nginx:1.0" autoscale { min: 2, max: 10, target_cpu: 75 } }')
+        docs = k8s_docs(
+            'service api { image: "nginx:1.0" autoscale { min: 2, max: 10, target_cpu: '
+            '75 } }'
+        )
         hpa = next(d for d in docs if d["kind"] == "HorizontalPodAutoscaler")
-        cpu = [m for m in hpa["spec"]["metrics"] if m.get("resource", {}).get("name") == "cpu"]
+        cpu = [
+            m
+            for m in hpa["spec"]["metrics"]
+            if m.get("resource", {}).get("name") == "cpu"
+        ]
         assert len(cpu) == 1
         assert cpu[0]["resource"]["target"]["averageUtilization"] == 75
 
     def test_hpa_memory_metric_when_set(self):
-        docs = k8s_docs('service api { image: "nginx:1.0" autoscale { min: 2, max: 10, target_memory: 80 } }')
+        docs = k8s_docs(
+            'service api { image: "nginx:1.0" autoscale { min: 2, max: 10, '
+            'target_memory: 80 } }'
+        )
         hpa = next(d for d in docs if d["kind"] == "HorizontalPodAutoscaler")
-        mem = [m for m in hpa["spec"]["metrics"] if m.get("resource", {}).get("name") == "memory"]
+        mem = [
+            m
+            for m in hpa["spec"]["metrics"]
+            if m.get("resource", {}).get("name") == "memory"
+        ]
         assert len(mem) == 1
 
     def test_no_autoscale_no_hpa(self):
-        assert "HorizontalPodAutoscaler" not in kinds('service api { image: "nginx:1.0" }')
+        assert "HorizontalPodAutoscaler" not in kinds(
+            'service api { image: "nginx:1.0" }'
+        )
 
     def test_hpa_target_ref(self):
-        docs = k8s_docs('service myapp { image: "nginx:1.0" autoscale { min: 2, max: 10 } }')
+        docs = k8s_docs(
+            'service myapp { image: "nginx:1.0" autoscale { min: 2, max: 10 } }'
+        )
         hpa = next(d for d in docs if d["kind"] == "HorizontalPodAutoscaler")
         ref = hpa["spec"]["scaleTargetRef"]
         assert ref["kind"] == "Deployment" and ref["name"] == "myapp"
 
     def test_hpa_managed_by_label(self):
-        docs = k8s_docs('service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } }')
+        docs = k8s_docs(
+            'service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } }'
+        )
         hpa = next(d for d in docs if d["kind"] == "HorizontalPodAutoscaler")
         assert "app.kubernetes.io/managed-by" in hpa["metadata"]["labels"]
 
@@ -110,11 +147,18 @@ class TestAutoscaleKubernetes:
 
 class TestAutoscaleReliability:
     def test_rel011_no_limits_with_autoscale(self):
-        r = validate(parse('service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } }'))
+        r = validate(
+            parse('service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } }')
+        )
         assert any(w.code == "REL011" for w in r.warnings)
 
     def test_rel011_not_triggered_with_limits(self):
-        r = validate(parse('service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } resources { limits { cpu: 500m } } }'))
+        r = validate(
+            parse(
+                'service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } '
+                'resources { limits { cpu: 500m } } }'
+            )
+        )
         assert not any(w.code == "REL011" for w in r.warnings)
 
     def test_rel011_not_triggered_without_autoscale(self):
@@ -122,7 +166,9 @@ class TestAutoscaleReliability:
         assert not any(w.code == "REL011" for w in r.warnings)
 
     def test_rel011_has_hint(self):
-        r = validate(parse('service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } }'))
+        r = validate(
+            parse('service api { image: "nginx:1.0" autoscale { min: 2, max: 10 } }')
+        )
         w = next((w for w in r.warnings if w.code == "REL011"), None)
         if w:
             assert w.hint is not None
@@ -130,12 +176,16 @@ class TestAutoscaleReliability:
 
 class TestDisruptionParsing:
     def test_min_available(self):
-        svc = get_svc('service api { image: "nginx:1.0" disruption { min_available: 1 } }')
+        svc = get_svc(
+            'service api { image: "nginx:1.0" disruption { min_available: 1 } }'
+        )
         assert svc.disruption is not None
         assert svc.disruption.min_available == 1
 
     def test_max_unavailable(self):
-        svc = get_svc('service api { image: "nginx:1.0" disruption { max_unavailable: 1 } }')
+        svc = get_svc(
+            'service api { image: "nginx:1.0" disruption { max_unavailable: 1 } }'
+        )
         assert svc.disruption is not None
         assert svc.disruption.max_unavailable == 1
 
@@ -150,15 +200,21 @@ class TestDisruptionParsing:
 
 class TestDisruptionKubernetes:
     def test_generates_pdb(self):
-        assert "PodDisruptionBudget" in kinds('service api { image: "nginx:1.0" disruption { min_available: 1 } }')
+        assert "PodDisruptionBudget" in kinds(
+            'service api { image: "nginx:1.0" disruption { min_available: 1 } }'
+        )
 
     def test_pdb_min_available(self):
-        docs = k8s_docs('service api { image: "nginx:1.0" disruption { min_available: 2 } }')
+        docs = k8s_docs(
+            'service api { image: "nginx:1.0" disruption { min_available: 2 } }'
+        )
         pdb = next(d for d in docs if d["kind"] == "PodDisruptionBudget")
         assert pdb["spec"]["minAvailable"] == 2
 
     def test_pdb_max_unavailable(self):
-        docs = k8s_docs('service api { image: "nginx:1.0" disruption { max_unavailable: 1 } }')
+        docs = k8s_docs(
+            'service api { image: "nginx:1.0" disruption { max_unavailable: 1 } }'
+        )
         pdb = next(d for d in docs if d["kind"] == "PodDisruptionBudget")
         assert pdb["spec"]["maxUnavailable"] == 1
 
@@ -166,7 +222,9 @@ class TestDisruptionKubernetes:
         assert "PodDisruptionBudget" not in kinds('service api { image: "nginx:1.0" }')
 
     def test_pdb_selector_matches_service(self):
-        docs = k8s_docs('service myapp { image: "nginx:1.0" disruption { min_available: 1 } }')
+        docs = k8s_docs(
+            'service myapp { image: "nginx:1.0" disruption { min_available: 1 } }'
+        )
         pdb = next(d for d in docs if d["kind"] == "PodDisruptionBudget")
         labels = pdb["spec"]["selector"]["matchLabels"]
         assert "app" in labels and labels["app"] == "myapp"

@@ -57,9 +57,7 @@ class TestSchemaValidator:
             """
         )
         issues = validate_yaml_content(yaml_content)
-        assert any(
-            i.severity == "warning" and "apiVersion" in i.field for i in issues
-        )
+        assert any(i.severity == "warning" and "apiVersion" in i.field for i in issues)
 
     def test_missing_name_is_error(self):
         yaml_content = dedent(
@@ -89,9 +87,7 @@ class TestSchemaValidator:
             """
         )
         issues = validate_yaml_content(yaml_content)
-        assert any(
-            i.severity == "error" and "replicas" in i.field for i in issues
-        )
+        assert any(i.severity == "error" and "replicas" in i.field for i in issues)
 
     def test_hpa_requires_scale_target_ref(self):
         yaml_content = dedent(

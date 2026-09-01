@@ -35,11 +35,7 @@ _CASES = {
 def _k8s_kinds(src: str):
     result = get_backend("kubernetes").compile(parse(src))
     content = "\n".join(result.files.values())
-    return {
-        d.get("kind")
-        for d in yaml.safe_load_all(content)
-        if d and d.get("kind")
-    }
+    return {d.get("kind") for d in yaml.safe_load_all(content) if d and d.get("kind")}
 
 
 class TestKubernetesSupport:
@@ -79,7 +75,6 @@ class TestComposeSupport:
         for name in ("service", "database", "cache", "queue", "secret", "config"):
             src, _ = _CASES[name]
             result = get_backend("compose").compile(parse(src))
-            content = "\n".join(result.files.values())
             # each of these must produce a docker-compose.yml with a service
             assert "docker-compose.yml" in result.files, f"{name}: no compose file"
 
@@ -87,7 +82,6 @@ class TestComposeSupport:
         for name in ("pipeline", "cluster"):
             src, _ = _CASES[name]
             result = get_backend("compose").compile(parse(src))
-            content = "\n".join(result.files.values())
             # no service entries added for these
             data = yaml.safe_load(result.files["docker-compose.yml"])
             assert not data.get("services"), f"{name} should not add compose services"

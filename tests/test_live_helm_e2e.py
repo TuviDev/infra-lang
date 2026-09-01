@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -72,9 +71,7 @@ class TestLiveHelmE2E:
         files = get_backend("helm").compile(prog).files
         chartdir = _write_chart(str(tmp_path), files)
         r = _run("template", "rel", str(chartdir))
-        assert r.returncode == 0, (
-            f"{p.name}: helm template failed:\n{r.stderr}"
-        )
+        assert r.returncode == 0, f"{p.name}: helm template failed:\n{r.stderr}"
 
     def test_chart_render_has_expected_kinds(self, helm_available, tmp_path):
         p = ROOT / "examples" / "02_web_app.infra"

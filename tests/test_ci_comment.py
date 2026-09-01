@@ -32,7 +32,7 @@ HEAD = (
 )
 
 INSECURE = (
-    'service api {\n'
+    "service api {\n"
     '    image: "myapp:1.0"\n'
     "    env {\n"
     '        PASSWORD: "hardcoded123"\n'
@@ -89,9 +89,7 @@ class TestBuildReport:
         assert report.gate_passed is True
 
     def test_security_errors_fail_gate(self):
-        report = build_report(
-            parse(INSECURE), source="a", fail_on_security=True
-        )
+        report = build_report(parse(INSECURE), source="a", fail_on_security=True)
         assert any(f["code"] == "SEC001" for f in report.security)
         assert report.security_failed is True
         assert report.gate_passed is False
@@ -169,9 +167,7 @@ class TestRender:
         assert "—" not in md.split("Monthly cost")[1].split("###")[0]
 
     def test_markdown_no_resource_changes(self):
-        md = render_markdown(
-            self._report(base_program=parse(HEAD), base_source="b")
-        )
+        md = render_markdown(self._report(base_program=parse(HEAD), base_source="b"))
         assert "- No resource changes." in md
 
     def test_markdown_negative_delta(self):
@@ -334,9 +330,7 @@ class TestCiCommentCLI:
         )
         f = _write(tmp_path, "app.infra", src)
         plain = runner.invoke(app, ["ci-comment", str(f), "-f", "json"])
-        big = runner.invoke(
-            app, ["ci-comment", str(f), "-f", "json", "-e", "big"]
-        )
+        big = runner.invoke(app, ["ci-comment", str(f), "-f", "json", "-e", "big"])
         assert plain.exit_code == 0 and big.exit_code == 0
         plain_cost = json.loads(plain.output[: plain.output.rindex("}") + 1])
         big_cost = json.loads(big.output[: big.output.rindex("}") + 1])
@@ -347,10 +341,22 @@ class TestCiCommentCLI:
         result = runner.invoke(app, ["ci-comment", str(f), "-e", "nope"])
         assert result.exit_code == 1
 
-    def test_help_mentions_gates(self):
+    def test_help_mentions_gates(self, monkeypatch):
+        # Rich renders --help against the live COLUMNS: too narrow a terminal
+        # ellipsizes option names (e.g. "--max-mo…") and no post-processing
+        # can recover them. Pin a wide, colorless render via the process env
+        # (proven to govern Rich at format time — CliRunner(env=...) is not).
+        monkeypatch.setenv("COLUMNS", "120")
+        monkeypatch.setenv("NO_COLOR", "1")
+        monkeypatch.setenv("FORCE_COLOR", "0")
         result = runner.invoke(app, ["ci-comment", "--help"])
         assert result.exit_code == 0
-        assert "max-monthly-cost" in result.output
+        # Defence in depth: strip any residual ANSI codes and tolerate a
+        # hyphen-wrap inside the long option names on odd terminals.
+        flat = re.sub(r"\x1b\[[0-9;]*[mGKH]", "", result.output)
+        flat = re.sub(r"\s+", " ", flat)
+        assert re.search(r"max-monthly-\s*cost", flat)
+        assert re.search(r"fail-on-\s*security", flat)
 
 
 class TestActionAssets:

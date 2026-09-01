@@ -116,4 +116,6 @@ class TestCompileNeverCrashes:
             result = DockerComposeBackend().compile(program)
             assert result is not None
         except Exception as e:
-            pytest.fail(f"Compose compile crashed for: {source}\n{type(e).__name__}: {e}")
+            pytest.fail(
+                f"Compose compile crashed for: {source}\n{type(e).__name__}: {e}"
+            )

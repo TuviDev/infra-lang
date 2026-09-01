@@ -21,17 +21,16 @@ CORPUS = Path("tests/corpus")
 
 @pytest.mark.parametrize(
     "f",
-    list((CORPUS / "minimal").glob("*.infra"))
-    if (CORPUS / "minimal").exists()
-    else [],
+    list((CORPUS / "minimal").glob("*.infra")) if (CORPUS / "minimal").exists() else [],
     ids=lambda f: f.stem,
 )
 def test_minimal_parses_and_validates(f):
     program = parse(f.read_text(encoding="utf-8"), filename=str(f))
     result = validate(program)
-    assert result.is_valid or len(
-        [e for e in result.errors if not (e.code or "").startswith("SEC")]
-    ) == 0
+    assert (
+        result.is_valid
+        or len([e for e in result.errors if not (e.code or "").startswith("SEC")]) == 0
+    )
 
 
 @pytest.mark.parametrize(

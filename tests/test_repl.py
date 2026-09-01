@@ -80,7 +80,7 @@ class TestREPL:
         r = self.make_repl()
         # valid infra but with unsupported content for backend should still
         # not crash; target a backend that succeeds on a service
-        r.process_input('cache c { type: redis }')
+        r.process_input("cache c { type: redis }")
 
     def test_show_ast_last(self):
         r = self.make_repl()
@@ -111,13 +111,15 @@ class TestREPLCommands:
         r = InfraREPL(history_file=Path(tmp_path) / "hist")
         import builtins
 
-        inputs = iter([
-            'service api { image: "nginx:1.0" }',   # definition -> process_input
-            "let x = 1",                             # variable -> process_input
-            ":help",                                 # command
-            "service api {",                         # incomplete -> accumulate
-            'image: "nginx:2.0" }',                  # completes the block
-        ])
+        inputs = iter(
+            [
+                'service api { image: "nginx:1.0" }',  # definition -> process_input
+                "let x = 1",  # variable -> process_input
+                ":help",  # command
+                "service api {",  # incomplete -> accumulate
+                'image: "nginx:2.0" }',  # completes the block
+            ]
+        )
 
         def feed(*a, **k):
             try:

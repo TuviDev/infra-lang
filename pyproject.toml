@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "infra-lang"
-version = "0.7.0"
+version = "0.7.1"
 description = "Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions"
 readme = "README.md"
 license = "MIT"
@@ -40,6 +40,7 @@ dependencies = [
     "pyyaml>=6.0,<7.0",
     "watchdog>=4.0.0,<7.0.0",
     "prompt_toolkit>=3.0.0,<4.0.0",
+    "pillow>=10.0,<13.0",
 ]
 
 [project.optional-dependencies]

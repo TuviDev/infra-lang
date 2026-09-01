@@ -36,9 +36,13 @@ class TestSec008IngressNeedsNetworkPolicy:
         assert "SEC008" not in codes
 
     def test_message_and_hint(self):
-        ws = [w for w in _warnings(
-            'service api { image: "reg.io/api:1.0" ingress { host: "h" } }'
-        ) if w.code == "SEC008"]
+        ws = [
+            w
+            for w in _warnings(
+                'service api { image: "reg.io/api:1.0" ingress { host: "h" } }'
+            )
+            if w.code == "SEC008"
+        ]
         assert ws
         assert "exposed via ingress" in ws[0].message
         assert "network_policy" in (ws[0].hint or "")
@@ -62,14 +66,20 @@ class TestSec009DockerHubImage:
         assert "SEC009" not in codes
 
     def test_hint_mentions_registry(self):
-        ws = [w for w in _warnings('service api { image: "nginx:1.0" }')
-              if w.code == "SEC009"]
+        ws = [
+            w
+            for w in _warnings('service api { image: "nginx:1.0" }')
+            if w.code == "SEC009"
+        ]
         assert ws
         assert "registry" in (ws[0].hint or "").lower()
 
     def test_message_contains_image(self):
-        ws = [w for w in _warnings('service api { image: "nginx:1.0" }')
-              if w.code == "SEC009"]
+        ws = [
+            w
+            for w in _warnings('service api { image: "nginx:1.0" }')
+            if w.code == "SEC009"
+        ]
         assert "nginx:1.0" in ws[0].message
 
 
@@ -122,13 +132,13 @@ class TestMultipleSimultaneousFindings:
         # hardcoded secret name (SEC001), credential-pattern value on a non-secret
         # name (SEC002), mutable tag latest (SEC003 warning), docker hub (SEC009)
         src = (
-            'service api {\n'
+            "service api {\n"
             '    image: "nginx:latest"\n'
-            '    env {\n'
+            "    env {\n"
             '        PASSWORD: "s3cr3t-value"\n'
             '        OPENAI_KEY: "sk-abcdefghijklmnopqrstuvwxyz1234"\n'
-            '    }\n'
-            '}\n'
+            "    }\n"
+            "}\n"
         )
         res = validate(parse(src))
         codes = {e.code for e in res.errors}
@@ -142,13 +152,13 @@ class TestMultipleSimultaneousFindings:
         # one entry with a secret name (SEC001) and a separate entry whose value
         # matches a credential pattern (SEC002)
         src = (
-            'service api {\n'
+            "service api {\n"
             '    image: "nginx"\n'
-            '    env {\n'
+            "    env {\n"
             '        PASSWORD: "supersecret123"\n'
             '        OPENAI_KEY: "sk-abcdefghijklmnopqrstuvwxyz1234"\n'
-            '    }\n'
-            '}\n'
+            "    }\n"
+            "}\n"
         )
         res = validate(parse(src))
         codes = {e.code for e in res.errors}
@@ -156,9 +166,7 @@ class TestMultipleSimultaneousFindings:
         assert "SEC002" in codes
 
     def test_sec004_and_sec005_same_service(self):
-        src = (
-            'service api { image: "nginx" security { privileged: true user: 0 } }'
-        )
+        src = 'service api { image: "nginx" security { privileged: true user: 0 } }'
         res = validate(parse(src))
         err_codes = {e.code for e in res.errors}
         warn_codes = {w.code for w in res.warnings}
@@ -200,7 +208,7 @@ class TestSecurityEdgeCases:
 
     def test_digest_image_no_mutable_tag(self):
         img = "registry.example.com/app@sha256:0123456789abcdef0123456789abcdef"
-        res = validate(parse(f"service api {{ image: \"{img}\" }}"))
+        res = validate(parse(f'service api {{ image: "{img}" }}'))
         assert not [w for w in res.warnings if w.code == "SEC003"]
 
     def test_registry_image_no_sec009(self):
@@ -208,15 +216,12 @@ class TestSecurityEdgeCases:
         assert not [w for w in res.warnings if w.code == "SEC009"]
 
     def test_sec010_env_secret_in_production(self):
-        src = (
-            "environment prod { }\n"
-            "secret db { password: from env \"DB_PASS\" }\n"
-        )
+        src = 'environment prod { }\nsecret db { password: from env "DB_PASS" }\n'
         res = validate(parse(src))
         assert any(w.code == "SEC010" for w in res.warnings)
 
     def test_sec010_no_trigger_without_prod_env(self):
-        src = "secret db { password: from env \"DB_PASS\" }\n"
+        src = 'secret db { password: from env "DB_PASS" }\n'
         res = validate(parse(src))
         assert not any(w.code == "SEC010" for w in res.warnings)
 

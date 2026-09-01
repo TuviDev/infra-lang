@@ -44,7 +44,7 @@ class TestValidatorUnit:
     def test_detects_replicas_as_string(self):
         yaml = (
             "apiVersion: apps/v1\nkind: Deployment\nmetadata: {name: api}\n"
-            "spec:\n  replicas: \"3\"\n  template:\n    spec:\n"
+            'spec:\n  replicas: "3"\n  template:\n    spec:\n'
             "      containers:\n        - name: api\n          image: x\n"
         )
         issues = KubernetesOutputValidator().validate(yaml)
@@ -67,7 +67,7 @@ class TestValidatorUnit:
     def test_detects_service_port_as_string(self):
         yaml = (
             "apiVersion: v1\nkind: Service\nmetadata: {name: api}\n"
-            "spec:\n  ports:\n    - port: \"80\"\n"
+            'spec:\n  ports:\n    - port: "80"\n'
         )
         issues = KubernetesOutputValidator().validate(yaml)
         assert any("Service port" in i.message for i in issues)
@@ -80,7 +80,7 @@ class TestValidatorUnit:
     def test_detects_hpa_bad_max_replicas(self):
         yaml = (
             "apiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\n"
-            "metadata: {name: api}\nspec:\n  maxReplicas: \"10\"\n"
+            'metadata: {name: api}\nspec:\n  maxReplicas: "10"\n'
         )
         issues = KubernetesOutputValidator().validate(yaml)
         assert any("maxReplicas" in i.message for i in issues)
@@ -118,7 +118,7 @@ class TestValidatorUnit:
         yaml = (
             "apiVersion: apps/v1\nkind: Deployment\nmetadata: {name: api}\n"
             "spec:\n  replicas: 1\n  template:\n    spec:\n"
-            "      containers: \"x\"\n"
+            '      containers: "x"\n'
         )
         issues = KubernetesOutputValidator().validate(yaml)
         assert any("containers must be a list" in i.message for i in issues)
@@ -184,9 +184,7 @@ class TestCompileValidateOutput:
         f = tmp_path / "bad.infra"
         f.write_text('service MyApi { image: "x:1" }')
         out = tmp_path / "out"
-        result = runner.invoke(
-            app, ["compile", str(f), "--output", str(out)]
-        )
+        result = runner.invoke(app, ["compile", str(f), "--output", str(out)])
         assert result.exit_code == 0  # no --validate-output, so no failure
 
 
@@ -226,7 +224,7 @@ class TestValidatorErrorPaths:
             "apiVersion: apps/v1\nkind: Deployment\nmetadata: {name: api}\n"
             "spec:\n  replicas: 1\n  template:\n    spec:\n"
             "      containers:\n        - name: api\n          image: nginx:1.25\n"
-            "          resources:\n            limits:\n              cpu: \"200x\"\n"
+            '          resources:\n            limits:\n              cpu: "200x"\n'
         )
         issues = self._validate(doc)
         assert any(
@@ -259,12 +257,10 @@ class TestValidatorErrorPaths:
         assert any("podSelector" in i.message for i in issues)
 
     def test_resource_quota_requires_hard(self):
-        doc = (
-            "apiVersion: v1\nkind: ResourceQuota\n"
-            "metadata: {name: api}\nspec: {}\n"
-        )
+        doc = "apiVersion: v1\nkind: ResourceQuota\nmetadata: {name: api}\nspec: {}\n"
         issues = self._validate(doc)
         assert any("spec.hard" in i.message for i in issues)
+
 
 class TestValidatorEdgeBranches:
     """The remaining false-arcs and skips (v0.4.4 follow-up coverage)."""
@@ -295,7 +291,7 @@ class TestValidatorEdgeBranches:
     def test_resource_quota_with_hard(self):
         doc = (
             "apiVersion: v1\nkind: ResourceQuota\nmetadata: {name: api}\n"
-            "spec:\n  hard:\n    cpu: \"10\"\n"
+            'spec:\n  hard:\n    cpu: "10"\n'
         )
         issues = self._validate(doc)
         assert not any("spec.hard" in i.message for i in issues)
@@ -312,8 +308,5 @@ class TestValidatorEdgeBranches:
 
     def test_unrecognized_kind_skips_kind_specific_checks(self):
         # Exercises the final `elif kind == "ResourceQuota"` -> false arc.
-        doc = (
-            "apiVersion: v1\nkind: ConfigMap\nmetadata: {name: api}\n"
-            "spec: {}\n"
-        )
+        doc = "apiVersion: v1\nkind: ConfigMap\nmetadata: {name: api}\nspec: {}\n"
         assert self._validate(doc) == []

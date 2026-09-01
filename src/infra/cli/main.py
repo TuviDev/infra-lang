@@ -56,6 +56,7 @@ def register_commands() -> None:
     from infra.cli.import_cmd import import_cmd
     from infra.cli.lsp_cmd import lsp_cmd
     from infra.cli.policy_cmd import policy_check_cmd
+    from infra.cli.schema_cmd import schema
     from infra.cli.serve_cmd import serve_cmd
     from infra.cli.up_cmd import down, up
 
@@ -94,6 +95,9 @@ def register_commands() -> None:
         help="Generate a PR-ready CI comment (changes, cost delta, SEC*/REL*).",
     )(ci_comment_cmd)
     app.command(name="graph", help="Print the dependency graph.")(graph.graph)
+    app.command(
+        name="schema", help="Export the JSON Schema of the .infra DSL."
+    )(schema)
     app.command(name="docs", help="Generate documentation from .infra files.")(
         docs.docs
     )

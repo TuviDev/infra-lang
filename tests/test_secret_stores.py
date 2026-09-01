@@ -45,11 +45,7 @@ def compile_files(src: str, target: str) -> dict:
 def k8s_docs(files: dict) -> list:
     import yaml
 
-    return [
-        d
-        for d in yaml.safe_load_all("\n".join(files.values()))
-        if d is not None
-    ]
+    return [d for d in yaml.safe_load_all("\n".join(files.values())) if d is not None]
 
 
 class TestParsing:

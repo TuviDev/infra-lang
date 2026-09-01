@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from infra.parser import Parser
 from infra.parser import ast_nodes as n
 
@@ -15,8 +13,11 @@ def parse(src: str) -> n.Program:
 
 
 def _user(program: n.Program) -> list:
-    return [s for s in program.statements
-            if getattr(getattr(s, "location", None), "file", "") != "<prelude>"]
+    return [
+        s
+        for s in program.statements
+        if getattr(getattr(s, "location", None), "file", "") != "<prelude>"
+    ]
 
 
 def first(src: str) -> n.ASTNode:
@@ -114,7 +115,9 @@ class TestExpressionNodes:
     def test_call_kwargs(self):
         c = first("let x = foo(a, key = b)").value
         assert isinstance(c, n.Call)
-        assert c.kwargs == (("key", n.Identifier(name="b", location=c.kwargs[0][1].location)),)
+        assert c.kwargs == (
+            ("key", n.Identifier(name="b", location=c.kwargs[0][1].location)),
+        )
 
     def test_index(self):
         i = first("let x = arr[0]").value
@@ -129,9 +132,9 @@ class TestExpressionNodes:
         assert a.attr == "field"
 
     def test_list(self):
-        l = first("let x = [1, 2, 3]").value
-        assert isinstance(l, n.List)
-        assert len(l.items) == 3
+        lst = first("let x = [1, 2, 3]").value
+        assert isinstance(lst, n.List)
+        assert len(lst.items) == 3
 
     def test_map(self):
         m = first("let x = {a: 1, b: 2}").value
@@ -180,9 +183,7 @@ class TestServiceAST:
         assert svc.env[1].name == "DEBUG"
 
     def test_resources(self):
-        svc = first(
-            'service a { image: "x" resources { cpu: 500m memory: 128Mi } }'
-        )
+        svc = first('service a { image: "x" resources { cpu: 500m memory: 128Mi } }')
         # bare cpu/memory at the resources level map to requests
         assert svc.resources.requests is not None
         assert svc.resources.requests.cpu.to_kubernetes() == "500m"
@@ -199,7 +200,7 @@ class TestServiceAST:
         assert svc.volumes[0].name == "data"
 
     def test_decorators(self):
-        svc = first("@prod\nservice a { image: \"x\" }")
+        svc = first('@prod\nservice a { image: "x" }')
         assert len(svc.decorators) == 1
         assert svc.decorators[0].name == "prod"
 
@@ -211,11 +212,11 @@ class TestServiceAST:
 
 class TestDatabaseAST:
     def test_type_string(self):
-        db = first('database d { type: postgres }')
+        db = first("database d { type: postgres }")
         assert db.type == "postgres"
 
     def test_backup(self):
-        db = first('database d { type: postgres backup { enabled: true } }')
+        db = first("database d { type: postgres backup { enabled: true } }")
         assert db.backup is not None
         assert db.backup.enabled is True
 
@@ -227,19 +228,27 @@ class TestDatabaseAST:
 
 class TestPipelineAST:
     def test_trigger_branches(self):
-        pl = first('pipeline p { trigger { branches: ["main"] } stages { t: { steps { s: { run: "x" } } } } }')
+        pl = first(
+            'pipeline p { trigger { branches: ["main"] } stages { t: { steps { s: { '
+            'run: "x" } } } } }'
+        )
         assert pl.trigger is not None
         assert pl.trigger.branches == ("main",)
 
     def test_stages_tuple(self):
         pl = first(
-            'pipeline p { stages { a: { steps { s: { run: "1" } } } b: { steps { s: { run: "2" } } } } }'
+            'pipeline p { stages { a: { steps { s: { run: "1" } } } b: { steps { s: { '
+            'run: "2" } } } } }'
         )
         assert isinstance(pl.stages, tuple)
         assert len(pl.stages) == 2
 
     def test_stage_steps(self):
-        pl = first('pipeline p { stages { t: { steps { s: { run: "x" } u: { uses: "checkout" } } } } }')
+        pl = first(
+            'pipeline p { stages { t: { steps { s: { run: "x" } u: { uses: "checkout" '
+            '} '
+            '} } } }'
+        )
         st = pl.stages[0]
         assert isinstance(st.steps, tuple)
         assert len(st.steps) == 2
@@ -258,22 +267,33 @@ class TestCollections:
         assert len(db.users) == 3
 
     def test_queue_topics_multiple(self):
-        q = first('queue q { type: kafka topics { t1: { partitions: 1 } t2: { partitions: 2 } } }')
+        q = first(
+            "queue q { type: kafka topics { t1: { partitions: 1 } t2: { partitions: 2 "
+            "} "
+            "} }"
+        )
         assert isinstance(q.topics, tuple)
         assert len(q.topics) == 2
 
     def test_pipeline_stages_multiple(self):
-        pl = first('pipeline p { stages { a: { steps { s: { run: "1" } } } b: { steps { s: { run: "2" } } } c: { steps { s: { run: "3" } } } } }')
+        pl = first(
+            'pipeline p { stages { a: { steps { s: { run: "1" } } } b: { steps { s: { '
+            'run: "2" } } } c: { steps { s: { run: "3" } } } } }'
+        )
         assert isinstance(pl.stages, tuple)
         assert len(pl.stages) == 3
 
     def test_stage_steps_multiple(self):
-        pl = first('pipeline p { stages { t: { steps { s1: { run: "a" } s2: { run: "b" } s3: { run: "c" } } } } }')
+        pl = first(
+            'pipeline p { stages { t: { steps { s1: { run: "a" } s2: { run: "b" } s3: '
+            '{ '
+            'run: "c" } } } } }'
+        )
         assert isinstance(pl.stages[0].steps, tuple)
         assert len(pl.stages[0].steps) == 3
 
     def test_cluster_node_pools_multiple(self):
-        c = first('cluster c { provider: aws nodes { w1: { min: 1 } w2: { min: 2 } } }')
+        c = first("cluster c { provider: aws nodes { w1: { min: 1 } w2: { min: 2 } } }")
         assert isinstance(c.nodes, tuple)
         assert len(c.nodes) == 2
 
@@ -283,12 +303,19 @@ class TestCollections:
         assert len(svc.ports) == 2
 
     def test_network_subnets_multiple(self):
-        net = first('network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "1" } b: { cidr: "2" } } }')
+        net = first(
+            'network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "1" } b: { cidr: "2" '
+            '} } }'
+        )
         assert isinstance(net.subnets, tuple)
         assert len(net.subnets) == 2
 
     def test_trigger_paths_tuple(self):
-        pl = first('pipeline p { trigger { paths: ["a", "b", "c"] } stages { t: { steps { s: { run: "x" } } } } }')
+        pl = first(
+            'pipeline p { trigger { paths: ["a", "b", "c"] } stages { t: { steps { s: '
+            '{ '
+            'run: "x" } } } } }'
+        )
         assert isinstance(pl.trigger.paths, tuple)
         assert pl.trigger.paths == ("a", "b", "c")
 
@@ -331,12 +358,12 @@ class TestEdgeCasesTransformer:
         assert svc.env == ()
 
     def test_const_decl(self):
-        v = first('const X = 1')
+        v = first("const X = 1")
         assert isinstance(v, n.VariableDecl)
         assert v.const is True
 
     def test_let_decl(self):
-        v = first('let x = 1')
+        v = first("let x = 1")
         assert isinstance(v, n.VariableDecl)
         assert v.const is False
 
@@ -349,8 +376,7 @@ class TestEdgeCasesTransformer:
 class TestServiceExtendsBranch:
     def test_service_extends(self):
         prog = parse(
-            'service base { image: "x" }\n'
-            'service api extends base { replicas: 2 }'
+            'service base { image: "x" }\nservice api extends base { replicas: 2 }'
         )
         svcs = [s for s in _user(prog) if isinstance(s, n.ServiceDef)]
         api = next(s for s in svcs if s.name == "api")
@@ -358,7 +384,7 @@ class TestServiceExtendsBranch:
 
     def test_environment_extends_branch(self):
         prog = parse(
-            'environment base { }\n'
+            "environment base { }\n"
             'environment prod extends base { namespace: "prod-ns" }'
         )
         envs = [s for s in _user(prog) if isinstance(s, n.EnvironmentDef)]
@@ -379,10 +405,7 @@ class TestPortHostTargetBranch:
 
 class TestConfigEnvFromBranch:
     def test_env_from_block(self):
-        svc = first(
-            'service api { image: "x" '
-            'envFrom: { secrets: "my-secret" } }'
-        )
+        svc = first('service api { image: "x" envFrom: { secrets: "my-secret" } }')
         assert hasattr(svc, "env_from")
         assert len(svc.env_from) == 1
         assert svc.env_from[0].source == "my-secret"
@@ -410,8 +433,7 @@ class TestLifecycleSecurityBranch:
 
     def test_lifecycle_present(self):
         svc = first(
-            'service api { image: "x" '
-            'lifecycle { preStop { exec: ["sleep", "5"] } } }'
+            'service api { image: "x" lifecycle { preStop { exec: ["sleep", "5"] } } }'
         )
         assert svc.lifecycle is not None
 
@@ -423,8 +445,7 @@ class TestLifecycleSecurityBranch:
 class TestMoreBranches:
     def test_topology_spread(self):
         svc = first(
-            'service api { image: "x" '
-            'topology { spread_by: "zone" max_skew: 2 } }'
+            'service api { image: "x" topology { spread_by: "zone" max_skew: 2 } }'
         )
         assert svc.topology is not None
 
@@ -434,8 +455,7 @@ class TestMoreBranches:
 
     def test_autoscale_block(self):
         svc = first(
-            'service api { image: "x" '
-            'autoscale { min: 1 max: 5 target_cpu: 70 } }'
+            'service api { image: "x" autoscale { min: 1 max: 5 target_cpu: 70 } }'
         )
         assert svc.autoscale is not None
         assert svc.autoscale.max_replicas == 5
@@ -560,9 +580,7 @@ pipeline ci {
         assert env.quotas.max_cpu is not None
 
     def test_pipeline_matrix(self):
-        prog = parse(
-            "pipeline m { stages { t: { matrix: { os: [linux, macos] } } } }"
-        )
+        prog = parse("pipeline m { stages { t: { matrix: { os: [linux, macos] } } } }")
         pl = [s for s in _user(prog) if isinstance(s, n.PipelineDef)][0]
         assert pl is not None
 
@@ -570,11 +588,12 @@ pipeline ci {
 class TestNetworkRich:
     def test_network_subnets_and_policy(self):
         prog = parse(
-            'network main {\n'
+            "network main {\n"
             '  cidr: "10.0.0.0/16"\n'
-            '  subnets { a: { cidr: "10.0.1.0/24" az: "eu-west-1a" } b: { cidr: "10.0.2.0/24" } }\n'
+            '  subnets { a: { cidr: "10.0.1.0/24" az: "eu-west-1a" } b: { cidr: '
+            '"10.0.2.0/24" } }\n'
             '  policy { allow: { from: "10.0.0.0/8" to: "10.1.0.0/8" ports: [80] } }\n'
-            '}\n'
+            "}\n"
         )
         nw = [s for s in _user(prog) if isinstance(s, n.NetworkDef)][0]
         assert len(nw.subnets) == 2
@@ -627,10 +646,10 @@ class TestEnvironmentRich:
         prog = parse(
             "environment base { }\n"
             "environment prod extends base {\n"
-            '  region: eu-west-1\n'
-            '  provider: aws\n'
+            "  region: eu-west-1\n"
+            "  provider: aws\n"
             "  quotas { max_cpu: 4 max_memory: 8Gi max_pods: 50 }\n"
-            '  namespace: prod\n'
+            "  namespace: prod\n"
             "}\n"
         )
         envs = [s for s in _user(prog) if isinstance(s, n.EnvironmentDef)]

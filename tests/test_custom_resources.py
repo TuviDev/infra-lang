@@ -122,7 +122,7 @@ class TestParsing:
             'resource "c" "r" {\n'
             "    spec {\n"
             "        template {\n"
-            "            labels { app: \"web\" }\n"
+            '            labels { app: "web" }\n'
             "        }\n"
             "    }\n"
             "}\n"
@@ -179,11 +179,7 @@ class TestFormatter:
         assert "spec {" in out
 
     def test_fmt_nested_bare_blocks(self):
-        src = (
-            'resource "c" "r" {\n'
-            "    metadata { labels: { team: \"platform\" } }\n"
-            "}\n"
-        )
+        src = 'resource "c" "r" {\n    metadata { labels: { team: "platform" } }\n}\n'
         out = format_source(src)
         assert "metadata {" in out
         assert "labels {" in out
@@ -196,11 +192,7 @@ class TestFormatter:
         assert format_source(out) == out
 
     def test_fmt_multiline_expression_maps(self):
-        src = (
-            'resource "c" "r" {\n'
-            '    odd: { "a b": 1, c: 2, d: 3, e: 4 }\n'
-            "}\n"
-        )
+        src = 'resource "c" "r" {\n    odd: { "a b": 1, c: 2, d: 3, e: 4 }\n}\n'
         out = format_source(src)
         assert format_source(out) == out
 
@@ -230,9 +222,7 @@ class TestValidator:
     def test_missing_kind_warns(self):
         res = validate('resource "c" "r" {\n    api_version: "v1"\n}\n')
         assert not res.errors
-        assert any(
-            w.code == "W011" and "kind" in w.message for w in res.warnings
-        )
+        assert any(w.code == "W011" and "kind" in w.message for w in res.warnings)
 
     def test_missing_both_warns_twice(self):
         res = validate('resource "c" "r" {\n    spec { a: 1 }\n}\n')
@@ -285,7 +275,7 @@ class TestKubernetesBackend:
             '    kind: "K"\n'
             "    spec {\n"
             "        template {\n"
-            "            labels { app: \"web\" }\n"
+            '            labels { app: "web" }\n'
             "        }\n"
             "    }\n"
             "}\n"
@@ -337,7 +327,7 @@ class TestKubernetesBackend:
             'resource "c" "r" {\n'
             '    api_version: "v1"\n'
             '    kind: "K"\n'
-            "    metadata { annotations: { team: \"platform\" } }\n"
+            '    metadata { annotations: { team: "platform" } }\n'
             "}\n"
         )
         metadata = docs[0]["metadata"]
@@ -354,9 +344,7 @@ class TestKubernetesBackend:
 class TestOtherBackends:
     def test_compose_warns_and_skips(self):
         res = compile_result(BASIC, "compose")
-        assert any(
-            "my_resource" in w and "kubernetes" in w for w in res.warnings
-        )
+        assert any("my_resource" in w and "kubernetes" in w for w in res.warnings)
 
     def test_compose_still_compiles_services(self):
         res = compile_result(
@@ -367,9 +355,7 @@ class TestOtherBackends:
 
     def test_terraform_warns_and_skips(self):
         res = compile_result(BASIC, "terraform")
-        assert any(
-            "my_resource" in w and "kubernetes" in w for w in res.warnings
-        )
+        assert any("my_resource" in w and "kubernetes" in w for w in res.warnings)
         assert "main.tf" in res.files
 
     def test_helm_crds_file(self):
@@ -383,9 +369,7 @@ class TestOtherBackends:
         assert manifest["spec"] == {"replicas": 3}
 
     def test_helm_crds_fallback_coordinates(self):
-        res = compile_result(
-            'resource "widget" "w1" {\n    spec { a: 1 }\n}\n', "helm"
-        )
+        res = compile_result('resource "widget" "w1" {\n    spec { a: 1 }\n}\n', "helm")
         crd_files = [f for f in res.files if "/crds/" in f]
         manifest = yaml.safe_load(res.files[crd_files[0]])
         assert manifest["apiVersion"] == "v1"

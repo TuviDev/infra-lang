@@ -13,7 +13,9 @@ def eval_expr(src: str, variables: dict | None = None):
     from infra import parse
 
     program = parse(f"let __x = {src}")
-    value = [s for s in program.statements if hasattr(s, "name") and s.name == "__x"][0].value
+    value = [s for s in program.statements if hasattr(s, "name") and s.name == "__x"][
+        0
+    ].value
     ctx = CompileContext(program=program, symbol_table=None, variables=variables or {})
     return evaluate_expression(value, ctx)
 
@@ -33,39 +35,51 @@ class TestRegistry:
 
 
 class TestStringFunctions:
-    @pytest.mark.parametrize("fn,arg,expected", [
-        ("upper('hi')", None, "HI"),
-        ("lower('HI')", None, "hi"),
-        ("trim('  x  ')", None, "x"),
-        ("replace('a-b', '-', '_')", None, "a_b"),
-        ("contains('hello', 'ell')", None, True),
-        ("starts_with('hello', 'he')", None, True),
-        ("ends_with('hello', 'lo')", None, True),
-        ("split('a,b', ',')", None, ["a", "b"]),
-        ("join(['a','b'], '-')", None, "a-b"),
-        ("len('abcd')", None, 4),
-    ])
+    @pytest.mark.parametrize(
+        "fn,arg,expected",
+        [
+            ("upper('hi')", None, "HI"),
+            ("lower('HI')", None, "hi"),
+            ("trim('  x  ')", None, "x"),
+            ("replace('a-b', '-', '_')", None, "a_b"),
+            ("contains('hello', 'ell')", None, True),
+            ("starts_with('hello', 'he')", None, True),
+            ("ends_with('hello', 'lo')", None, True),
+            ("split('a,b', ',')", None, ["a", "b"]),
+            ("join(['a','b'], '-')", None, "a-b"),
+            ("len('abcd')", None, 4),
+        ],
+    )
     def test_functions(self, fn, arg, expected):
         assert eval_expr(fn) == expected
 
 
 class TestMathFunctions:
-    @pytest.mark.parametrize("fn,expected", [
-        ("min(3, 5)", 3), ("max(3, 5)", 5), ("abs(-7)", 7),
-        ("clamp(15, 0, 10)", 10), ("clamp(-5, 0, 10)", 0),
-    ])
+    @pytest.mark.parametrize(
+        "fn,expected",
+        [
+            ("min(3, 5)", 3),
+            ("max(3, 5)", 5),
+            ("abs(-7)", 7),
+            ("clamp(15, 0, 10)", 10),
+            ("clamp(-5, 0, 10)", 0),
+        ],
+    )
     def test_math(self, fn, expected):
         assert eval_expr(fn) == expected
 
 
 class TestListFunctions:
-    @pytest.mark.parametrize("fn,expected", [
-        ("length([1,2,3])", 3),
-        ("concat([1],[2])", [1, 2]),
-        ("first([10,20])", 10),
-        ("last([10,20])", 20),
-        ("range(3)", [0, 1, 2]),
-    ])
+    @pytest.mark.parametrize(
+        "fn,expected",
+        [
+            ("length([1,2,3])", 3),
+            ("concat([1],[2])", [1, 2]),
+            ("first([10,20])", 10),
+            ("last([10,20])", 20),
+            ("range(3)", [0, 1, 2]),
+        ],
+    )
     def test_list(self, fn, expected):
         assert eval_expr(fn) == expected
 
@@ -109,7 +123,14 @@ class TestCallBuiltin:
 
 class TestDurationConversion:
     def test_to_seconds_all(self):
-        for unit, secs in [("ms", 0.001), ("s", 1), ("min", 60), ("h", 3600), ("d", 86400), ("w", 604800)]:
+        for unit, secs in [
+            ("ms", 0.001),
+            ("s", 1),
+            ("min", 60),
+            ("h", 3600),
+            ("d", 86400),
+            ("w", 604800),
+        ]:
             assert n.Duration(1, unit).to_seconds() == secs
 
     def test_unknown_unit_defaults_1(self):

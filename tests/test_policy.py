@@ -25,7 +25,7 @@ APP = (
 )
 
 INSECURE = (
-    'service api {\n'
+    "service api {\n"
     '    image: "myapp:latest"\n'
     "    env {\n"
     '        PASSWORD: "hardcoded123"\n'
@@ -100,9 +100,7 @@ class TestLoadPolicy:
 
     def test_unknown_rule_type(self, tmp_path):
         with pytest.raises(PolicyError, match="unknown rule type"):
-            load_policy(
-                _write(tmp_path, "p.yaml", "rules:\n  - type: opa_rego\n")
-            )
+            load_policy(_write(tmp_path, "p.yaml", "rules:\n  - type: opa_rego\n"))
 
     def test_id_must_be_string(self, tmp_path):
         with pytest.raises(PolicyError, match="'id' must be a string"):
@@ -185,9 +183,7 @@ class TestEvaluatePolicy:
         assert {v.resource for v in violations} >= {"api", "db"}
 
     def test_secret_env_violation_pol003(self, tmp_path):
-        policy = self._policy(
-            tmp_path, "rules:\n  - type: disallow_secret_env\n"
-        )
+        policy = self._policy(tmp_path, "rules:\n  - type: disallow_secret_env\n")
         violations = evaluate_policy(parse(INSECURE), policy)
         assert len(violations) == 1
         assert violations[0].code == "POL003"
@@ -204,17 +200,13 @@ class TestEvaluatePolicy:
             "}\n"
             'secret db {\n    password: "x"\n}\n'
         )
-        policy = self._policy(
-            tmp_path, "rules:\n  - type: disallow_secret_env\n"
-        )
+        policy = self._policy(tmp_path, "rules:\n  - type: disallow_secret_env\n")
         assert evaluate_policy(parse(src), policy) == []
 
     def test_custom_env_names(self, tmp_path):
         policy = self._policy(
             tmp_path,
-            "rules:\n"
-            "  - type: disallow_secret_env\n"
-            "    names: [my_custom_token]\n",
+            "rules:\n  - type: disallow_secret_env\n    names: [my_custom_token]\n",
         )
         src = (
             "service api {\n"
@@ -228,48 +220,32 @@ class TestEvaluatePolicy:
         assert len(violations) == 1
 
     def test_latest_tag_violation_pol004(self, tmp_path):
-        policy = self._policy(
-            tmp_path, "rules:\n  - type: disallow_image_tag\n"
-        )
+        policy = self._policy(tmp_path, "rules:\n  - type: disallow_image_tag\n")
         violations = evaluate_policy(parse(INSECURE), policy)
         assert len(violations) == 1
         assert violations[0].code == "POL004"
         assert "latest" in violations[0].message
 
     def test_untagged_image_is_implicit_latest(self, tmp_path):
-        policy = self._policy(
-            tmp_path, "rules:\n  - type: disallow_image_tag\n"
-        )
-        violations = evaluate_policy(
-            parse('service api { image: "nginx" }'), policy
-        )
+        policy = self._policy(tmp_path, "rules:\n  - type: disallow_image_tag\n")
+        violations = evaluate_policy(parse('service api { image: "nginx" }'), policy)
         assert len(violations) == 1
 
     def test_custom_forbidden_tags(self, tmp_path):
         policy = self._policy(
             tmp_path,
-            "rules:\n"
-            "  - type: disallow_image_tag\n"
-            "    tags: [dev, staging]\n",
+            "rules:\n  - type: disallow_image_tag\n    tags: [dev, staging]\n",
         )
-        assert evaluate_policy(
-            parse('service a { image: "x:dev" }'), policy
-        )
-        assert not evaluate_policy(
-            parse('service a { image: "x:1.0" }'), policy
-        )
+        assert evaluate_policy(parse('service a { image: "x:dev" }'), policy)
+        assert not evaluate_policy(parse('service a { image: "x:1.0" }'), policy)
 
     def test_registry_port_not_confused_with_tag(self, tmp_path):
         registry = 'service a { image: "registry.local:5000/app:1.0" }'
-        policy = self._policy(
-            tmp_path, "rules:\n  - type: disallow_image_tag\n"
-        )
+        policy = self._policy(tmp_path, "rules:\n  - type: disallow_image_tag\n")
         assert evaluate_policy(parse(registry), policy) == []
 
     def test_violation_to_dict(self, tmp_path):
-        policy = self._policy(
-            tmp_path, "rules:\n  - type: disallow_image_tag\n"
-        )
+        policy = self._policy(tmp_path, "rules:\n  - type: disallow_image_tag\n")
         v = evaluate_policy(parse(INSECURE), policy)[0]
         data = v.to_dict()
         assert data["code"] == "POL004"
@@ -372,15 +348,11 @@ class TestPolicyCheckCLI:
             'service api {\n    image: "x:1"\n    replicas: 1\n}\n'
             'environment "big" {\n    service api {\n        replicas: 9\n    }\n}\n'
         )
-        policy = (
-            "rules:\n  - id: svc-cap\n    type: max_service_cost\n    usd: 100\n"
-        )
+        policy = "rules:\n  - id: svc-cap\n    type: max_service_cost\n    usd: 100\n"
         f = _write(tmp_path, "app.infra", src)
         p = _write(tmp_path, "infra-policy.yaml", policy)
         base = runner.invoke(app, ["policy-check", str(f), "-p", str(p)])
-        big = runner.invoke(
-            app, ["policy-check", str(f), "-p", str(p), "-e", "big"]
-        )
+        big = runner.invoke(app, ["policy-check", str(f), "-p", str(p), "-e", "big"])
         assert base.exit_code == 0
         assert big.exit_code == 1
         assert "POL002" in big.output

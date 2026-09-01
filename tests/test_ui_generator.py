@@ -100,18 +100,16 @@ class TestDagSection:
         assert 'node-network_policy" data-name="app_sec"' in html_out
 
     def test_ghost_node_for_undeclared_dependency(self):
-        html_out = render(
-            'service api { image: "x" depends_on: [db] }'
-        )
+        html_out = render('service api { image: "x" depends_on: [db] }')
         assert 'node-external" data-name="db"' in html_out
         assert 'data-from="api" data-to="db"' in html_out
 
     def test_empty_program_renders_empty_note(self):
         html_out = render("")
         assert "No workloads declared in this file." in html_out
-        assert "<svg" not in html_out.split("Architecture DAG")[1].split(
-            "</section>"
-        )[0]
+        assert (
+            "<svg" not in html_out.split("Architecture DAG")[1].split("</section>")[0]
+        )
 
     def test_layout_layers_dependencies_to_the_right(self):
         program = parse(
@@ -148,7 +146,7 @@ class TestDagSection:
             [("a", "phantom-missing-node")],
         )
         assert 'data-from="a"' not in svg
-        assert 'node-service' in svg
+        assert "node-service" in svg
 
 
 class TestFinOpsSection:
@@ -166,16 +164,12 @@ class TestFinOpsSection:
         assert "USD (" in html_out  # "<amount> USD (<share>%)"
 
     def test_empty_estimate_renders_note(self):
-        html_out = generate_ui_html(
-            parse('service api { image: "x" }'), CostEstimate()
-        )
+        html_out = generate_ui_html(parse('service api { image: "x" }'), CostEstimate())
         assert "No billable resources in this file." in html_out
 
     def test_zero_total_estimate_no_division_error(self):
         estimate = CostEstimate(items=[CostItem(name="free", kind="service")])
-        html_out = generate_ui_html(
-            parse('service free { image: "x" }'), estimate
-        )
+        html_out = generate_ui_html(parse('service free { image: "x" }'), estimate)
         assert ">free</td>" in html_out
         assert "0.0%" in html_out
 
@@ -252,9 +246,7 @@ class TestDriftSection:
         assert 'class="badge badge-err">PROBE TIMEOUT' in html_out
 
     def test_unreachable_badge(self):
-        report = DriftReport(
-            target="k8s", error="api server 10.0.0.1:6443 unreachable"
-        )
+        report = DriftReport(target="k8s", error="api server 10.0.0.1:6443 unreachable")
         html_out = render(drift_report=report)
         assert 'class="badge badge-err">CLUSTER UNREACHABLE' in html_out
 
@@ -269,12 +261,8 @@ class TestProbeErrorBadge:
         from infra.analyzer.ui_generator import _probe_error_badge
 
         assert _probe_error_badge("x timed out after 1s") == "PROBE TIMEOUT"
-        assert _probe_error_badge("kubectl is not available") == (
-            "CLI TOOL MISSING"
-        )
-        assert _probe_error_badge("cluster unreachable") == (
-            "CLUSTER UNREACHABLE"
-        )
+        assert _probe_error_badge("kubectl is not available") == ("CLI TOOL MISSING")
+        assert _probe_error_badge("cluster unreachable") == ("CLUSTER UNREACHABLE")
         assert _probe_error_badge("something else") == "PROBE ERROR"
 
     def test_timeout_wins_over_unavailable(self):
@@ -311,7 +299,7 @@ class TestStandaloneOutput:
     def test_no_external_resource_references(self):
         html_out = render()
         assert 'src="http' not in html_out
-        assert "href=\"http" not in html_out
+        assert 'href="http' not in html_out
         assert "url(http" not in html_out
         assert "<script src" not in html_out
         assert "<link" not in html_out
@@ -334,9 +322,7 @@ class TestStandaloneOutput:
     def test_html_escaping_of_names(self):
         # A crafted name cannot inject markup into the report.
         program = n.Program(
-            statements=(
-                n.ServiceDef(name='evil<img src=x onerror=alert(1)>'),
-            )
+            statements=(n.ServiceDef(name="evil<img src=x onerror=alert(1)>"),)
         )
         html_out = generate_ui_html(program, CostEstimate())
         assert "<img src=x onerror=alert(1)>" not in html_out

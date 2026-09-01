@@ -40,7 +40,7 @@ COSTLY = (
 )
 
 INSECURE = (
-    'service api {\n'
+    "service api {\n"
     '    image: "myapp:1.0"\n'
     "    env {\n"
     '        PASSWORD: "hardcoded123"\n'
@@ -78,17 +78,13 @@ def _patch_urlopen_ok(monkeypatch, collector=None):
 
 class TestEvaluateAlerts:
     def test_cost_exceeded_event(self):
-        ctx = evaluate_alerts(
-            parse(COSTLY), source="app.infra", max_monthly_cost=1.0
-        )
+        ctx = evaluate_alerts(parse(COSTLY), source="app.infra", max_monthly_cost=1.0)
         assert ctx.triggered
         assert ctx.events[0].event_type == EVENT_COST_EXCEEDED
         assert "exceeds" in ctx.events[0].lines[0]
 
     def test_cost_within_limit_no_event(self):
-        ctx = evaluate_alerts(
-            parse(CLEAN), source="a", max_monthly_cost=10**9
-        )
+        ctx = evaluate_alerts(parse(CLEAN), source="a", max_monthly_cost=10**9)
         assert not ctx.triggered
 
     def test_no_limit_no_cost_event(self):
@@ -241,7 +237,11 @@ class TestPostWebhook:
     def test_http_error(self, monkeypatch):
         def fake_urlopen(request, timeout=None):
             raise urllib.error.HTTPError(
-                "https://x", 500, "server", {}, None  # type: ignore[arg-type]
+                "https://x",
+                500,
+                "server",
+                {},
+                None,  # type: ignore[arg-type]
             )
 
         monkeypatch.setattr("urllib.request.urlopen", fake_urlopen)
@@ -357,8 +357,10 @@ class TestAlertCLI:
         result = runner.invoke(
             app,
             [
-                "alert", str(f),
-                "--webhook", "https://hooks.slack.com/services/SECRET",
+                "alert",
+                str(f),
+                "--webhook",
+                "https://hooks.slack.com/services/SECRET",
                 "--dry-run",
             ],
         )
@@ -446,8 +448,10 @@ class TestAlertCLI:
         result = runner.invoke(
             app,
             [
-                "alert", str(f),
-                "-c", str(tmp_path / ".infra-alert.yml"),
+                "alert",
+                str(f),
+                "-c",
+                str(tmp_path / ".infra-alert.yml"),
                 "--dry-run",
             ],
         )
@@ -469,9 +473,12 @@ class TestAlertCLI:
         fired = runner.invoke(
             app,
             [
-                "alert", str(f),
-                "-c", str(tmp_path / ".infra-alert.yml"),
-                "--max-monthly-cost", "0.01",
+                "alert",
+                str(f),
+                "-c",
+                str(tmp_path / ".infra-alert.yml"),
+                "--max-monthly-cost",
+                "0.01",
                 "--dry-run",
             ],
         )
@@ -482,9 +489,12 @@ class TestAlertCLI:
         result = runner.invoke(
             app,
             [
-                "alert", str(f),
-                "--webhook", "https://x",
-                "--events", "drift",
+                "alert",
+                str(f),
+                "--webhook",
+                "https://x",
+                "--events",
+                "drift",
                 "--dry-run",
             ],
         )
@@ -544,9 +554,13 @@ class TestAlertCLI:
         result = runner.invoke(
             app,
             [
-                "alert", str(f),
-                "--webhook", "https://x",
-                "--live-drift", "--dry-run", "--always",
+                "alert",
+                str(f),
+                "--webhook",
+                "https://x",
+                "--live-drift",
+                "--dry-run",
+                "--always",
             ],
         )
         assert result.exit_code == 0
@@ -570,8 +584,12 @@ class TestAlertCLI:
         result = runner.invoke(
             app,
             [
-                "alert", str(f),
-                "--webhook", "https://x", "--live-drift", "--dry-run",
+                "alert",
+                str(f),
+                "--webhook",
+                "https://x",
+                "--live-drift",
+                "--dry-run",
             ],
         )
         assert result.exit_code == 0
@@ -583,9 +601,7 @@ class TestAlertCLI:
         def boom(program, target, namespace):
             raise RuntimeError("cluster exploded")
 
-        monkeypatch.setattr(
-            "infra.analyzer.drift.detect_live_drift_program", boom
-        )
+        monkeypatch.setattr("infra.analyzer.drift.detect_live_drift_program", boom)
         report = alert_cmd._probe_drift_safely(parse(CLEAN), "k8s", "default")
         assert report.error is not None
         assert "exploded" in report.error
@@ -595,9 +611,13 @@ class TestAlertCLI:
         result = runner.invoke(
             app,
             [
-                "alert", str(f),
-                "--webhook", "https://office.example/webhook",
-                "-f", "teams", "--dry-run",
+                "alert",
+                str(f),
+                "--webhook",
+                "https://office.example/webhook",
+                "-f",
+                "teams",
+                "--dry-run",
             ],
         )
         assert result.exit_code == 0

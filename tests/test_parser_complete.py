@@ -32,7 +32,6 @@ P = Parser()
 
 class TestParseExpression:
     def test_single_expr(self):
-        from infra.parser.ast_nodes import Literal
 
         assert parse_expression("42").value == 42
 
@@ -49,7 +48,7 @@ class TestParserErrors:
 
     def test_parse_error_location(self):
         with pytest.raises(InfraParseError) as e:
-            P.parse('service a { image: ')
+            P.parse("service a { image: ")
         assert e.value.location is not None
 
     def test_parse_error_expected(self):
@@ -102,24 +101,24 @@ class TestTypeSystem:
             assert AnyType().is_compatible(t)
 
     def test_infer_literal(self):
-        import infra.analyzer.types as T
+        import infra.analyzer.types as it
 
-        assert infer_literal_type("x") == T.STRING
-        assert infer_literal_type(1) == T.INT
-        assert infer_literal_type(1.0) == T.FLOAT
-        assert infer_literal_type(True) == T.BOOL
-        assert infer_literal_type(None) == T.NULL
+        assert infer_literal_type("x") == it.STRING
+        assert infer_literal_type(1) == it.INT
+        assert infer_literal_type(1.0) == it.FLOAT
+        assert infer_literal_type(True) == it.BOOL
+        assert infer_literal_type(None) == it.NULL
 
     def test_are_types_compatible(self):
         assert are_types_compatible(StringType(), StringType())
         assert not are_types_compatible(StringType(), IntType())
 
     def test_unify(self):
-        import infra.analyzer.types as T
+        import infra.analyzer.types as it
 
-        assert unify_types([]) == T.ANY
+        assert unify_types([]) == it.ANY
         assert isinstance(unify_types([IntType()]), IntType)
-        assert unify_types([IntType(), FloatType()]) == T.FLOAT
+        assert unify_types([IntType(), FloatType()]) == it.FLOAT
         assert isinstance(unify_types([StringType(), IntType()]), UnionType)
 
 
@@ -170,7 +169,7 @@ class TestCLISmoke:
         from infra.cli.main import app
 
         result = CliRunner().invoke(app, ["--version"])
-        assert "0.7.0" in result.output
+        assert "0.7.1" in result.output
 
     def test_help_lists_commands(self):
         from typer.testing import CliRunner
@@ -178,5 +177,15 @@ class TestCLISmoke:
         from infra.cli.main import app
 
         result = CliRunner().invoke(app, ["--help"])
-        for cmd in ["compile", "validate", "fmt", "repl", "init", "check", "graph", "docs", "diff"]:
+        for cmd in [
+            "compile",
+            "validate",
+            "fmt",
+            "repl",
+            "init",
+            "check",
+            "graph",
+            "docs",
+            "diff",
+        ]:
             assert cmd in result.output

@@ -14,8 +14,7 @@ from infra.parser import parse
 runner = CliRunner()
 
 SPEC = (
-    'service api { image: "nginx:1.25" replicas: 2 }\n'
-    "database db { type: postgres }\n"
+    'service api { image: "nginx:1.25" replicas: 2 }\ndatabase db { type: postgres }\n'
 )
 
 
@@ -31,8 +30,7 @@ class TestToMarkdown:
         md = est.to_markdown()
         assert "## 💰 Estimated Monthly Infrastructure Cost" in md
         assert (
-            "| Resource | Kind | vCPU | RAM (GB) | Storage (GB) | Monthly (USD) |"
-            in md
+            "| Resource | Kind | vCPU | RAM (GB) | Storage (GB) | Monthly (USD) |" in md
         )
         assert "| --- | --- | ---: | ---: | ---: | ---: |" in md
 
@@ -157,9 +155,7 @@ class TestCostFormatCLI:
     def test_output_to_file_markdown(self, tmp_path):
         p = write_spec(tmp_path)
         out = tmp_path / "report.md"
-        result = runner.invoke(
-            app, ["cost", str(p), "-f", "markdown", "-o", str(out)]
-        )
+        result = runner.invoke(app, ["cost", str(p), "-f", "markdown", "-o", str(out)])
         assert result.exit_code == 0
         assert out.exists()
         content = out.read_text(encoding="utf-8")
@@ -176,9 +172,7 @@ class TestCostFormatCLI:
     def test_output_creates_parent_dirs(self, tmp_path):
         p = write_spec(tmp_path)
         out = tmp_path / "reports" / "nested" / "cost.md"
-        result = runner.invoke(
-            app, ["cost", str(p), "-f", "markdown", "-o", str(out)]
-        )
+        result = runner.invoke(app, ["cost", str(p), "-f", "markdown", "-o", str(out)])
         assert result.exit_code == 0
         assert out.exists()
 

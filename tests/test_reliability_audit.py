@@ -17,7 +17,7 @@ def get_warning(source, code):
     return next((w for w in v(source).warnings if w.code == code), None)
 
 
-class TestREL001_ThunderingHerd:
+class TestRel001ThunderingHerd:
     def test_triggers_at_5_replicas_no_probe(self):
         assert "REL001" in warn_codes('service s { image: "x:1" replicas: 5 }')
 
@@ -34,12 +34,16 @@ class TestREL001_ThunderingHerd:
         assert "probe" in w.hint.lower()
 
 
-class TestREL002_EvenReplicasHA:
+class TestRel002EvenReplicasHA:
     def test_triggers_even_replicas_ha_true(self):
-        assert "REL002" in warn_codes("database db { type: postgres ha: true replicas: 2 }")
+        assert "REL002" in warn_codes(
+            "database db { type: postgres ha: true replicas: 2 }"
+        )
 
     def test_not_trigger_odd_replicas(self):
-        assert "REL002" not in warn_codes("database db { type: postgres ha: true replicas: 3 }")
+        assert "REL002" not in warn_codes(
+            "database db { type: postgres ha: true replicas: 3 }"
+        )
 
     def test_not_trigger_without_ha(self):
         assert "REL002" not in warn_codes("database db { type: postgres replicas: 2 }")
@@ -50,12 +54,15 @@ class TestREL002_EvenReplicasHA:
         assert "3" in w.hint
 
 
-class TestREL003_NoMemoryLimit:
+class TestRel003NoMemoryLimit:
     def test_triggers_no_resources(self):
         assert "REL003" in warn_codes('service s { image: "x:1" replicas: 5 }')
 
     def test_not_trigger_with_memory_limit(self):
-        src = 'service s { image: "x:1" replicas: 5 resources { limits { memory: 256Mi } } }'
+        src = (
+            'service s { image: "x:1" replicas: 5 resources { limits { memory: 256Mi } '
+            '} }'
+        )
         assert "REL003" not in warn_codes(src)
 
     def test_hint_present(self):
@@ -63,37 +70,42 @@ class TestREL003_NoMemoryLimit:
         assert w is not None and w.hint
 
 
-class TestREL004_NoHealthChecks:
+class TestRel004NoHealthChecks:
     def test_triggers_no_health(self):
         assert "REL004" in warn_codes('service s { image: "x:1" replicas: 5 }')
 
     def test_not_trigger_with_health(self):
-        assert "REL004" not in warn_codes('service s { image: "x:1" replicas: 5 health http("/") }')
+        assert "REL004" not in warn_codes(
+            'service s { image: "x:1" replicas: 5 health http("/") }'
+        )
 
 
-class TestREL006_NoBackup:
+class TestRel006NoBackup:
     def test_triggers_no_backup(self):
         assert "REL006" in warn_codes("database db { type: postgres }")
 
     def test_not_trigger_with_backup(self):
-        src = 'database db { type: postgres backup { enabled: true } }'
+        src = "database db { type: postgres backup { enabled: true } }"
         assert "REL006" not in warn_codes(src)
 
 
-class TestREL008_RedisNoPersistence:
+class TestRel008RedisNoPersistence:
     def test_triggers_no_persistence_when_depended_on(self):
         src = 'cache c { type: redis }\nservice s { image: "x:1" depends: [c] }'
         assert "REL008" in warn_codes(src)
 
     def test_not_trigger_with_persistence(self):
-        src = 'cache c { type: redis persistence: true }\nservice s { image: "x:1" depends: [c] }'
+        src = (
+            'cache c { type: redis persistence: true }\nservice s { image: "x:1" '
+            'depends: [c] }'
+        )
         assert "REL008" not in warn_codes(src)
 
     def test_not_trigger_when_not_depended_on(self):
         assert "REL008" not in warn_codes("cache c { type: redis }")
 
 
-class TestREL012_AutoscaleWithFixedReplicas:
+class TestRel012AutoscaleFixedReplicas:
     def test_triggers_autoscale_and_replicas(self):
         src = 'service s { image: "x:1" replicas: 5 autoscale { min: 2 max: 10 } }'
         assert "REL012" in warn_codes(src)
@@ -103,18 +115,18 @@ class TestREL012_AutoscaleWithFixedReplicas:
         assert "REL012" not in warn_codes(src)
 
 
-class TestREL013_DatabaseNoResources:
+class TestRel013DatabaseNoResources:
     def test_triggers_database_no_resources(self):
         assert "REL013" in warn_codes("database db { type: postgres }")
 
 
-class TestREL014_KafkaSingleReplica:
+class TestRel014KafkaSingleReplica:
     def test_triggers_kafka_single_replica(self):
-        src = 'queue q { type: kafka replicas: 1 }'
+        src = "queue q { type: kafka replicas: 1 }"
         assert "REL014" in warn_codes(src)
 
     def test_not_trigger_kafka_multiple_replicas(self):
-        src = 'queue q { type: kafka replicas: 3 }'
+        src = "queue q { type: kafka replicas: 3 }"
         assert "REL014" not in warn_codes(src)
 
 

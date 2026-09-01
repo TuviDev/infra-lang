@@ -34,9 +34,7 @@ class TestSecurityEnforcement:
         """Given a service pinned to ``nginx:latest``,
         When it is validated,
         Then a SEC003 warning (not error) is produced, so deployment is not blocked."""
-        assert_warning(
-            'service api { image: "nginx:latest" }', "SEC003"
-        )
+        assert_warning('service api { image: "nginx:latest" }', "SEC003")
 
     def test_valid_service_passes_all_security_checks(self):
         """Given a well-configured service (private registry, no env secrets),
@@ -86,9 +84,7 @@ class TestReliabilityGuidance:
         """Given a service whose resources have no memory limit,
         When it is validated,
         Then REL003 (no memory limit) is reported."""
-        assert_warning(
-            'service api { image: "x:1" replicas: 5 }', "REL003"
-        )
+        assert_warning('service api { image: "x:1" replicas: 5 }', "REL003")
 
 
 # --------------------------------------------------------------------------- #
@@ -101,8 +97,11 @@ class TestCompilationCorrectness:
         """Given a service with ``image: "nginx:1.2.3"``,
         When it is compiled to Kubernetes,
         Then the container image matches exactly (no tag rewriting)."""
-        dep = next(d for d in k8s_docs('service api { image: "nginx:1.2.3" }')
-                   if d["kind"] == "Deployment")
+        dep = next(
+            d
+            for d in k8s_docs('service api { image: "nginx:1.2.3" }')
+            if d["kind"] == "Deployment"
+        )
         image = dep["spec"]["template"]["spec"]["containers"][0]["image"]
         assert image == "nginx:1.2.3"
 
@@ -110,8 +109,11 @@ class TestCompilationCorrectness:
         """Given ``replicas: 7``,
         When compiled to Kubernetes,
         Then Deployment.spec.replicas == 7."""
-        dep = next(d for d in k8s_docs('service api { image: "x:1" replicas: 7 }')
-                   if d["kind"] == "Deployment")
+        dep = next(
+            d
+            for d in k8s_docs('service api { image: "x:1" replicas: 7 }')
+            if d["kind"] == "Deployment"
+        )
         assert dep["spec"]["replicas"] == 7
 
     def test_const_interpolated_in_template_string(self, k8s_docs):
@@ -153,11 +155,7 @@ class TestDiffDetection:
             parse('service api { image: "nginx:1.0" }'),
             parse('service api { image: "nginx:2.0" }'),
         )
-        img = next(
-            ch
-            for ch in r.changed[0].changes
-            if "image" in ch.field_path
-        )
+        img = next(ch for ch in r.changed[0].changes if "image" in ch.field_path)
         assert img.before == "nginx:1.0"
         assert img.after == "nginx:2.0"
 

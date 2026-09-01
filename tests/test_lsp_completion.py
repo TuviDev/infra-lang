@@ -59,7 +59,7 @@ class TestInsideBlockCompletions:
         src = "service api {\n    rep\n}"
         got = labels(completions_at(src, 1, 7))
         assert "replicas" in got
-        assert all(l.startswith("rep") for l in got)
+        assert all(label.startswith("rep") for label in got)
 
 
 class TestValueCompletions:

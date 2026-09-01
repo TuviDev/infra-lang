@@ -21,9 +21,7 @@ class TestCostModule:
         assert est.items[0].kind == "service"
 
     def test_service_replicas_multiply(self):
-        est = estimate_cost(
-            parse('service api { image: "x" replicas: 3 }')
-        )
+        est = estimate_cost(parse('service api { image: "x" replicas: 3 }'))
         single = estimate_cost(parse('service api { image: "x" }'))
         assert est.items[0].vcpu > single.items[0].vcpu
 

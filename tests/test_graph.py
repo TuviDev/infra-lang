@@ -11,7 +11,7 @@ runner = CliRunner()
 MAIN = (
     'service api { image: "nginx:1.0" ingress { host: "h" } depends: [db] }\n'
     'service worker { image: "x:1" depends: [db] }\n'
-    'database db { type: postgres }\n'
+    "database db { type: postgres }\n"
     "cache session { type: redis }\n"
 )
 
@@ -56,8 +56,8 @@ class TestGraphDOT:
 
     def test_database_has_different_style(self, tmp_path):
         r = _graph(tmp_path, "--format", "dot")
-        assert 'shape=box' in r.output  # service
-        assert 'shape=cylinder' in r.output  # database
+        assert "shape=box" in r.output  # service
+        assert "shape=cylinder" in r.output  # database
         assert 'label="api\\nservice"' in r.output
         assert 'label="db\\npostgres"' in r.output
 

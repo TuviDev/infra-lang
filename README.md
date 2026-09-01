@@ -202,6 +202,31 @@ web_api.list_examples()                                # hello_world, web_app, �
 `web_api` never touches the disk, processes or a browser API — errors are
 returned as data — so it is safe to embed anywhere.
 
+## Visualization & Schema export (since 0.7.1)
+
+**Native PNG architecture graphs** — the dashboard's architecture DAG
+exports to PNG with a pure-Python Pillow drawing engine (dark theme,
+rounded node cards with image tags, arrowed edges — no Cairo, Graphviz
+or headless browser):
+
+```bash
+infra graph app.infra --format png -o graf.png   # or just: -o graf.png
+```
+
+The dashboard served by `infra serve` / `infra ui` also offers one-click
+**Download SVG** and **Download PNG** buttons on the architecture card —
+payloads travel as data URIs, so saving is instant and offline.
+
+**JSON Schema of the DSL** — editor/tooling integration via draft-07:
+
+```bash
+infra schema -o infra-schema.json   # or stdout without -o
+```
+
+The schema covers every top-level block (`service`, `database`,
+`environment`, `network_policy`, `secret_store`, …) with exact type
+enums and documented properties.
+
 ## Team Integration: CI comments, alerts, policies (since 0.7.0)
 
 Everything a team needs around pull requests — at zero cost, no SaaS:
@@ -219,7 +244,7 @@ Or use the ready-made GitHub Action (see
 [`docs/ci_integration.md`](docs/ci_integration.md)):
 
 ```yaml
-- uses: TuviDev/infra-lang/.github/actions/infra-check@v0.7.0
+- uses: TuviDev/infra-lang/.github/actions/infra-check@v0.7.1
   with:
     files: "infra/**/*.infra"
     base-ref: origin/main

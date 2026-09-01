@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from infra import parse, validate
+from infra import validate
 from infra.backends.kubernetes import KubernetesBackend
 from infra.errors.exceptions import InfraParseError
 from infra.parser import parse_file
@@ -19,8 +19,9 @@ class TestImportResolver:
         )
         program = parse_file(tmp_path / "main.infra")
         result = validate(program)
-        assert not any(e.code == "E001" for e in result.errors), \
-            [e.message for e in result.errors]
+        assert not any(e.code == "E001" for e in result.errors), [
+            e.message for e in result.errors
+        ]
 
     def test_import_makes_const_available(self, tmp_path):
         (tmp_path / "lib.infra").write_text('const MY_TAG = "v1.0.0"')
@@ -46,7 +47,9 @@ class TestImportResolver:
     def test_nested_imports(self, tmp_path):
         (tmp_path / "c.infra").write_text('const C_VAL = "ccc"')
         (tmp_path / "b.infra").write_text('import "./c.infra"\nconst B_VAL = "bbb"')
-        (tmp_path / "main.infra").write_text('import "./b.infra"\nservice s { image: C_VAL }')
+        (tmp_path / "main.infra").write_text(
+            'import "./b.infra"\nservice s { image: C_VAL }'
+        )
         program = parse_file(tmp_path / "main.infra")
         result = validate(program)
         assert not any(e.code == "E001" for e in result.errors)

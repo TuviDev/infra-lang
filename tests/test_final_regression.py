@@ -14,11 +14,12 @@ from infra.backends.kubernetes import KubernetesBackend
 class TestSystemInvariants:
     VALID_SOURCES = [
         'service api { image: "nginx:1.0" }',
-        'database db { type: postgres }',
-        'cache c { type: redis }',
+        "database db { type: postgres }",
+        "cache c { type: redis }",
         'secret s { k: from env "K" }',
         'config c { V: "x" }',
-        'pipeline ci { trigger { branches: ["main"] } stages { t: { steps { s: { run: "x" } } } } }',
+        'pipeline ci { trigger { branches: ["main"] } stages { t: { steps { s: { run: '
+        '"x" } } } } }',
     ]
 
     def test_parse_never_returns_none(self):
@@ -38,7 +39,9 @@ class TestSystemInvariants:
             result = KubernetesBackend().compile(parse(src))
             for fname, content in result.files.items():
                 for doc in yaml.safe_load_all(content):
-                    assert doc is None or isinstance(doc, dict), f"Invalid YAML: {fname}"
+                    assert doc is None or isinstance(doc, dict), (
+                        f"Invalid YAML: {fname}"
+                    )
 
     def test_compose_output_always_valid_yaml(self):
         for src in self.VALID_SOURCES:
@@ -85,7 +88,10 @@ class TestSystemInvariants:
     def test_fmt_is_idempotent(self):
         from infra.cli.printer import format_source
 
-        for src in ['service api { image: "nginx:1.0" }', 'database db { type: postgres storage: 10Gi }']:
+        for src in [
+            'service api { image: "nginx:1.0" }',
+            "database db { type: postgres storage: 10Gi }",
+        ]:
             fmt1 = format_source(src)
             fmt2 = format_source(fmt1)
             assert fmt1 == fmt2, f"fmt not idempotent for: {src}"
@@ -94,13 +100,19 @@ class TestSystemInvariants:
         from infra.parser.ast_nodes import EnvironmentDef
         from infra.resolver.extends import ExtendsResolver
 
-        source = 'environment base { namespace: "base" }\nenvironment prod extends base { namespace: "production" }'
+        source = (
+            'environment base { namespace: "base" }\nenvironment prod extends base { '
+            'namespace: "production" }'
+        )
         resolved = ExtendsResolver().resolve(parse(source))
-        prod = next(e for e in resolved.statements if isinstance(e, EnvironmentDef) and e.name == "prod")
+        prod = next(
+            e
+            for e in resolved.statements
+            if isinstance(e, EnvironmentDef) and e.name == "prod"
+        )
         assert "production" in str(prod.namespace)
 
     def test_import_resolver_loads_symbols(self):
-        from infra.backends.kubernetes import KubernetesBackend
         from infra.parser import parse_file
 
         # imports are exercised via a temp file setup in test_imports; here we
@@ -108,10 +120,17 @@ class TestSystemInvariants:
         assert callable(parse_file)
 
     def test_autoscale_and_disruption_regression(self):
-        src = ('service api { image: "x:1" autoscale { min: 2, max: 10 } '
-               'disruption { min_available: 1 } }')
-        docs = [d for d in yaml.safe_load_all(
-            "\n".join(KubernetesBackend().compile(parse(src)).files.values())) if d]
+        src = (
+            'service api { image: "x:1" autoscale { min: 2, max: 10 } '
+            "disruption { min_available: 1 } }"
+        )
+        docs = [
+            d
+            for d in yaml.safe_load_all(
+                "\n".join(KubernetesBackend().compile(parse(src)).files.values())
+            )
+            if d
+        ]
         kinds = [d["kind"] for d in docs]
         assert "HorizontalPodAutoscaler" in kinds
         assert "PodDisruptionBudget" in kinds

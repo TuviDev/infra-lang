@@ -56,8 +56,8 @@ class TestDeploymentToService:
     def test_env_vars(self, tmp_path):
         yaml = DEPLOYMENT.replace(
             "image: nginx:1.25",
-            'image: nginx:1.25\n          env:\n            - name: NODE_ENV\n'
-            '              value: production',
+            "image: nginx:1.25\n          env:\n            - name: NODE_ENV\n"
+            "              value: production",
         )
         out = import_text(tmp_path, yaml)
         assert "env {" in out
@@ -66,9 +66,9 @@ class TestDeploymentToService:
     def test_resource_limits(self, tmp_path):
         yaml = DEPLOYMENT.replace(
             "image: nginx:1.25",
-            'image: nginx:1.25\n          resources:\n            requests:\n'
-            '              cpu: 100m\n              memory: 256Mi\n'
-            '            limits:\n              cpu: 500m\n              memory: 512Mi',
+            "image: nginx:1.25\n          resources:\n            requests:\n"
+            "              cpu: 100m\n              memory: 256Mi\n"
+            "            limits:\n              cpu: 500m\n              memory: 512Mi",
         )
         out = import_text(tmp_path, yaml)
         assert "resources {" in out
@@ -78,9 +78,9 @@ class TestDeploymentToService:
     def test_health_probe(self, tmp_path):
         yaml = DEPLOYMENT.replace(
             "image: nginx:1.25",
-            'image: nginx:1.25\n          readinessProbe:\n            httpGet:\n'
-            '              path: /health\n              port: 8080\n'
-            '            periodSeconds: 10',
+            "image: nginx:1.25\n          readinessProbe:\n            httpGet:\n"
+            "              path: /health\n              port: 8080\n"
+            "            periodSeconds: 10",
         )
         out = import_text(tmp_path, yaml)
         assert "probes {" in out or "health http" in out
@@ -89,9 +89,9 @@ class TestDeploymentToService:
     def test_env_from_secret(self, tmp_path):
         yaml = DEPLOYMENT.replace(
             "image: nginx:1.25",
-            'image: nginx:1.25\n          env:\n            - name: DB_PASS\n'
-            '              valueFrom:\n                secretKeyRef:\n'
-            '                  name: db-secret\n                  key: password',
+            "image: nginx:1.25\n          env:\n            - name: DB_PASS\n"
+            "              valueFrom:\n                secretKeyRef:\n"
+            "                  name: db-secret\n                  key: password",
         )
         out = import_text(tmp_path, yaml)
         assert 'from secret "db-secret".password' in out
@@ -117,7 +117,9 @@ spec:
         assert "port 80" in out
 
     def test_deployment_service_merged(self, tmp_path):
-        yaml = DEPLOYMENT + """\
+        yaml = (
+            DEPLOYMENT
+            + """\
 ---
 apiVersion: v1
 kind: Service
@@ -131,6 +133,7 @@ spec:
       targetPort: 8080
       protocol: TCP
 """
+        )
         out = import_text(tmp_path, yaml)
         # one service block that contains both the image and the service port
         assert "service api {" in out
@@ -309,7 +312,9 @@ spec:
 
 class TestMultiDocAndRobustness:
     def test_multidoc_three_resources(self, tmp_path):
-        yaml = DEPLOYMENT + """\
+        yaml = (
+            DEPLOYMENT
+            + """\
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -326,6 +331,7 @@ type: Opaque
 stringData:
   B: x
 """
+        )
         out = import_text(tmp_path, yaml)
         assert "service api {" in out
         assert "config cfg {" in out
@@ -433,9 +439,9 @@ class TestEdgeBranches:
     def test_env_from_configmap(self, tmp_path):
         yaml = DEPLOYMENT.replace(
             "image: nginx:1.25",
-            'image: nginx:1.25\n          env:\n            - name: LOG_LEVEL\n'
-            '              valueFrom:\n                configMapKeyRef:\n'
-            '                  name: app-cfg\n                  key: LEVEL',
+            "image: nginx:1.25\n          env:\n            - name: LOG_LEVEL\n"
+            "              valueFrom:\n                configMapKeyRef:\n"
+            "                  name: app-cfg\n                  key: LEVEL",
         )
         out = import_text(tmp_path, yaml)
         assert 'from config "app-cfg".LEVEL' in out
@@ -443,9 +449,9 @@ class TestEdgeBranches:
     def test_env_from_field(self, tmp_path):
         yaml = DEPLOYMENT.replace(
             "image: nginx:1.25",
-            'image: nginx:1.25\n          env:\n            - name: POD_NAME\n'
-            '              valueFrom:\n                fieldRef:\n'
-            '                  fieldPath: metadata.name',
+            "image: nginx:1.25\n          env:\n            - name: POD_NAME\n"
+            "              valueFrom:\n                fieldRef:\n"
+            "                  fieldPath: metadata.name",
         )
         out = import_text(tmp_path, yaml)
         assert 'from field "metadata.name"' in out
@@ -464,7 +470,7 @@ spec:
       protocol: UDP
 """
         out = import_text(tmp_path, yaml)
-        assert "port 53 { protocol: \"UDP\" }" in out
+        assert 'port 53 { protocol: "UDP" }' in out
 
     def test_tcp_and_grpc_probes(self, tmp_path):
         yaml = """\
@@ -789,12 +795,20 @@ class TestImporterHelpers:
     def test_import_kubernetes_from_docs(self, tmp_path):
         from infra.importer import import_kubernetes_from_docs
 
-        docs = [{"kind": "Deployment", "metadata": {"name": "api"}, "spec": {
-            "replicas": 2,
-            "selector": {"matchLabels": {"app": "api"}},
-            "template": {"metadata": {"labels": {"app": "api"}},
-                         "spec": {"containers": [{"name": "api", "image": "nginx:1"}]}},
-        }}]
+        docs = [
+            {
+                "kind": "Deployment",
+                "metadata": {"name": "api"},
+                "spec": {
+                    "replicas": 2,
+                    "selector": {"matchLabels": {"app": "api"}},
+                    "template": {
+                        "metadata": {"labels": {"app": "api"}},
+                        "spec": {"containers": [{"name": "api", "image": "nginx:1"}]},
+                    },
+                },
+            }
+        ]
         out = import_kubernetes_from_docs(docs)
         assert "service api {" in out
         assert "replicas: 2" in out
@@ -810,7 +824,10 @@ class TestImporterHelpers:
 class TestRoundTrip:
     def test_import_compile_round_trip(self, tmp_path):
         """Import -> compile must preserve key fields (image, replicas, port)."""
-        src = write(tmp_path / "app.yaml", DEPLOYMENT + """\
+        src = write(
+            tmp_path / "app.yaml",
+            DEPLOYMENT
+            + """\
 ---
 apiVersion: v1
 kind: Service
@@ -823,7 +840,8 @@ spec:
     - port: 80
       targetPort: 8080
       protocol: TCP
-""")
+""",
+        )
         infra_file = tmp_path / "app.infra"
         result = runner.invoke(app, ["import", str(src), "--output", str(infra_file)])
         assert result.exit_code == 0

@@ -39,10 +39,7 @@ FULL = (
 )
 
 BLOCKED = (
-    'network_policy "locked" {\n'
-    '    target: "api"\n'
-    "    block_all_ingress: true\n"
-    "}\n"
+    'network_policy "locked" {\n    target: "api"\n    block_all_ingress: true\n}\n'
 )
 
 
@@ -87,9 +84,7 @@ class TestParsing:
         assert np.block_all_ingress is True
 
     def test_block_all_ingress_false(self):
-        np = policy(
-            'network_policy "p" { target: "api", block_all_ingress: false }\n'
-        )
+        np = policy('network_policy "p" { target: "api", block_all_ingress: false }\n')
         assert np.block_all_ingress is False
 
     def test_empty_body(self):
@@ -137,9 +132,7 @@ class TestParsing:
             'service api {\n    image: "x"\n    network_policy {\n'
             "        allow_from: [frontend]\n    }\n}\n"
         )
-        svc = next(
-            s for s in prog.statements if isinstance(s, n.ServiceDef)
-        )
+        svc = next(s for s in prog.statements if isinstance(s, n.ServiceDef))
         assert svc.network_policy is not None
         assert svc.network_policy.allow_from == ("frontend",)
 
@@ -227,9 +220,8 @@ class TestKubernetesBackend:
         assert m["kind"] == "NetworkPolicy"
         assert m["metadata"]["name"] == "app_sec"
         spec = m["spec"]
-        assert spec["podSelector"] == {
-            "matchLabels": {"app.kubernetes.io/name": "api"}
-        }
+        assert spec["podSelector"] == {"matchLabels": {"app.kubernetes.io/name": "api"}}
+
         def _peer(name: str) -> dict:
             return {"podSelector": {"matchLabels": {"app.kubernetes.io/name": name}}}
 
@@ -245,8 +237,7 @@ class TestKubernetesBackend:
 
     def test_egress_only_has_no_ingress_key(self):
         m = k8s_policies(
-            SERVICES + 'network_policy "p" { target: "api", '
-            'allow_egress: ["db"] }\n'
+            SERVICES + 'network_policy "p" { target: "api", allow_egress: ["db"] }\n'
         )[0]
         assert "ingress" not in m["spec"]
         assert m["spec"]["policyTypes"] == ["Egress"]
@@ -260,9 +251,7 @@ class TestKubernetesBackend:
 
     def test_metadata_labels(self):
         m = k8s_policies(SERVICES + FULL)[0]
-        assert m["metadata"]["labels"]["app.kubernetes.io/managed-by"] == (
-            "infra-lang"
-        )
+        assert m["metadata"]["labels"]["app.kubernetes.io/managed-by"] == ("infra-lang")
 
 
 class TestComposeBackend:
@@ -309,9 +298,7 @@ class TestTerraformBackend:
     def _tf(self, src: str, provider: str = "aws") -> str:
         from infra.backends.terraform import TerraformBackend
 
-        return TerraformBackend(provider=provider).compile(parse(src)).files[
-            "main.tf"
-        ]
+        return TerraformBackend(provider=provider).compile(parse(src)).files["main.tf"]
 
     def test_aws_security_group(self):
         main = self._tf(SERVICES + FULL)

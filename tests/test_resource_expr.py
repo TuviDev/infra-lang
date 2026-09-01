@@ -15,14 +15,14 @@ def compile_k8s(source: str) -> str:
 class TestResourceExpressions:
     def test_const_in_cpu(self):
         content = compile_k8s(
-            'const APP_CPU = 500m\n'
+            "const APP_CPU = 500m\n"
             'service api { image: "nginx" resources { cpu: APP_CPU } }'
         )
         assert "500m" in content
 
     def test_const_in_memory(self):
         content = compile_k8s(
-            'const APP_MEM = 256Mi\n'
+            "const APP_MEM = 256Mi\n"
             'service api { image: "nginx" resources { memory: APP_MEM } }'
         )
         assert "256Mi" in content
@@ -48,9 +48,9 @@ class TestResourceExpressions:
 
     def test_resource_in_limits(self):
         content = compile_k8s(
-            'const LIMIT_CPU = 1000m\nconst LIMIT_MEM = 512Mi\n'
+            "const LIMIT_CPU = 1000m\nconst LIMIT_MEM = 512Mi\n"
             'service api { image: "nginx" '
-            'resources { limits { cpu: LIMIT_CPU, memory: LIMIT_MEM } } }'
+            "resources { limits { cpu: LIMIT_CPU, memory: LIMIT_MEM } } }"
         )
         assert "1000m" in content
         assert "512Mi" in content

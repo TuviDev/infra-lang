@@ -165,9 +165,7 @@ class TestComposeUp:
 
             # No service may be in a failed/restarting state after --wait.
             bad = {name: s for name, s in states.items() if s not in ("running",)}
-            assert not bad, (
-                f"{p.name}: non-running services after up --wait: {bad}"
-            )
+            assert not bad, f"{p.name}: non-running services after up --wait: {bad}"
 
             # Logs must not show a hard crash (case-insensitive).
             logs = _run(

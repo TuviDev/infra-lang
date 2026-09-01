@@ -220,9 +220,9 @@ class TestWorkloadSummary:
 
         prog = parse(
             'service a { image: "i:1" '
-            'resources { requests: {memory: 256Mi} } }\n'
+            "resources { requests: {memory: 256Mi} } }\n"
             'service b { image: "i:1" '
-            'resources { limits: {cpu: 500m} } }\n'
+            "resources { limits: {cpu: 500m} } }\n"
             'service c { image: "i:1" }\n'
         )
         summary = _workload_summary(prog)
@@ -239,9 +239,7 @@ class TestWorkloadSummary:
     def test_cache_and_queue_summaries(self):
         from infra.analyzer.ui_generator import _workload_summary
 
-        prog = parse(
-            "cache c { type: redis }\nqueue q { type: rabbitmq }\n"
-        )
+        prog = parse("cache c { type: redis }\nqueue q { type: rabbitmq }\n")
         summary = _workload_summary(prog)
         assert summary["c"]["kind"] == "cache"
         assert summary["c"]["image"].startswith("redis:")
@@ -256,9 +254,7 @@ class TestWorkloadSummary:
             "replicas": 1,
             "storage": "10Gi",
         }
-        assert _workload_line(meta) == (
-            "database · postgres:16 · replicas: 1 · 10Gi"
-        )
+        assert _workload_line(meta) == ("database · postgres:16 · replicas: 1 · 10Gi")
 
     def test_empty_panel_state(self):
         html = generate_compare_html(parse("# nothing declared\n"), "base", "base")
@@ -349,9 +345,7 @@ class TestCompareLiveServe:
         def _interrupt(self, poll_interval=0.5):
             raise KeyboardInterrupt
 
-        monkeypatch.setattr(
-            _DashboardHTTPServer, "serve_forever", _interrupt
-        )
+        monkeypatch.setattr(_DashboardHTTPServer, "serve_forever", _interrupt)
         f = _write(tmp_path)
         r = runner.invoke(
             app,
@@ -377,9 +371,7 @@ class TestCompareLiveServer:
         from infra.cli.serve_cmd import make_server, render_compare
 
         f = _write(tmp_path)
-        server = make_server(
-            f, 0, static_html=render_compare(f, "base", "prod")
-        )
+        server = make_server(f, 0, static_html=render_compare(f, "base", "prod"))
         try:
             assert server.server_port > 0
             body = server.RequestHandlerClass.render_fn()

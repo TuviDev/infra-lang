@@ -6,8 +6,6 @@ parse->fmt->parse, idempotency, empty blocks and golden output.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from infra import parse
@@ -29,7 +27,7 @@ class TestServiceFormatting:
         assert "build {" in out and "context: ." in out and "dockerfile: D" in out
 
     def test_port_host_target(self):
-        out = fmt("service api { image: \"x\" port 8080:80 }")
+        out = fmt('service api { image: "x" port 8080:80 }')
         assert "port 8080:80" in out
 
     def test_port_single(self):
@@ -53,7 +51,7 @@ class TestServiceFormatting:
     def test_resources(self):
         out = fmt(
             'service api { image: "x" resources { '
-            'requests { cpu: 100m, memory: 128Mi } limits { cpu: 1, memory: 512Mi } } }'
+            "requests { cpu: 100m, memory: 128Mi } limits { cpu: 1, memory: 512Mi } } }"
         )
         assert "requests: {cpu: 100m, memory: 128Mi}" in out
         assert "limits: {cpu: 1, memory: 512Mi}" in out
@@ -93,11 +91,20 @@ class TestDatabaseFormatting:
 
 class TestCacheQueueStorageNetwork:
     def test_cache(self):
-        out = fmt('cache c { type: redis version: "7" maxmemory: 128Mi policy: "x" persistence: true replicas: 2 }')
-        assert "maxmemory: 128Mi" in out and "persistence: true" in out and "replicas: 2" in out
+        out = fmt(
+            'cache c { type: redis version: "7" maxmemory: 128Mi policy: "x" '
+            'persistence: true replicas: 2 }'
+        )
+        assert (
+            "maxmemory: 128Mi" in out
+            and "persistence: true" in out
+            and "replicas: 2" in out
+        )
 
     def test_queue_topics(self):
-        out = fmt('queue q { type: kafka topics { t: { partitions: 3, replication: 2 } } }')
+        out = fmt(
+            "queue q { type: kafka topics { t: { partitions: 3, replication: 2 } } }"
+        )
         assert "topics {" in out and "partitions: 3" in out and "replication: 2" in out
 
     def test_storage(self):
@@ -105,13 +112,17 @@ class TestCacheQueueStorageNetwork:
         assert "bucket: b" in out and "region: r" in out
 
     def test_network(self):
-        out = fmt('network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "1.1.1.1" } } }')
+        out = fmt(
+            'network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "1.1.1.1" } } }'
+        )
         assert 'cidr: "10.0.0.0/16"' in out and "subnets {" in out
 
 
 class TestSecretConfig:
     def test_secret_sources(self):
-        out = fmt('secret s { a: from vault "v" b: from env "E" c: from file "f" d: "plain" }')
+        out = fmt(
+            'secret s { a: from vault "v" b: from env "E" c: from file "f" d: "plain" }'
+        )
         assert 'a: from vault "v"' in out
         assert 'b: from env "E"' in out
         assert 'c: from file "f"' in out
@@ -128,7 +139,10 @@ class TestEnvironmentCluster:
         assert "provider: aws" in out and "region: eu" in out and "namespace: ns" in out
 
     def test_cluster_nodes(self):
-        out = fmt('cluster c { provider: aws nodes { w: { machine type: "t3" min: 1 max: 5 } } }')
+        out = fmt(
+            'cluster c { provider: aws nodes { w: { machine type: "t3" min: 1 max: 5 } '
+            '} }'
+        )
         assert "nodes {" in out
         assert "machine type: t3" in out
 
@@ -189,19 +203,23 @@ class TestImportFormatting:
 
 
 class TestRoundTrip:
-    @pytest.mark.parametrize("src", [
-        'service api { image: "img:1" replicas: 3 port 8080 health http("/h") }',
-        'database db { type: postgres version: "15" backup { enabled: true } }',
-        'cache c { type: redis maxmemory: 128Mi }',
-        'queue q { type: kafka topics { t: { partitions: 3 } } }',
-        'storage s { type: s3 bucket: "b" }',
-        'network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "1.1.1.1" } } }',
-        'secret s { a: from vault "v" b: "plain" }',
-        'config c { a: 1 b: true }',
-        'environment dev { provider: aws namespace: "ns" }',
-        'cluster c { provider: aws nodes { w: { machine type: "t3" } } }',
-        'pipeline ci { trigger { branches: ["main"] } stages { t: { steps { s: { run: "x" } } } } }',
-    ])
+    @pytest.mark.parametrize(
+        "src",
+        [
+            'service api { image: "img:1" replicas: 3 port 8080 health http("/h") }',
+            'database db { type: postgres version: "15" backup { enabled: true } }',
+            "cache c { type: redis maxmemory: 128Mi }",
+            "queue q { type: kafka topics { t: { partitions: 3 } } }",
+            'storage s { type: s3 bucket: "b" }',
+            'network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "1.1.1.1" } } }',
+            'secret s { a: from vault "v" b: "plain" }',
+            "config c { a: 1 b: true }",
+            'environment dev { provider: aws namespace: "ns" }',
+            'cluster c { provider: aws nodes { w: { machine type: "t3" } } }',
+            'pipeline ci { trigger { branches: ["main"] } stages { t: { steps { s: { '
+            'run: "x" } } } } }',
+        ],
+    )
     def test_round_trip_parses(self, src):
         # format then re-parse must not raise
         formatted = fmt(src)
@@ -209,20 +227,23 @@ class TestRoundTrip:
 
 
 class TestIdempotency:
-    @pytest.mark.parametrize("src", [
-        'service api { image: "img:1" replicas: 3 }',
-        'database db { type: postgres }',
-        'cache c { type: redis }',
-        'queue q { type: rabbitmq }',
-        'storage s { type: s3 }',
-        'network n { cidr: "1.1.1.1" }',
-        'secret s { a: "b" }',
-        'config c { a: 1 }',
-        'environment dev { }',
-        'cluster c { }',
-        'pipeline p { stages { t: { steps { s: { run: "x" } } } } }',
-        'let x = [1, 2, 3, 4, 5, 6]',
-    ])
+    @pytest.mark.parametrize(
+        "src",
+        [
+            'service api { image: "img:1" replicas: 3 }',
+            "database db { type: postgres }",
+            "cache c { type: redis }",
+            "queue q { type: rabbitmq }",
+            "storage s { type: s3 }",
+            'network n { cidr: "1.1.1.1" }',
+            'secret s { a: "b" }',
+            "config c { a: 1 }",
+            "environment dev { }",
+            "cluster c { }",
+            'pipeline p { stages { t: { steps { s: { run: "x" } } } } }',
+            "let x = [1, 2, 3, 4, 5, 6]",
+        ],
+    )
     def test_format_twice_same(self, src):
         once = fmt(src)
         assert fmt(once) == once
@@ -230,7 +251,7 @@ class TestIdempotency:
 
 class TestEmptyBlocks:
     def test_empty_service(self):
-        out = fmt('service api { }')
+        out = fmt("service api { }")
         assert out == "service api {\n}\n"
 
     def test_empty_pipeline(self):
@@ -241,21 +262,11 @@ class TestEmptyBlocks:
 class TestGolden:
     def test_hello_world_golden(self):
         out = fmt('service hello { image: "nginx:1.25" port: 80 }')
-        assert out == (
-            "service hello {\n"
-            "    image: \"nginx:1.25\"\n"
-            "    port 80\n"
-            "}\n"
-        )
+        assert out == ('service hello {\n    image: "nginx:1.25"\n    port 80\n}\n')
 
     def test_database_golden(self):
         out = fmt('database db { type: postgres version: "15" }')
-        assert out == (
-            "database db {\n"
-            "    type: postgres\n"
-            "    version: 15\n"
-            "}\n"
-        )
+        assert out == ("database db {\n    type: postgres\n    version: 15\n}\n")
 
 
 class TestFormatFile:
@@ -278,7 +289,7 @@ class TestFormatFile:
 class TestPrinterInternals:
     def test_indent_custom(self):
         out = InfraPrinter(indent=2).print(parse('service api { image: "x" }'))
-        assert "  image: \"x\"" in out
+        assert '  image: "x"' in out
 
     def test_block_helper(self):
         pr = InfraPrinter()

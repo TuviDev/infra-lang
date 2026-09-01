@@ -141,9 +141,7 @@ class TestPublishSite:
         )
         assert summary["environment"] == "prod"
         base = publish_site(f, tmp_path / "base-site", None)
-        base_summary = json.loads(
-            base["summary"].read_text(encoding="utf-8")
-        )
+        base_summary = json.loads(base["summary"].read_text(encoding="utf-8"))
         assert summary["monthly_usd"] > base_summary["monthly_usd"]
 
     def test_live_drift_snapshot(self, tmp_path, monkeypatch):
@@ -206,9 +204,13 @@ class TestPublishCLI:
         result = runner.invoke(
             app,
             [
-                "ui", str(f),
-                "--publish", str(tmp_path / "s"),
-                "--compare", "base", "prod",
+                "ui",
+                str(f),
+                "--publish",
+                str(tmp_path / "s"),
+                "--compare",
+                "base",
+                "prod",
             ],
         )
         assert result.exit_code == 1
@@ -218,9 +220,12 @@ class TestPublishCLI:
         result = runner.invoke(
             app,
             [
-                "ui", str(f),
-                "--publish", str(tmp_path / "s"),
-                "-o", str(tmp_path / "x.html"),
+                "ui",
+                str(f),
+                "--publish",
+                str(tmp_path / "s"),
+                "-o",
+                str(tmp_path / "x.html"),
             ],
         )
         assert result.exit_code == 1
@@ -233,9 +238,7 @@ class TestPublishCLI:
 
     def test_publish_parse_error(self, tmp_path):
         f = _write(tmp_path, "broken.infra", "service {{\n")
-        result = runner.invoke(
-            app, ["ui", str(f), "--publish", str(tmp_path / "s")]
-        )
+        result = runner.invoke(app, ["ui", str(f), "--publish", str(tmp_path / "s")])
         assert result.exit_code == 1
 
     def test_publish_creates_nested_directory(self, tmp_path):

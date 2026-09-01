@@ -122,7 +122,7 @@ class TestRareStatements:
 
     def test_secret_sources(self) -> None:
         out = format_source(
-            'secret db-creds { '
+            "secret db-creds { "
             'A: from vault "path/to" B: from env "B_VAR" C: from file "f.txt" }'
         )
         assert 'A: from vault "path/to"' in out
@@ -152,13 +152,13 @@ class TestRareStatements:
 
     def test_pipeline_full(self) -> None:
         out = format_source(
-            'pipeline ci { '
+            "pipeline ci { "
             'trigger { branches: ["main"] schedule: "0 0 * * *" manual: true } '
             "stages { "
             'build: { runsOn: "ubuntu-latest" steps { '
             't: { run: "pytest" } l: { uses: "actions/lint@v1" } } } '
             "deploy: { "
-            'needs: [build] '
+            "needs: [build] "
             'steps { d: { run: "make deploy" } } } } }'
         )
         assert "pipeline ci {" in out
@@ -182,7 +182,7 @@ class TestRareStatements:
 
     def test_cluster_with_nodes(self) -> None:
         out = format_source(
-            'cluster main { provider: aws nodes { '
+            "cluster main { provider: aws nodes { "
             'w: { machine type: "t3.medium" min: 1 max: 5 } } }'
         )
         assert "cluster main {" in out
@@ -196,7 +196,7 @@ class TestRareStatements:
 
 class TestServiceEdgeBranches:
     def test_image_from_expression(self) -> None:
-        out = format_source('service api { image: 1 + 2 }')
+        out = format_source("service api { image: 1 + 2 }")
         assert "image: 1 + 2" in out
 
     def test_build_context_only(self) -> None:

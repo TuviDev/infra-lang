@@ -40,7 +40,7 @@ class TestGithubActionsOutput:
     def test_matrix_strategy_generated(self):
         source = (
             'pipeline ci { trigger { branches: ["main"] } '
-            "stages { test: { runsOn: \"ubuntu-latest\" "
+            'stages { test: { runsOn: "ubuntu-latest" '
             'matrix { python: ["3.10", "3.11", "3.12"] } '
             'steps { s: { run: "pytest" } } } } }'
         )
@@ -52,7 +52,8 @@ class TestGithubActionsOutput:
         source = (
             'pipeline ci { trigger { branches: ["main"] } stages { '
             'test: { runsOn: "ubuntu-latest" steps { s: { run: "pytest" } } } '
-            'build: { needs: [test] runsOn: "ubuntu-latest" steps { s: { run: "docker build ." } } } } }'
+            'build: { needs: [test] runsOn: "ubuntu-latest" steps { s: { run: "docker '
+            'build ." } } } } }'
         )
         jobs = compile_github(source)["jobs"]
         assert len(jobs) >= 2
@@ -70,7 +71,7 @@ class TestGithubActionsOutput:
     def test_uses_action_in_step(self):
         source = (
             'pipeline ci { trigger { branches: ["main"] } '
-            "stages { ci: { runsOn: \"ubuntu-latest\" steps { "
+            'stages { ci: { runsOn: "ubuntu-latest" steps { '
             'c: { uses: "actions/checkout@v4" } '
             't: { run: "pytest" } } } } }'
         )

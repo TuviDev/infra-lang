@@ -38,9 +38,7 @@ LARGE_SOURCE = "\n".join(
         )
         for i in range(20)
     ]
-) + "\n".join(
-    [f"database db{i} {{ type: postgres storage: 10Gi }}" for i in range(5)]
-)
+) + "\n".join([f"database db{i} {{ type: postgres storage: 10Gi }}" for i in range(5)])
 
 
 def _avg_ms(fn, n: int) -> float:

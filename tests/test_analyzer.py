@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from infra.analyzer.validator import SemanticValidator
 from infra.parser import Parser
 
@@ -21,13 +19,15 @@ def error_codes(src: str) -> list:
 
 class TestErrorDetection:
     def test_undefined_variable(self):
-        result = validate('service api { image: undefined_var }')
+        result = validate("service api { image: undefined_var }")
         assert not result.is_valid
         assert "E001" in [e.code for e in result.errors]
         assert any("undefined_var" in e.message for e in result.errors)
 
     def test_duplicate_global_name(self):
-        result = validate('service api { image: "nginx" }\nservice api { image: "redis" }')
+        result = validate(
+            'service api { image: "nginx" }\nservice api { image: "redis" }'
+        )
         assert not result.is_valid
         assert "E002" in [e.code for e in result.errors]
 
@@ -76,7 +76,8 @@ class TestErrorDetection:
 
     def test_pipeline_unknown_stage_dependency(self):
         result = validate(
-            'pipeline p { stages { build: { needs: ["nonexistent"] steps { s: { run: "x" } } } } }'
+            'pipeline p { stages { build: { needs: ["nonexistent"] steps { s: { run: '
+            '"x" } } } } }'
         )
         assert not result.is_valid
         assert "E030" in [e.code for e in result.errors]
@@ -152,7 +153,7 @@ class TestValidCode:
 
     def test_valid_pipeline_with_deps(self):
         result = validate(
-            'pipeline ci { stages { '
+            "pipeline ci { stages { "
             'test: { steps { s: { run: "1" } } } '
             'build: { needs: ["test"] steps { s: { run: "2" } } } '
             'deploy: { needs: ["build"] steps { s: { run: "3" } } } } }'
@@ -177,13 +178,13 @@ class TestValidCode:
             assert validate(f"storage s {{ type: {st} }}").is_valid
 
     def test_error_location_is_set(self):
-        result = validate('service api {\n  image: undefined_var\n}')
+        result = validate("service api {\n  image: undefined_var\n}")
         error = next(e for e in result.errors if e.code == "E001")
         assert error.location is not None
         assert error.location.line > 0
 
     def test_error_message_not_empty(self):
-        result = validate('service api { image: missing }')
+        result = validate("service api { image: missing }")
         for e in result.errors:
             assert e.message
 

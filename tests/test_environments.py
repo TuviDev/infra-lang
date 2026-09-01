@@ -28,7 +28,9 @@ service web {
 }
 """
 
-OVERLAY_SRC = BASE + """\
+OVERLAY_SRC = (
+    BASE
+    + """\
 environment "prod" {
   service web {
     replicas: 5
@@ -42,6 +44,7 @@ environment "staging" {
   }
 }
 """
+)
 
 
 def _write_infra(path: Path, content: str) -> Path:
@@ -150,8 +153,17 @@ class TestCliEnv:
         out = tmp_path / "out"
         result = runner.invoke(
             app,
-            ["compile", str(src), "--target", "kubernetes", "-e", "prod",
-             "--output", str(out), "--split"],
+            [
+                "compile",
+                str(src),
+                "--target",
+                "kubernetes",
+                "-e",
+                "prod",
+                "--output",
+                str(out),
+                "--split",
+            ],
         )
         assert result.exit_code == 0, result.output
         _deployment_replicas(out, expected=5)
@@ -161,8 +173,15 @@ class TestCliEnv:
         out = tmp_path / "out"
         result = runner.invoke(
             app,
-            ["compile", str(src), "--target", "kubernetes", "--output", str(out),
-             "--split"],
+            [
+                "compile",
+                str(src),
+                "--target",
+                "kubernetes",
+                "--output",
+                str(out),
+                "--split",
+            ],
         )
         assert result.exit_code == 0, result.output
         _deployment_replicas(out, expected=1)
@@ -181,8 +200,17 @@ class TestCliEnv:
             out = tmp_path / f"out-{flag.lstrip('-')}"
             result = runner.invoke(
                 app,
-                ["compile", str(src), "--target", "kubernetes", flag, "prod",
-                 "--output", str(out), "--split"],
+                [
+                    "compile",
+                    str(src),
+                    "--target",
+                    "kubernetes",
+                    flag,
+                    "prod",
+                    "--output",
+                    str(out),
+                    "--split",
+                ],
             )
             assert result.exit_code == 0, result.output
 

@@ -162,7 +162,7 @@ class TestLspHandlers:
         assert isinstance(result, list)
 
     def test_formatting_handler_formats(self):
-        ls = _fake_ls("service api{\nimage:\"x:1\"\n}\n")
+        ls = _fake_ls('service api{\nimage:"x:1"\n}\n')
         from lsprotocol.types import DocumentFormattingParams
 
         params = DocumentFormattingParams(

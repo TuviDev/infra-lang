@@ -14,11 +14,17 @@ def resolved(src: str):
 
 
 def env_named(program, name):
-    return next(e for e in program.statements if isinstance(e, EnvironmentDef) and e.name == name)
+    return next(
+        e
+        for e in program.statements
+        if isinstance(e, EnvironmentDef) and e.name == name
+    )
 
 
 def svc_named(program, name):
-    return next(s for s in program.statements if isinstance(s, ServiceDef) and s.name == name)
+    return next(
+        s for s in program.statements if isinstance(s, ServiceDef) and s.name == name
+    )
 
 
 class TestEnvironmentExtends:
@@ -28,9 +34,9 @@ class TestEnvironmentExtends:
             'environment prod extends base { namespace: "prod-ns" }'
         )
         prod = env_named(program, "prod")
-        assert prod.namespace == "prod-ns"          # child wins
-        assert prod.provider == "aws"                # inherited from parent
-        assert prod.extends is None                  # resolved away
+        assert prod.namespace == "prod-ns"  # child wins
+        assert prod.provider == "aws"  # inherited from parent
+        assert prod.extends is None  # resolved away
 
     def test_child_does_not_override(self):
         program = resolved(
@@ -48,13 +54,13 @@ class TestEnvironmentExtends:
         )
         child = env_named(program, "child")
         labels = dict(child.labels)
-        assert labels["tier"] == "app"    # inherited
-        assert labels["env"] == "prod"    # child overrides
-        assert labels["region"] == "eu"   # child adds
+        assert labels["tier"] == "app"  # inherited
+        assert labels["env"] == "prod"  # child overrides
+        assert labels["region"] == "eu"  # child adds
 
     def test_multilevel_inheritance(self):
         program = resolved(
-            'environment root { provider: aws }\n'
+            "environment root { provider: aws }\n"
             'environment mid extends root { region: "eu" }\n'
             'environment leaf extends mid { namespace: "leaf-ns" }'
         )
@@ -64,7 +70,10 @@ class TestEnvironmentExtends:
         assert leaf.namespace == "leaf-ns"
 
     def test_circular_extends_raises(self):
-        src = 'environment a extends b { namespace: "a" }\nenvironment b extends a { namespace: "b" }'
+        src = (
+            'environment a extends b { namespace: "a" }\nenvironment b extends a { '
+            'namespace: "b" }'
+        )
         with pytest.raises((ExtendsCycleError, Exception)):
             ExtendsResolver().resolve(parse(src))
 
@@ -84,17 +93,18 @@ class TestServiceExtends:
     def test_inherits_image_and_replicas(self):
         program = resolved(
             'service base { image: "img:1" replicas: 3 }\n'
-            'service api extends base { replicas: 5 }'
+            "service api extends base { replicas: 5 }"
         )
         api = svc_named(program, "api")
-        assert api.image == "img:1"       # inherited
-        assert api.replicas == 5          # child wins
+        assert api.image == "img:1"  # inherited
+        assert api.replicas == 5  # child wins
         assert api.extends is None
 
     def test_inherits_env_and_resources(self):
         program = resolved(
-            'service base { env { LOG: "info" } resources { requests { cpu: 100m } } }\n'
-            'service api extends base { replicas: 2 }'
+            'service base { env { LOG: "info" } resources { requests { cpu: 100m } } '
+            '}\n'
+            "service api extends base { replicas: 2 }"
         )
         api = svc_named(program, "api")
         assert any(e.name == "LOG" for e in api.env)

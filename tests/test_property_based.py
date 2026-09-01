@@ -24,7 +24,8 @@ REPLICAS = st.integers(min_value=1, max_value=50)
 class TestPropertyBased:
     @given(name=SAFE_NAME, image=SAFE_IMAGE, replicas=REPLICAS)
     @settings(
-        max_examples=30, deadline=5000,
+        max_examples=30,
+        deadline=5000,
         suppress_health_check=[HealthCheck.too_slow],
     )
     def test_valid_service_always_parses(self, name, image, replicas):
@@ -45,13 +46,15 @@ class TestPropertyBased:
         except (InfraParseError, InfraLexError):
             pass
 
-    @given(storage_val=st.integers(min_value=1, max_value=10000),
-           unit=st.sampled_from(["Mi", "Gi", "Ti"]))
+    @given(
+        storage_val=st.integers(min_value=1, max_value=10000),
+        unit=st.sampled_from(["Mi", "Gi", "Ti"]),
+    )
     @settings(max_examples=20, deadline=5000)
     def test_storage_values_dont_crash_compiler(self, storage_val, unit):
         from infra.backends.kubernetes import KubernetesBackend
 
-        source = f'database db {{ type: postgres storage: {storage_val}{unit} }}'
+        source = f"database db {{ type: postgres storage: {storage_val}{unit} }}"
         try:
             program = parse(source)
             KubernetesBackend().compile(program)

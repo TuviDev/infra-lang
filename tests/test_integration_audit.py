@@ -68,7 +68,9 @@ class TestWebAppWorkflow:
         docs = [
             d
             for d in yaml.safe_load_all(
-                "\n".join(KubernetesBackend().compile(parse(self.SOURCE)).files.values())
+                "\n".join(
+                    KubernetesBackend().compile(parse(self.SOURCE)).files.values()
+                )
             )
             if d
         ]

@@ -22,18 +22,14 @@ def write(path: Path, content: str = SRC) -> Path:
 class TestUpDryRun:
     def test_up_dry_run_kubernetes(self, tmp_path, monkeypatch):
         src = write(tmp_path / "app.infra")
-        result = runner.invoke(
-            app, ["up", str(src), "--dry-run", "-t", "kubernetes"]
-        )
+        result = runner.invoke(app, ["up", str(src), "--dry-run", "-t", "kubernetes"])
         assert result.exit_code == 0
         assert "kubectl apply" in result.stdout
         assert "Dry run" in result.stdout
 
     def test_up_dry_run_compose(self, tmp_path, monkeypatch):
         src = write(tmp_path / "app.infra")
-        result = runner.invoke(
-            app, ["up", str(src), "--dry-run", "-t", "compose"]
-        )
+        result = runner.invoke(app, ["up", str(src), "--dry-run", "-t", "compose"])
         assert result.exit_code == 0
         assert "docker compose" in result.stdout
         assert "up -d" in result.stdout
@@ -75,7 +71,7 @@ class TestUpErrors:
         assert "unsupported" in result.stdout.lower()
 
     def test_up_invalid_infra(self, tmp_path):
-        src = write(tmp_path / "bad.infra", 'service api { image: }')
+        src = write(tmp_path / "bad.infra", "service api { image: }")
         result = runner.invoke(app, ["up", str(src), "--dry-run"])
         assert result.exit_code == 1
 
@@ -85,9 +81,12 @@ class TestDown:
         src = write(tmp_path / "app.infra")
         # down executes; mock the tool to avoid a real docker invocation
         monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
-        monkeypatch.setattr("infra.cli.up_cmd._run", lambda cmd, cwd=None: type(
-            "R", (), {"returncode": 0, "stdout": "down", "stderr": ""}
-        )())
+        monkeypatch.setattr(
+            "infra.cli.up_cmd._run",
+            lambda cmd, cwd=None: type(
+                "R", (), {"returncode": 0, "stdout": "down", "stderr": ""}
+            )(),
+        )
         result = runner.invoke(app, ["down", str(src), "-t", "compose"])
         assert result.exit_code == 0
         # flexible: the printed command must contain the key tokens joined by
@@ -105,9 +104,12 @@ class TestDown:
     def test_down_helm(self, tmp_path, monkeypatch):
         src = write(tmp_path / "app.infra")
         monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
-        monkeypatch.setattr("infra.cli.up_cmd._run", lambda cmd, cwd=None: type(
-            "R", (), {"returncode": 0, "stdout": "uninstalled", "stderr": ""}
-        )())
+        monkeypatch.setattr(
+            "infra.cli.up_cmd._run",
+            lambda cmd, cwd=None: type(
+                "R", (), {"returncode": 0, "stdout": "uninstalled", "stderr": ""}
+            )(),
+        )
         result = runner.invoke(app, ["down", str(src), "-t", "helm"])
         assert result.exit_code == 0
         assert "helm uninstall" in result.stdout
@@ -121,6 +123,7 @@ class TestUpExecutionBranches:
 
         def fake_run(cmd, cwd=None):
             return type("R", (), {"returncode": 1, "stdout": "", "stderr": "boom"})()
+
         monkeypatch.setattr("infra.cli.up_cmd._run", fake_run)
         result = runner.invoke(app, ["up", str(src), "-t", "compose"])
         assert result.exit_code == 1
@@ -132,6 +135,7 @@ class TestUpExecutionBranches:
 
         def fake_run(cmd, cwd=None):
             return type("R", (), {"returncode": 0, "stdout": "created", "stderr": ""})()
+
         monkeypatch.setattr("infra.cli.up_cmd._run", fake_run)
         result = runner.invoke(app, ["up", str(src), "-t", "compose"])
         assert result.exit_code == 0
@@ -147,9 +151,11 @@ class TestUpExecutionBranches:
         src = write(tmp_path / "app.infra")
         monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
         captured = {}
+
         def fake_run(cmd, cwd=None):
             captured["cmd"] = cmd
             return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
         monkeypatch.setattr("infra.cli.up_cmd._run", fake_run)
         result = runner.invoke(app, ["up", str(src), "-t", "kubernetes", "-n", "prod"])
         assert result.exit_code == 0
@@ -160,9 +166,12 @@ class TestDownExecutionBranches:
     def test_down_kubernetes(self, tmp_path, monkeypatch):
         src = write(tmp_path / "app.infra")
         monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
-        monkeypatch.setattr("infra.cli.up_cmd._run", lambda cmd, cwd=None: type(
-            "R", (), {"returncode": 0, "stdout": "", "stderr": ""}
-        )())
+        monkeypatch.setattr(
+            "infra.cli.up_cmd._run",
+            lambda cmd, cwd=None: type(
+                "R", (), {"returncode": 0, "stdout": "", "stderr": ""}
+            )(),
+        )
         result = runner.invoke(app, ["down", str(src), "-t", "kubernetes"])
         assert result.exit_code == 0
         assert "kubectl delete" in result.stdout
@@ -170,9 +179,12 @@ class TestDownExecutionBranches:
     def test_down_command_fails(self, tmp_path, monkeypatch):
         src = write(tmp_path / "app.infra")
         monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
-        monkeypatch.setattr("infra.cli.up_cmd._run", lambda cmd, cwd=None: type(
-            "R", (), {"returncode": 2, "stdout": "", "stderr": "err"}
-        )())
+        monkeypatch.setattr(
+            "infra.cli.up_cmd._run",
+            lambda cmd, cwd=None: type(
+                "R", (), {"returncode": 2, "stdout": "", "stderr": "err"}
+            )(),
+        )
         result = runner.invoke(app, ["down", str(src), "-t", "compose"])
         assert result.exit_code == 2
         assert "Command failed" in result.stdout
@@ -195,11 +207,13 @@ class TestDownExecutionBranches:
 class TestUpDownTimeouts:
     def test_up_timeout_handled(self, tmp_path, monkeypatch):
         import subprocess
+
         src = write(tmp_path / "app.infra")
         monkeypatch.setattr("infra.cli.up_cmd._have_tool", lambda binary: True)
 
         def raiser(cmd, cwd=None):
             raise subprocess.TimeoutExpired(cmd, timeout=1)
+
         monkeypatch.setattr("infra.cli.up_cmd._run", raiser)
         result = runner.invoke(app, ["up", str(src), "-t", "compose"])
         assert result.exit_code == 1
@@ -211,6 +225,7 @@ class TestUpDownTimeouts:
 
         def raiser(cmd, cwd=None):
             raise OSError("boom")
+
         monkeypatch.setattr("infra.cli.up_cmd._run", raiser)
         result = runner.invoke(app, ["up", str(src), "-t", "compose"])
         assert result.exit_code == 1

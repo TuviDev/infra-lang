@@ -30,30 +30,43 @@ def _container(docs):
 
 
 class TestDeploymentOutput:
-    def test_apiVersion_is_apps_v1(self):
-        dep = get_kind(compile_docs('service api { image: "nginx:1.25" }'), "Deployment")
+    def test_api_version_is_apps_v1(self):
+        dep = get_kind(
+            compile_docs('service api { image: "nginx:1.25" }'), "Deployment"
+        )
         assert dep["apiVersion"] == "apps/v1"
 
     def test_metadata_name_matches_service_name(self):
-        dep = get_kind(compile_docs('service my-api { image: "nginx:1.25" }'), "Deployment")
+        dep = get_kind(
+            compile_docs('service my-api { image: "nginx:1.25" }'), "Deployment"
+        )
         assert dep["metadata"]["name"] == "my-api"
 
     def test_managed_by_label_correct_value(self):
-        dep = get_kind(compile_docs('service api { image: "nginx:1.25" }'), "Deployment")
+        dep = get_kind(
+            compile_docs('service api { image: "nginx:1.25" }'), "Deployment"
+        )
         assert dep["metadata"]["labels"]["app.kubernetes.io/managed-by"] == "infra-lang"
 
     def test_replicas_is_integer(self):
-        dep = get_kind(compile_docs('service api { image: "nginx:1.25" replicas: 3 }'), "Deployment")
+        dep = get_kind(
+            compile_docs('service api { image: "nginx:1.25" replicas: 3 }'),
+            "Deployment",
+        )
         assert isinstance(dep["spec"]["replicas"], int)
         assert dep["spec"]["replicas"] == 3
 
     def test_image_exact_match(self):
         image = "myregistry.io/myapp:v1.2.3-hotfix"
-        dep = get_kind(compile_docs(f'service api {{ image: "{image}" }}'), "Deployment")
+        dep = get_kind(
+            compile_docs(f'service api {{ image: "{image}" }}'), "Deployment"
+        )
         assert dep["spec"]["template"]["spec"]["containers"][0]["image"] == image
 
     def test_selector_matches_template_labels(self):
-        dep = get_kind(compile_docs('service api { image: "nginx:1.25" }'), "Deployment")
+        dep = get_kind(
+            compile_docs('service api { image: "nginx:1.25" }'), "Deployment"
+        )
         selector = dep["spec"]["selector"]["matchLabels"]
         template_labels = dep["spec"]["template"]["metadata"]["labels"]
         for k, v in selector.items():
@@ -88,7 +101,11 @@ class TestDeploymentOutput:
         assert log.get("value") == "debug"
 
     def test_env_var_from_secret(self):
-        source = 'service api { image: "nginx:1.25" env { DB_URL: from secret "db-creds".url } }'
+        source = (
+            'service api { image: "nginx:1.25" env { DB_URL: from secret '
+            '"db-creds".url '
+            '} }'
+        )
         env = _container(compile_docs(source)).get("env", [])
         db = next((e for e in env if e.get("name") == "DB_URL"), None)
         assert db is not None
@@ -100,17 +117,25 @@ class TestDeploymentOutput:
         assert ctx.get("runAsUser") == 1000
 
     def test_strategy_rolling_update(self):
-        dep = get_kind(compile_docs('service api { image: "nginx:1.25" strategy: rolling }'), "Deployment")
+        dep = get_kind(
+            compile_docs('service api { image: "nginx:1.25" strategy: rolling }'),
+            "Deployment",
+        )
         assert dep["spec"]["strategy"]["type"] == "RollingUpdate"
 
     def test_strategy_recreate(self):
-        dep = get_kind(compile_docs('service api { image: "nginx:1.25" strategy: recreate }'), "Deployment")
+        dep = get_kind(
+            compile_docs('service api { image: "nginx:1.25" strategy: recreate }'),
+            "Deployment",
+        )
         assert dep["spec"]["strategy"]["type"] == "Recreate"
 
 
 class TestServiceOutput:
-    def test_service_apiVersion_v1(self):
-        svc = get_kind(compile_docs('service api { image: "nginx:1.25" port: 80 }'), "Service")
+    def test_service_api_version_v1(self):
+        svc = get_kind(
+            compile_docs('service api { image: "nginx:1.25" port: 80 }'), "Service"
+        )
         assert svc["apiVersion"] == "v1"
 
     def test_service_selector_matches_deployment(self):
@@ -121,7 +146,9 @@ class TestServiceOutput:
             assert svc_selector.get(k) == v
 
     def test_port_number_in_service(self):
-        svc = get_kind(compile_docs('service api { image: "nginx:1.25" port: 8080 }'), "Service")
+        svc = get_kind(
+            compile_docs('service api { image: "nginx:1.25" port: 8080 }'), "Service"
+        )
         ports = svc["spec"]["ports"]
         assert any(p.get("port") == 8080 or p.get("targetPort") == 8080 for p in ports)
 
@@ -132,12 +159,16 @@ class TestServicePortNames:
     def test_single_port_needs_no_name(self):
         # A Service exposing a single port is valid without a name; it must not
         # crash and may leave the name absent.
-        svc = get_kind(compile_docs('service api { image: "nginx:1.25" port: 8080 }'), "Service")
+        svc = get_kind(
+            compile_docs('service api { image: "nginx:1.25" port: 8080 }'), "Service"
+        )
         ports = svc["spec"]["ports"]
         assert len(ports) == 1
 
     def test_multi_port_has_unique_names(self):
-        src = 'service events { image: "rabbitmq:3.12" port 5672:5672 port 15672:15672 }'
+        src = (
+            'service events { image: "rabbitmq:3.12" port 5672:5672 port 15672:15672 }'
+        )
         svc = get_kind(compile_docs(src), "Service")
         ports = svc["spec"]["ports"]
         assert len(ports) == 2
@@ -146,7 +177,9 @@ class TestServicePortNames:
         assert len(set(names)) == len(names), f"port names must be unique: {names}"
 
     def test_multi_port_names_reflect_protocol_and_port(self):
-        src = 'service events { image: "rabbitmq:3.12" port 5672:5672 port 15672:15672 }'
+        src = (
+            'service events { image: "rabbitmq:3.12" port 5672:5672 port 15672:15672 }'
+        )
         svc = get_kind(compile_docs(src), "Service")
         names = {p.get("name") for p in svc["spec"]["ports"]}
         assert "tcp-5672" in names
@@ -159,7 +192,9 @@ class TestServicePortNames:
         svc = get_kind(compile_docs(src), "Service")
         names = [p.get("name") for p in svc["spec"]["ports"]]
         assert all(names)
-        assert len(set(names)) == len(names), f"colliding ports need unique names: {names}"
+        assert len(set(names)) == len(names), (
+            f"colliding ports need unique names: {names}"
+        )
 
 
 class TestQueueServicePortNames:
@@ -176,7 +211,9 @@ class TestQueueServicePortNames:
         assert len(ports) == 2
         names = [p.get("name") for p in ports]
         assert all(names), f"queue Service ports need names: {ports}"
-        assert len(set(names)) == len(names), f"queue port names must be unique: {names}"
+        assert len(set(names)) == len(names), (
+            f"queue port names must be unique: {names}"
+        )
 
     def test_queue_port_names_reflect_rabbitmq_ports(self):
         svc = self._queue_service()
@@ -223,7 +260,9 @@ class TestStatefulSetOutput:
         assert sts["apiVersion"] == "apps/v1"
 
     def test_postgres_image_in_statefulset(self):
-        sts = get_kind(compile_docs('database db { type: postgres version: "15" }'), "StatefulSet")
+        sts = get_kind(
+            compile_docs('database db { type: postgres version: "15" }'), "StatefulSet"
+        )
         containers = sts["spec"]["template"]["spec"]["containers"]
         assert any("postgres" in c.get("image", "") for c in containers)
 
@@ -234,16 +273,20 @@ class TestStatefulSetOutput:
 
 
 class TestHPAOutput:
-    def test_hpa_apiVersion_autoscaling_v2(self):
+    def test_hpa_api_version_autoscaling_v2(self):
         hpa = get_kind(
-            compile_docs('service api { image: "nginx:1.25" autoscale { min: 2 max: 10 } }'),
+            compile_docs(
+                'service api { image: "nginx:1.25" autoscale { min: 2 max: 10 } }'
+            ),
             "HorizontalPodAutoscaler",
         )
         assert hpa["apiVersion"] == "autoscaling/v2"
 
     def test_hpa_scale_target_ref(self):
         hpa = get_kind(
-            compile_docs('service myapp { image: "nginx:1.25" autoscale { min: 2 max: 10 } }'),
+            compile_docs(
+                'service myapp { image: "nginx:1.25" autoscale { min: 2 max: 10 } }'
+            ),
             "HorizontalPodAutoscaler",
         )
         ref = hpa["spec"]["scaleTargetRef"]
@@ -253,7 +296,9 @@ class TestHPAOutput:
 
     def test_hpa_min_max_replicas(self):
         hpa = get_kind(
-            compile_docs('service api { image: "nginx:1.25" autoscale { min: 3 max: 15 } }'),
+            compile_docs(
+                'service api { image: "nginx:1.25" autoscale { min: 3 max: 15 } }'
+            ),
             "HorizontalPodAutoscaler",
         )
         assert hpa["spec"]["minReplicas"] == 3
@@ -261,31 +306,41 @@ class TestHPAOutput:
 
     def test_hpa_cpu_metric_present(self):
         hpa = get_kind(
-            compile_docs('service api { image: "nginx:1.25" autoscale { min: 2 max: 10 target_cpu: 75 } }'),
+            compile_docs(
+                'service api { image: "nginx:1.25" autoscale { min: 2 max: 10 '
+                'target_cpu: 75 } }'
+            ),
             "HorizontalPodAutoscaler",
         )
         metrics = hpa["spec"]["metrics"]
-        cpu = next((m for m in metrics if m.get("resource", {}).get("name") == "cpu"), None)
+        cpu = next(
+            (m for m in metrics if m.get("resource", {}).get("name") == "cpu"), None
+        )
         assert cpu is not None
         assert cpu["resource"]["target"]["averageUtilization"] == 75
 
 
 class TestNetworkPolicyOutput:
-    def test_netpol_apiVersion(self):
-        source = 'service api { image: "nginx:1.25" network_policy { allow_from: [frontend] deny_from: ["*"] } }'
+    def test_netpol_api_version(self):
+        source = (
+            'service api { image: "nginx:1.25" network_policy { allow_from: [frontend] '
+            'deny_from: ["*"] } }'
+        )
         np = get_kind(compile_docs(source), "NetworkPolicy")
         assert np is not None
         assert "networking.k8s.io" in np["apiVersion"]
 
     def test_wildcard_deny_produces_empty_ingress(self):
-        source = 'service api { image: "nginx:1.25" network_policy { deny_from: ["*"] } }'
+        source = (
+            'service api { image: "nginx:1.25" network_policy { deny_from: ["*"] } }'
+        )
         np = get_kind(compile_docs(source), "NetworkPolicy")
         ingress = np["spec"].get("ingress", [])
         assert ingress == [] or ingress is None
 
 
 class TestPDBOutput:
-    def test_pdb_apiVersion_policy_v1(self):
+    def test_pdb_api_version_policy_v1(self):
         source = 'service api { image: "nginx:1.25" disruption { min_available: 1 } }'
         pdb = get_kind(compile_docs(source), "PodDisruptionBudget")
         assert pdb["apiVersion"] == "policy/v1"
@@ -297,7 +352,7 @@ class TestPDBOutput:
 
 
 class TestSecretOutput:
-    def test_secret_apiVersion_v1(self):
+    def test_secret_api_version_v1(self):
         s = get_kind(compile_docs('secret db { key: from env "KEY" }'), "Secret")
         assert s["apiVersion"] == "v1"
 
@@ -317,7 +372,7 @@ class TestSecretOutput:
 
 
 class TestResourceQuotaOutput:
-    def test_quota_apiVersion_v1(self):
+    def test_quota_api_version_v1(self):
         source = """
         environment prod {
             namespace: "prod"
@@ -352,57 +407,85 @@ class TestProbesAndSecurity:
         assert c["livenessProbe"]["httpGet"]["path"] == "/live"
 
     def test_security_context_privileged_false_absent(self):
-        c = _container(compile_docs('service api { image: "x" security { user: 1000 } }'))
+        c = _container(
+            compile_docs('service api { image: "x" security { user: 1000 } }')
+        )
         # no privileged by default
         assert "privileged" not in str(c.get("securityContext") or {})
 
     def test_security_context_user_and_group(self):
-        c = _container(compile_docs('service api { image: "x" security { user: 1000, group: 2000 } }'))
+        c = _container(
+            compile_docs(
+                'service api { image: "x" security { user: 1000, group: 2000 } }'
+            )
+        )
         sc = c["securityContext"]
         assert sc["runAsUser"] == 1000
         assert sc["runAsGroup"] == 2000
 
     def test_volume_mount_in_container(self):
-        c = _container(compile_docs('service api { image: "x" volumes { data: { mountPath: "/var/data" } } }'))
+        c = _container(
+            compile_docs(
+                'service api { image: "x" volumes { data: { mountPath: "/var/data" } } '
+                '}'
+            )
+        )
         mounts = c.get("volumeMounts", [])
         assert any(m.get("mountPath") == "/var/data" for m in mounts)
 
 
 class TestResourcesAndIngress:
     def test_resources_limits_mapped(self):
-        c = _container(compile_docs(
-            'service api { image: "x" resources { '
-            'requests { cpu: 100m, memory: 128Mi } limits { cpu: 1000m, memory: 512Mi } } }'
-        ))
+        c = _container(
+            compile_docs(
+                'service api { image: "x" resources { '
+                "requests { cpu: 100m, memory: 128Mi } limits { cpu: 1000m, memory: "
+                "512Mi } } }"
+            )
+        )
         res = c["resources"]
         assert res["requests"]["cpu"] == "100m"
         assert res["limits"]["memory"] == "512Mi"
 
     def test_ingress_port_uses_service_port(self):
-        ing = get_kind(compile_docs(
-            'service api { image: "x" port 8080 ingress { host: "api.example.com" } }'
-        ), "Ingress")
-        backend = ing["spec"]["rules"][0]["http"]["paths"][0]["backend"]["service"]["port"]
+        ing = get_kind(
+            compile_docs(
+                'service api { image: "x" port 8080 ingress { host: "api.example.com" '
+                '} '
+                '}'
+            ),
+            "Ingress",
+        )
+        backend = ing["spec"]["rules"][0]["http"]["paths"][0]["backend"]["service"][
+            "port"
+        ]
         assert backend["number"] == 8080
 
     def test_ingress_tls_secret_name(self):
-        ing = get_kind(compile_docs(
-            'service api { image: "x" port 80 ingress { host: "h.com" tls: true } }'
-        ), "Ingress")
+        ing = get_kind(
+            compile_docs(
+                'service api { image: "x" port 80 ingress { host: "h.com" tls: true } }'
+            ),
+            "Ingress",
+        )
         assert ing["spec"]["tls"][0]["hosts"] == ["h.com"]
         assert "tls" in ing["spec"]["tls"][0]["secretName"]
 
     def test_annotations_propagated(self):
-        dep = get_kind(compile_docs(
-            'service api { image: "x" annotations: { team: "platform" } }'
-        ), "Deployment")
+        dep = get_kind(
+            compile_docs(
+                'service api { image: "x" annotations: { team: "platform" } }'
+            ),
+            "Deployment",
+        )
         ann = dep["metadata"].get("annotations") or {}
         assert ann.get("team") == "platform"
 
     def test_labels_propagated(self):
-        dep = get_kind(compile_docs(
-            'service api { image: "x" labels: { tier: "web" } }'
-        ), "Deployment")
+        dep = get_kind(
+            compile_docs('service api { image: "x" labels: { tier: "web" } }'),
+            "Deployment",
+        )
         assert dep["metadata"]["labels"]["tier"] == "web"
 
     def test_container_has_command(self):
@@ -412,17 +495,25 @@ class TestResourcesAndIngress:
 
 class TestAutoscaleAndDisruption:
     def test_hpa_memory_metric(self):
-        hpa = get_kind(compile_docs(
-            'service api { image: "x" resources { limits { memory: 512Mi } } '
-            'autoscale { min: 2, max: 5, target_memory: 70 } }'
-        ), "HorizontalPodAutoscaler")
+        hpa = get_kind(
+            compile_docs(
+                'service api { image: "x" resources { limits { memory: 512Mi } } '
+                "autoscale { min: 2, max: 5, target_memory: 70 } }"
+            ),
+            "HorizontalPodAutoscaler",
+        )
         metrics = hpa["spec"]["metrics"]
         assert any(m.get("type") == "Resource" for m in metrics)
 
     def test_disruption_max_unavailable(self):
-        pdb = get_kind(compile_docs(
-            'service api { image: "x" replicas: 3 disruption { max_unavailable: 1 } }'
-        ), "PodDisruptionBudget")
+        pdb = get_kind(
+            compile_docs(
+                'service api { image: "x" replicas: 3 disruption { max_unavailable: 1 '
+                '} '
+                '}'
+            ),
+            "PodDisruptionBudget",
+        )
         assert pdb["spec"]["maxUnavailable"] == 1
 
 
@@ -471,7 +562,7 @@ class TestMultiPortAndSecrets:
 
     def test_empty_secret_data_not_crash(self):
         # a secret with entries emits base64 data; empty is tolerated
-        docs = compile_docs("secret s { }\nservice api { image: \"nginx:1.25\" }")
+        docs = compile_docs('secret s { }\nservice api { image: "nginx:1.25" }')
         assert docs  # no crash
 
     def test_secret_data_base64(self):
@@ -510,22 +601,22 @@ class TestStorageContracts:
         assert sec["stringData"]["region"] == "eu-west-1"
 
     def test_s3_bucket_defaults_to_name(self):
-        docs = compile_docs('storage s { type: s3 }')
+        docs = compile_docs("storage s { type: s3 }")
         sec = get_kind(docs, "Secret")
         assert sec["stringData"]["bucket"] == "s"
 
     def test_pvc_storage_with_size(self):
-        docs = compile_docs('storage s { type: gcs size: 50Gi }')
+        docs = compile_docs("storage s { type: gcs size: 50Gi }")
         pvc = get_kind(docs, "PersistentVolumeClaim")
         assert pvc["spec"]["resources"]["requests"]["storage"] == "50Gi"
 
     def test_pvc_default_size(self):
-        docs = compile_docs('storage s { type: gcs }')
+        docs = compile_docs("storage s { type: gcs }")
         pvc = get_kind(docs, "PersistentVolumeClaim")
         assert pvc["spec"]["resources"]["requests"]["storage"] == "10Gi"
 
     def test_pvc_access_mode(self):
-        docs = compile_docs('storage s { type: gcs accessMode: ReadWriteMany }')
+        docs = compile_docs("storage s { type: gcs accessMode: ReadWriteMany }")
         pvc = get_kind(docs, "PersistentVolumeClaim")
         assert pvc["spec"]["accessModes"] == ["ReadWriteMany"]
 
@@ -543,7 +634,7 @@ class TestNetworkPolicyContracts:
 
     def test_network_policy_empty_policy(self):
         # empty policy: _clean_none drops the empty spec, NP still emitted
-        docs = compile_docs('network n { policy { } }')
+        docs = compile_docs("network n { policy { } }")
         np = get_kind(docs, "NetworkPolicy")
         assert np is not None
         assert np["metadata"]["name"] == "n"
@@ -573,15 +664,15 @@ class TestSingleResourceCompile:
 
 class TestImageAndEnvResolution:
     def test_identifier_image_resolved(self):
-        docs = compile_docs(
-            'const APP_IMG = "nginx:1"\nservice api { image: APP_IMG }'
-        )
+        docs = compile_docs('const APP_IMG = "nginx:1"\nservice api { image: APP_IMG }')
         c = _container(docs)
         assert c["image"] == "nginx:1"
 
     def test_env_from_config(self):
         docs = compile_docs(
-            'config c { A: "1" }\nservice api { image: "x" env { X: from config "c".A } }'
+            'config c { A: "1" }\nservice api { image: "x" env { X: from config "c".A '
+            '} '
+            '}'
         )
         c = _container(docs)
         assert c["env"][0]["valueFrom"]["configMapKeyRef"] == {
@@ -639,9 +730,7 @@ class TestLifecycleHooks:
 
 class TestBuildAndArgs:
     def test_build_service_image_and_args(self):
-        docs = compile_docs(
-            'service api { build { context: "." } args: ["--x"] }'
-        )
+        docs = compile_docs('service api { build { context: "." } args: ["--x"] }')
         c = _container(docs)
         assert c["image"] == "built-from-dockerfile"
         assert c["args"] == ["--x"]
@@ -655,9 +744,9 @@ class TestBuildAndArgs:
 
 class TestK8sErrorPaths:
     def test_service_no_image_no_build_raises(self):
-        from infra.parser import ast_nodes as n
         from infra.backends.kubernetes import KubernetesBackend
         from infra.errors.exceptions import InfraCompileError
+        from infra.parser import ast_nodes as n
 
         svc = n.ServiceDef(name="x")
         try:

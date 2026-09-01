@@ -124,8 +124,7 @@ class TestOutputHtml:
 
     def test_missing_file_exits_1(self, tmp_path):
         result = runner.invoke(
-            app, ["serve", str(tmp_path / "nope.infra"),
-                  "-o", str(tmp_path / "x.html")]
+            app, ["serve", str(tmp_path / "nope.infra"), "-o", str(tmp_path / "x.html")]
         )
         assert result.exit_code == 1
         assert "Source file not found" in result.output
@@ -133,16 +132,21 @@ class TestOutputHtml:
     def test_broken_file_exits_1_without_serving(self, tmp_path):
         bad = tmp_path / "bad.infra"
         bad.write_text(BROKEN, encoding="utf-8")
-        result = runner.invoke(
-            app, ["serve", str(bad), "-o", str(tmp_path / "x.html")]
-        )
+        result = runner.invoke(app, ["serve", str(bad), "-o", str(tmp_path / "x.html")])
         assert result.exit_code == 1
         assert not (tmp_path / "x.html").exists()
 
     def test_unknown_environment_exits_1(self, infra_file, tmp_path):
         result = runner.invoke(
-            app, ["serve", str(infra_file), "-e", "no-such-env",
-                  "-o", str(tmp_path / "x.html")]
+            app,
+            [
+                "serve",
+                str(infra_file),
+                "-e",
+                "no-such-env",
+                "-o",
+                str(tmp_path / "x.html"),
+            ],
         )
         assert result.exit_code == 1
 
@@ -186,9 +190,7 @@ class TestLiveServer:
         assert "<!DOCTYPE html>" in body
 
     def test_unknown_path_returns_404(self, live_server):
-        status, _c, _b = _get(
-            f"http://127.0.0.1:{live_server.server_port}/favicon.ico"
-        )
+        status, _c, _b = _get(f"http://127.0.0.1:{live_server.server_port}/favicon.ico")
         assert status == 404
 
     def test_content_regenerated_after_file_change(self, live_server, infra_file):
@@ -235,9 +237,7 @@ class TestServeFlow:
             # Windows-only: SO_REUSEADDR on both sockets would let the server
             # *hijack* the busy port (bind succeeds, no EADDRINUSE) and the
             # CLI would spin in serve_forever instead of exiting 1.
-            blocker.setsockopt(
-                socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1
-            )
+            blocker.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
         else:
             blocker.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         blocker.bind(("127.0.0.1", 0))
@@ -246,8 +246,7 @@ class TestServeFlow:
         try:
             result = runner.invoke(
                 app,
-                ["serve", str(infra_file), "--port", str(busy_port),
-                 "--no-browser"],
+                ["serve", str(infra_file), "--port", str(busy_port), "--no-browser"],
             )
         finally:
             blocker.close()
@@ -257,9 +256,7 @@ class TestServeFlow:
     def test_broken_file_before_bind_exits_1(self, tmp_path):
         bad = tmp_path / "bad.infra"
         bad.write_text(BROKEN, encoding="utf-8")
-        result = runner.invoke(
-            app, ["serve", str(bad), "--port", "0", "--no-browser"]
-        )
+        result = runner.invoke(app, ["serve", str(bad), "--port", "0", "--no-browser"])
         assert result.exit_code == 1
 
     def test_ctrl_c_stops_server_cleanly(self, infra_file, monkeypatch):
@@ -270,9 +267,7 @@ class TestServeFlow:
         monkeypatch.setattr(
             "infra.cli.serve_cmd.webbrowser.open", _remember_open(opened)
         )
-        result = runner.invoke(
-            app, ["serve", str(infra_file), "--port", "0"]
-        )
+        result = runner.invoke(app, ["serve", str(infra_file), "--port", "0"])
         assert result.exit_code == 0, result.output
         assert "[OK] Dashboard ready: http://localhost:" in result.output
         assert "[OK] Server stopped." in result.output
@@ -301,9 +296,7 @@ class TestServeFlow:
             _DashboardHTTPServer, "serve_forever", _interrupting_serve_forever
         )
         monkeypatch.setattr("infra.cli.serve_cmd.webbrowser.open", broken_open)
-        result = runner.invoke(
-            app, ["serve", str(infra_file), "--port", "0"]
-        )
+        result = runner.invoke(app, ["serve", str(infra_file), "--port", "0"])
         assert result.exit_code == 0
         assert "[SKIP] Could not open a browser automatically." in result.output
 
@@ -406,9 +399,7 @@ class TestLiveDriftRender:
         def _boom(program, target, namespace):
             raise RuntimeError("kaboom")
 
-        monkeypatch.setattr(
-            "infra.analyzer.drift.detect_live_drift_program", _boom
-        )
+        monkeypatch.setattr("infra.analyzer.drift.detect_live_drift_program", _boom)
         html = render_dashboard(infra_file, None, live_drift=True)
         assert 'data-state="error"' in html
         assert "drift probe failed: kaboom" in html
@@ -433,9 +424,7 @@ class TestLiveDriftRender:
             seen["namespace"] = namespace
             return _fake_clean_report(program, target, namespace)
 
-        monkeypatch.setattr(
-            "infra.analyzer.drift.detect_live_drift_program", _spy
-        )
+        monkeypatch.setattr("infra.analyzer.drift.detect_live_drift_program", _spy)
         render_dashboard(
             infra_file, None, live_drift=True, target="compose", namespace="ns-a"
         )

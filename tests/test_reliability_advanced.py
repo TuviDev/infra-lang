@@ -16,7 +16,9 @@ def codes(source):
 
 class TestREL012AutoscaleWithReplicas:
     def test_triggers(self):
-        assert "REL012" in codes('service api { image: "x" autoscale { min: 2, max: 10 } replicas: 3 }')
+        assert "REL012" in codes(
+            'service api { image: "x" autoscale { min: 2, max: 10 } replicas: 3 }'
+        )
 
     def test_no_trigger_without_replicas(self):
         assert "REL012" not in codes('service api { image: "x" autoscale { min: 2 } }')
@@ -87,9 +89,11 @@ class TestREL014KafkaSingleReplica:
 
 class TestRulesAreWarnings:
     def test_all_warnings_do_not_invalidate(self):
-        src = ('service api { image: "x" autoscale { min: 2 } replicas: 3 }\n'
-               "database db { type: postgres }\n"
-               "queue q { type: kafka }")
+        src = (
+            'service api { image: "x" autoscale { min: 2 } replicas: 3 }\n'
+            "database db { type: postgres }\n"
+            "queue q { type: kafka }"
+        )
         r = v(src)
         assert r.is_valid
         for code in ["REL012", "REL013", "REL014"]:
@@ -101,12 +105,15 @@ class TestReliabilityEdgeCases:
 
     def _codes(self, source):
         from infra import parse, validate
+
         result = validate(parse(source))
         return [w.code for w in result.warnings]
 
     def test_rel001_no_trigger_with_startup_probe(self):
-        src = ('service api { image: "x" replicas: 8 '
-               'probes { startup { http: "/ready" } } }')
+        src = (
+            'service api { image: "x" replicas: 8 '
+            'probes { startup { http: "/ready" } } }'
+        )
         assert "REL001" not in self._codes(src)
 
     def test_rel001_no_trigger_few_replicas(self):
@@ -126,18 +133,24 @@ class TestReliabilityEdgeCases:
         assert "REL002" in self._codes(src)
 
     def test_rel003_no_trigger_with_memory_limit(self):
-        src = ('service api { image: "x" replicas: 5 resources { '
-               'limits { memory: 512Mi } } }')
+        src = (
+            'service api { image: "x" replicas: 5 resources { '
+            "limits { memory: 512Mi } } }"
+        )
         assert "REL003" not in self._codes(src)
 
     def test_rel003_triggers_no_memory_limit(self):
-        src = ('service api { image: "x" replicas: 5 resources { '
-               'requests { cpu: 100m } } }')
+        src = (
+            'service api { image: "x" replicas: 5 resources { '
+            "requests { cpu: 100m } } }"
+        )
         assert "REL003" in self._codes(src)
 
     def test_rel011_no_trigger_autoscale_with_limits(self):
-        src = ('service api { image: "x" autoscale { min: 2, max: 5 } '
-               'resources { limits { memory: 512Mi } } }')
+        src = (
+            'service api { image: "x" autoscale { min: 2, max: 5 } '
+            "resources { limits { memory: 512Mi } } }"
+        )
         assert "REL011" not in self._codes(src)
 
     def test_rel011_triggers_autoscale_without_limits(self):
@@ -164,6 +177,7 @@ class TestReliabilityEdgeCases:
 class TestReliabilityMoreEdge:
     def _codes(self, source):
         from infra import parse, validate
+
         result = validate(parse(source))
         return [w.code for w in result.warnings]
 
@@ -192,8 +206,10 @@ class TestReliabilityMoreEdge:
         assert "REL009" not in self._codes(src)
 
     def test_rel011_no_trigger_with_cpu_limit(self):
-        src = ('service api { image: "x" autoscale { min: 2, max: 5 } '
-               'resources { limits { cpu: 500m } } }')
+        src = (
+            'service api { image: "x" autoscale { min: 2, max: 5 } '
+            "resources { limits { cpu: 500m } } }"
+        )
         assert "REL011" not in self._codes(src)
 
     def test_rel014_triggers_kafka_single_replica(self):

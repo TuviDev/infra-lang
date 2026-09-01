@@ -32,9 +32,19 @@ class TestWatchFlag:
         f = write(tmp_path, 'service api { image: "nginx:1.25" }')
         out = tmp_path / "out"
         proc = subprocess.Popen(
-            [sys.executable, "-m", "infra", "compile", str(f), "--watch",
-             "--output", str(out)],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            [
+                sys.executable,
+                "-m",
+                "infra",
+                "compile",
+                str(f),
+                "--watch",
+                "--output",
+                str(out),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
         time.sleep(5)
         proc.terminate()
@@ -64,9 +74,19 @@ class TestWatchFlag:
         f = write(tmp_path, 'service api { image: "nginx:1.0" }')
         out = tmp_path / "out"
         proc = subprocess.Popen(
-            [sys.executable, "-m", "infra", "compile", str(f), "--watch",
-             "--output", str(out)],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            [
+                sys.executable,
+                "-m",
+                "infra",
+                "compile",
+                str(f),
+                "--watch",
+                "--output",
+                str(out),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
 
         def wait_for(marker: str, timeout: float = 12.0) -> bool:
@@ -104,9 +124,19 @@ class TestWatchFlag:
         f = write(tmp_path, 'service api { image: "nginx:1.25" }')
         out = tmp_path / "out"
         proc = subprocess.Popen(
-            [sys.executable, "-m", "infra", "compile", str(f), "--watch",
-             "--output", str(out)],
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            [
+                sys.executable,
+                "-m",
+                "infra",
+                "compile",
+                str(f),
+                "--watch",
+                "--output",
+                str(out),
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
         )
         time.sleep(3)
         f.write_text('service api { image: "nginx" replicas: 0 }')

@@ -7,7 +7,6 @@ with ``helm template`` when the binary is available.
 
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -51,7 +50,7 @@ def _yaml(content: str):
 
 
 SERVICE_SRC = 'service api { image: "nginx:1.25" port 8080 replicas: 2 }'
-DB_SRC = "database db { type: postgres version: \"15\" storage: 20Gi }"
+DB_SRC = 'database db { type: postgres version: "15" storage: 20Gi }'
 
 
 # --------------------------------------------------------------------------- #
@@ -61,16 +60,16 @@ DB_SRC = "database db { type: postgres version: \"15\" storage: 20Gi }"
 
 class TestChartStructure:
     def test_chart_yaml_exists(self):
-        files = _chart_files("service api { image: \"x\" }")
+        files = _chart_files('service api { image: "x" }')
         assert "Chart.yaml" in files
 
     def test_chart_yaml_required_fields(self):
-        files = _chart_files("service api { image: \"x\" }")
+        files = _chart_files('service api { image: "x" }')
         data = yaml.safe_load(files["Chart.yaml"])
         assert data["apiVersion"] == "v2"
         assert data["name"]
         assert data["type"] == "application"
-        assert data["version"] == "0.5.6"
+        assert data["version"] == "0.7.1"
         assert "appVersion" in data
 
     def test_values_yaml_is_valid_yaml(self):
@@ -94,13 +93,15 @@ class TestChartStructure:
         assert "templates/service.yaml" in files
 
     def test_chart_name_from_service(self):
-        files = _files("service myapp-api { image: \"x\" }")
+        files = _files('service myapp-api { image: "x" }')
         assert any(p.startswith("myapp-api/") for p in files)
 
     def test_no_empty_template_files(self):
         # a service-only chart must not contain statefulset/secret/configmap
         files = _chart_files(SERVICE_SRC)
-        assert "templates/statefulset.yaml" not in files or not files.get("templates/statefulset.yaml")
+        assert "templates/statefulset.yaml" not in files or not files.get(
+            "templates/statefulset.yaml"
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -125,7 +126,9 @@ class TestValuesYaml:
         assert db["storage"] == "20Gi"
 
     def test_secret_values_placeholder(self):
-        vals = _yaml(_chart_files('secret creds { password: from env "P" }')["values.yaml"])
+        vals = _yaml(
+            _chart_files('secret creds { password: from env "P" }')["values.yaml"]
+        )
         sec = vals["secret"]["creds"]["values"]
         assert sec["password"] == ""
 
@@ -134,23 +137,29 @@ class TestValuesYaml:
         assert vals["configmap"]["app"]["data"]["LOG_LEVEL"] == "info"
 
     def test_cache_values_deployment(self):
-        vals = _yaml(_chart_files('cache c { type: redis }')["values.yaml"])
+        vals = _yaml(_chart_files("cache c { type: redis }")["values.yaml"])
         c = vals["service"]["c"]
         assert c["kind"] == "deployment"
         assert c["image"]["repository"] == "redis"
 
     def test_queue_values_statefulset(self):
-        vals = _yaml(_chart_files('queue q { type: rabbitmq }')["values.yaml"])
+        vals = _yaml(_chart_files("queue q { type: rabbitmq }")["values.yaml"])
         assert vals["service"]["q"]["kind"] == "statefulset"
         assert vals["service"]["q"]["port"] == 5672
 
     def test_port_from_target_only(self):
         # `port 8080` (no host) must still yield a numeric port
-        vals = _yaml(_chart_files('service api { image: "x" port 8080 }')["values.yaml"])
+        vals = _yaml(
+            _chart_files('service api { image: "x" port 8080 }')["values.yaml"]
+        )
         assert vals["service"]["api"]["port"] == 8080
 
     def test_resources_in_values(self):
-        src = 'service api { image: "x" resources { requests { cpu: 100m, memory: 128Mi } } }'
+        src = (
+            'service api { image: "x" resources { requests { cpu: 100m, memory: 128Mi '
+            '} '
+            '} }'
+        )
         vals = _yaml(_chart_files(src)["values.yaml"])
         res = vals["service"]["api"]["resources"]["requests"]
         assert res["cpu"] == "100m"
@@ -190,12 +199,16 @@ class TestTemplates:
         assert "$wk.storage" in tpl
 
     def test_secret_template_base64(self):
-        tpl = _chart_files('secret creds { password: from env "P" }')["templates/secret.yaml"]
+        tpl = _chart_files('secret creds { password: from env "P" }')[
+            "templates/secret.yaml"
+        ]
         assert "kind: Secret" in tpl
         assert "b64enc" in tpl  # base64 encoding
 
     def test_configmap_template(self):
-        tpl = _chart_files('config app { LOG_LEVEL: "info" }')["templates/configmap.yaml"]
+        tpl = _chart_files('config app { LOG_LEVEL: "info" }')[
+            "templates/configmap.yaml"
+        ]
         assert "kind: ConfigMap" in tpl
 
     def test_multi_port_service_template(self):
@@ -226,17 +239,18 @@ class TestEdgeCases:
         assert not any("templates/deployment" in f for f in files)
 
     def test_services_only(self):
-        files = _chart_files("service a { image: \"x\" }\nservice b { image: \"y\" }")
+        files = _chart_files('service a { image: "x" }\nservice b { image: "y" }')
         assert any("deployment" in f for f in files)
 
     def test_databases_only(self):
-        files = _chart_files("database a { type: postgres }\ndatabase b { type: mysql }")
+        files = _chart_files(
+            "database a { type: postgres }\ndatabase b { type: mysql }"
+        )
         assert any("statefulset" in f for f in files)
 
     def test_multi_service_with_dependencies(self):
         src = (
-            "database db { type: postgres }\n"
-            'service api { image: "x" depends: [db] }\n'
+            'database db { type: postgres }\nservice api { image: "x" depends: [db] }\n'
         )
         files = _chart_files(src)
         assert any("statefulset" in f for f in files)
@@ -285,7 +299,9 @@ class TestHelmBinaryIntegration:
         from infra.backends import get_backend
 
         prog = parse(
-            (Path(__file__).resolve().parents[1] / "examples" / "02_web_app.infra").read_text(encoding="utf-8"),
+            (
+                Path(__file__).resolve().parents[1] / "examples" / "02_web_app.infra"
+            ).read_text(encoding="utf-8"),
             filename="02.infra",
         )
         res = get_backend("helm").compile(prog)
@@ -300,7 +316,9 @@ class TestHelmBinaryIntegration:
 
     def _helm(self, *args, cwd=None):
         helm = shutil.which("helm") or "/tmp/linux-amd64/helm"
-        return subprocess.run([helm, *args], capture_output=True, text=True, timeout=120, cwd=cwd)
+        return subprocess.run(
+            [helm, *args], capture_output=True, text=True, timeout=120, cwd=cwd
+        )
 
     def test_helm_lint_strict(self, chart_dir):
         r = self._helm("lint", "--strict", str(chart_dir))
@@ -315,7 +333,9 @@ class TestHelmBinaryIntegration:
 
 class TestMoreValuesEdge:
     def test_image_split_with_registry(self):
-        vals = _yaml(_chart_files('service api { image: "gcr.io/my/repo:v2" }')["values.yaml"])
+        vals = _yaml(
+            _chart_files('service api { image: "gcr.io/my/repo:v2" }')["values.yaml"]
+        )
         img = vals["service"]["api"]["image"]
         assert img["repository"] == "gcr.io/my/repo"
         assert img["tag"] == "v2"
@@ -325,7 +345,7 @@ class TestMoreValuesEdge:
         assert vals["service"]["api"]["image"]["tag"] == "latest"
 
     def test_chart_name_slugified(self):
-        files = _files("service My_App { image: \"x\" }")
+        files = _files('service My_App { image: "x" }')
         assert any(p.startswith("my-app/") for p in files)
 
     def test_database_default_engine(self):
@@ -360,7 +380,14 @@ class TestMoreStructure:
         assert "app" in tpl  # chart name appears in define
 
     def test_all_workload_files_count(self):
-        src = DB_SRC + '\nservice api { image: "x" }\ncache c { type: redis }\nqueue q { type: rabbitmq }\n'
+        src = (
+            DB_SRC
+            + (
+                '\nservice api { image: "x" }\ncache c { type: redis }\nqueue q { '
+                'type: '
+                'rabbitmq }\n'
+            )
+        )
         files = _chart_files(src)
         assert "templates/deployment.yaml" in files
         assert "templates/statefulset.yaml" in files
@@ -369,11 +396,15 @@ class TestMoreStructure:
 
 class TestHelmValueDefaults:
     def test_database_storage_explicit(self):
-        vals = _yaml(_chart_files("database db { type: postgres storage: 50Gi }")["values.yaml"])
+        vals = _yaml(
+            _chart_files("database db { type: postgres storage: 50Gi }")["values.yaml"]
+        )
         assert vals["service"]["db"]["storage"] == "50Gi"
 
     def test_database_storage_size_fallback(self):
-        vals = _yaml(_chart_files("database db { type: postgres size: 25Gi }")["values.yaml"])
+        vals = _yaml(
+            _chart_files("database db { type: postgres size: 25Gi }")["values.yaml"]
+        )
         assert vals["service"]["db"]["storage"] == "25Gi"
 
     def test_database_storage_default(self):
@@ -381,7 +412,9 @@ class TestHelmValueDefaults:
         assert vals["service"]["db"]["storage"] == "10Gi"
 
     def test_split_image_registry_no_tag_defaults_latest(self):
-        vals = _yaml(_chart_files('service api { image: "gcr.io/my/repo" }')["values.yaml"])
+        vals = _yaml(
+            _chart_files('service api { image: "gcr.io/my/repo" }')["values.yaml"]
+        )
         img = vals["service"]["api"]["image"]
         assert img["repository"] == "gcr.io/my/repo"
         assert img["tag"] == "latest"
@@ -402,7 +435,9 @@ class TestHelmValueDefaults:
 
 class TestHelmServiceValues:
     def test_build_only_service_image(self):
-        vals = _yaml(_chart_files('service api { build { context: "." } }')["values.yaml"])
+        vals = _yaml(
+            _chart_files('service api { build { context: "." } }')["values.yaml"]
+        )
         img = vals["service"]["api"]["image"]
         assert img["repository"] == "built-from-dockerfile"
         assert img["tag"] == "latest"
@@ -437,7 +472,9 @@ class TestValuesSchema:
 
         content = _chart_files(SERVICE_SRC)["values.schema.json"]
         data = json.loads(content)
-        image = data["properties"]["service"]["additionalProperties"]["properties"]["image"]
+        image = data["properties"]["service"]["additionalProperties"]["properties"][
+            "image"
+        ]
         assert "oneOf" in image
 
     def test_schema_lists_workload_kinds(self):
@@ -445,7 +482,9 @@ class TestValuesSchema:
 
         content = _chart_files(SERVICE_SRC)["values.schema.json"]
         data = json.loads(content)
-        kinds = data["properties"]["service"]["additionalProperties"]["properties"]["kind"]
+        kinds = data["properties"]["service"]["additionalProperties"]["properties"][
+            "kind"
+        ]
         assert kinds["enum"] == ["deployment", "statefulset"]
 
     def test_schema_no_header_comment(self):
@@ -467,12 +506,22 @@ class TestHelmUtf8Encoding:
         src.write_text(
             'service api { image: "nginx:1.25" port 80 }\n'
             "database db { type: postgres }\n"
-            "secret s { k: from env \"K\" }\n",
+            'secret s { k: from env "K" }\n',
             encoding="utf-8",
         )
         out = tmp_path / "out"
         result = subprocess.run(
-            [sys.executable, "-m", "infra", "compile", str(src), "-t", "helm", "-o", str(out)],
+            [
+                sys.executable,
+                "-m",
+                "infra",
+                "compile",
+                str(src),
+                "-t",
+                "helm",
+                "-o",
+                str(out),
+            ],
             capture_output=True,
             text=True,
             timeout=60,
@@ -487,8 +536,6 @@ class TestHelmUtf8Encoding:
         for path in generated:
             raw = path.read_bytes()
             # reject UTF-8 BOM (ef bb bf)
-            assert not raw.startswith(b"\xef\xbb\xbf"), (
-                f"{path.name} has a UTF-8 BOM"
-            )
+            assert not raw.startswith(b"\xef\xbb\xbf"), f"{path.name} has a UTF-8 BOM"
             # must decode cleanly as UTF-8
             raw.decode("utf-8")

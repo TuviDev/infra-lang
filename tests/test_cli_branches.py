@@ -22,12 +22,12 @@ class TestDocsBranches:
     def test_describe_all_definition_kinds(self, tmp_path):
         f = tmp_path / "docs.infra"
         f.write_text(
-            "service svc { image: \"x:1\" }\n"
+            'service svc { image: "x:1" }\n'
             "database db { type: postgres }\n"
             "cache cache1 { type: redis }\n"
             "queue queue1 { type: rabbitmq }\n"
             "storage store1 { type: object }\n"
-            "pipeline pipe1 { stages { a: { runsOn: \"x\" } } }\n"
+            'pipeline pipe1 { stages { a: { runsOn: "x" } } }\n'
             'secret sec { key: from env "K" }\n'
             'config cfg { VAL: "x" }\n'
             'network net { cidr: "10.0.0.0/16" }\n'
@@ -36,10 +36,19 @@ class TestDocsBranches:
         )
         r = runner.invoke(app, ["docs", str(f)])
         assert r.exit_code == 0, r.output
-        for needle in ("**service**", "**database**", "**cache**",
-                       "**queue**", "**storage**", "**pipeline**",
-                       "**secret**", "**config**", "**network**",
-                       "**environment**", "**cluster**"):
+        for needle in (
+            "**service**",
+            "**database**",
+            "**cache**",
+            "**queue**",
+            "**storage**",
+            "**pipeline**",
+            "**secret**",
+            "**config**",
+            "**network**",
+            "**environment**",
+            "**cluster**",
+        ):
             assert needle in r.output
 
 
@@ -90,9 +99,9 @@ class TestComposeBranches:
 
     def test_database_variants(self):
         content = self._c(
-            "database pg { type: postgres users { admin: \"pw\" } }\n"
+            'database pg { type: postgres users { admin: "pw" } }\n'
             "database my { type: mysql }\n"
-            "database mo { type: mongodb users { root: \"pw\" } }\n"
+            'database mo { type: mongodb users { root: "pw" } }\n'
         )
         assert "POSTGRES_PASSWORD" in content
         assert "MYSQL_DATABASE" in content
@@ -101,7 +110,7 @@ class TestComposeBranches:
     def test_cache_and_queue(self):
         content = self._c(
             "cache r { type: redis maxmemory: 512Mi persistence: true }\n"
-            "queue q { type: rabbitmq users { app: \"pw\" } }\n"
+            'queue q { type: rabbitmq users { app: "pw" } }\n'
         )
         assert "redis-server" in content
         assert "RABBITMQ_DEFAULT_USER" in content
@@ -137,9 +146,7 @@ class TestKubernetesExtraBranches:
         assert container["securityContext"] == {"runAsGroup": 1000}
 
     def test_secret_from_vault(self):
-        content = self._k(
-            'secret sec { a: from vault "secret/a" }\n'
-        )
+        content = self._k('secret sec { a: from vault "secret/a" }\n')
         docs = [d for d in yaml.safe_load_all(content) if d]
         secret = next(d for d in docs if d["kind"] == "Secret")
         # Values in data: are base64; the placeholder must decode back.
@@ -202,7 +209,7 @@ class TestFmtCoverage:
         from infra.cli.main import app
 
         f = tmp_path / "t.infra"
-        f.write_text("service s {\nimage:\"x\"\n}")
+        f.write_text('service s {\nimage:"x"\n}')
         r = CliRunner().invoke(app, ["fmt", str(f), "--diff"])
         assert r.exit_code == 0
         assert "-" in r.output or "+" in r.output or "diff" in r.output.lower()

@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import time
 
-import pytest
 import yaml
 
-from infra import parse, validate, compile as infra_compile
+from infra import compile as infra_compile
 from infra.analyzer.validator import SemanticValidator
 from infra.parser import Parser
 
@@ -138,8 +137,8 @@ class TestCICD:
 
 class TestMultiEnvironment:
     def test_environments(self):
-        dev = "environment dev { namespace: \"myapp-dev\" labels: { env: \"dev\" } }"
-        prod = "environment prod { namespace: \"myapp-prod\" labels: { env: \"prod\" } }"
+        dev = 'environment dev { namespace: "myapp-dev" labels: { env: "dev" } }'
+        prod = 'environment prod { namespace: "myapp-prod" labels: { env: "prod" } }'
         pdev = P.parse(dev, "dev.infra")
         pprod = P.parse(prod, "prod.infra")
         assert SemanticValidator().validate(pdev).is_valid
@@ -149,14 +148,22 @@ class TestMultiEnvironment:
         files_prod = infra_compile(pprod, target="kubernetes").files
         ns_dev = all_docs("\n".join(files_dev.values()))
         ns_prod = all_docs("\n".join(files_prod.values()))
-        assert any(n["metadata"]["name"] == "myapp-dev" for n in ns_dev if n["kind"] == "Namespace")
-        assert any(n["metadata"]["name"] == "myapp-prod" for n in ns_prod if n["kind"] == "Namespace")
+        assert any(
+            n["metadata"]["name"] == "myapp-dev"
+            for n in ns_dev
+            if n["kind"] == "Namespace"
+        )
+        assert any(
+            n["metadata"]["name"] == "myapp-prod"
+            for n in ns_prod
+            if n["kind"] == "Namespace"
+        )
 
 
 class TestErrorAccumulation:
     def test_multiple_errors(self):
         source = (
-            'service api { image: undefined_image_var replicas: 0 port 99999 }\n'
+            "service api { image: undefined_image_var replicas: 0 port 99999 }\n"
             'service api { image: "duplicate" }'
         )
         result = SemanticValidator().validate(P.parse(source, "err.infra"))
@@ -173,7 +180,10 @@ class TestErrorAccumulation:
 class TestCompilationSpeed:
     def test_large_stack_under_2s(self):
         source = "\n".join(
-            [f'service svc{i} {{ image: "img" port {i + 1} replicas: 2 }}' for i in range(5)]
+            [
+                f'service svc{i} {{ image: "img" port {i + 1} replicas: 2 }}'
+                for i in range(5)
+            ]
         )
         source += (
             "\ndatabase a { type: postgres }\ndatabase b { type: mysql }\n"
@@ -197,7 +207,7 @@ class TestVariablesAndExpressions:
         source = (
             'let app_name = "myapp"\n'
             'const VERSION = "1.2.3"\n'
-            'service api { image: app_name }'
+            "service api { image: app_name }"
         )
         result = SemanticValidator().validate(P.parse(source, "vars.infra"))
         # image references app_name (defined) -> no E001
@@ -205,7 +215,7 @@ class TestVariablesAndExpressions:
 
     def test_template_string_placeholder(self):
         # template-string interpolation is a known TODO (kept as placeholder)
-        source = 'service api { image: `myapp:{version}` }'
+        source = "service api { image: `myapp:{version}` }"
         result = SemanticValidator().validate(P.parse(source, "tpl.infra"))
         # should not crash; interpolation is marked as future work
         assert result.errors == [] or result.errors

@@ -16,14 +16,27 @@ from infra.errors.reporter import (
 
 class TestReporterMethods:
     def test_report_lex_error(self):
-        err = InfraLexError("Unexpected char", source="x", line=1, column=2,
-                            file="t.infra", unexpected_char="@")
+        err = InfraLexError(
+            "Unexpected char",
+            source="x",
+            line=1,
+            column=2,
+            file="t.infra",
+            unexpected_char="@",
+        )
         out = ErrorReporter(use_color=False).report_lex_error(err, "x")
         assert "1" in out and "2" in out
 
     def test_report_parse_error(self):
-        err = InfraParseError("Unexpected", source="x", line=3, column=5,
-                              file="t.infra", expected=["A", "B"], got="C")
+        err = InfraParseError(
+            "Unexpected",
+            source="x",
+            line=3,
+            column=5,
+            file="t.infra",
+            expected=["A", "B"],
+            got="C",
+        )
         out = ErrorReporter(use_color=False).report_parse_error(err, "x")
         assert "3" in out
 
@@ -37,8 +50,10 @@ class TestReporterMethods:
         assert "Unexpected" in ErrorReporter(use_color=False).report_error(lex, "x")
 
     def test_format_multiple_errors(self):
-        errs = [InfraParseError("a", source="x", line=1, column=1),
-                InfraParseError("b", source="x", line=2, column=1)]
+        errs = [
+            InfraParseError("a", source="x", line=1, column=1),
+            InfraParseError("b", source="x", line=2, column=1),
+        ]
         out = ErrorReporter().format_multiple_errors(errs, "x", max=1)
         assert "more error" in out
 
@@ -53,7 +68,9 @@ class TestReporterMethods:
         from infra import parse, validate
 
         result = validate(parse('let unused = "x"\nservice a { image: "nginx:1.0" }'))
-        out = ErrorReporter().report_semantic_errors(result.errors, result.warnings, "src")
+        out = ErrorReporter().report_semantic_errors(
+            result.errors, result.warnings, "src"
+        )
         assert isinstance(out, str)
 
 

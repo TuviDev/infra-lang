@@ -117,8 +117,8 @@ def test_doctor_json_parseable(no_tools):
 
 
 def test_doctor_check_drift_json_clean(tmp_path):
-    from infra.parser import parse_file
     from infra.backends import get_backend
+    from infra.parser import parse_file
 
     src = tmp_path / "app.infra"
     src.write_text('service api { image: "nginx:1.25" port 80 }', encoding="utf-8")
@@ -138,8 +138,8 @@ def test_doctor_check_drift_json_clean(tmp_path):
 
 
 def test_doctor_check_drift_json_modified(tmp_path):
-    from infra.parser import parse_file
     from infra.backends import get_backend
+    from infra.parser import parse_file
 
     src = tmp_path / "app.infra"
     src.write_text('service api { image: "nginx:1.25" port 80 }', encoding="utf-8")

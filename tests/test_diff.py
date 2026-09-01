@@ -30,8 +30,10 @@ class TestNoDiff:
 
 class TestAdded:
     def test_added_service(self):
-        r = diff('service api { image: "nginx:1.0" }',
-                 'service api { image: "nginx:1.0" }\nservice worker { image: "redis:7" }')
+        r = diff(
+            'service api { image: "nginx:1.0" }',
+            'service api { image: "nginx:1.0" }\nservice worker { image: "redis:7" }',
+        )
         assert any(i.name == "worker" and i.kind == "service" for i in r.added)
 
     def test_empty_to_populated(self):
@@ -42,27 +44,39 @@ class TestAdded:
 
 class TestRemoved:
     def test_removed_service(self):
-        r = diff('service api { image: "nginx:1.0" }\nservice old { image: "legacy:1.0" }',
-                 'service api { image: "nginx:1.0" }')
+        r = diff(
+            'service api { image: "nginx:1.0" }\nservice old { image: "legacy:1.0" }',
+            'service api { image: "nginx:1.0" }',
+        )
         assert any(i.name == "old" for i in r.removed)
 
 
 class TestChanged:
     def test_changed_replicas(self):
-        r = diff('service api { image:"nginx:1.0" replicas:2 }',
-                 'service api { image:"nginx:1.0" replicas:5 }')
+        r = diff(
+            'service api { image:"nginx:1.0" replicas:2 }',
+            'service api { image:"nginx:1.0" replicas:5 }',
+        )
         c = next(c for c in r.changed if c.name == "api")
         assert any("replica" in ch.field_path.lower() for ch in c.changes)
 
     def test_changed_image(self):
-        r = diff('service api { image: "nginx:1.0" }', 'service api { image: "nginx:2.0" }')
+        r = diff(
+            'service api { image: "nginx:1.0" }', 'service api { image: "nginx:2.0" }'
+        )
         c = next(c for c in r.changed if c.name == "api")
         img = next(ch for ch in c.changes if "image" in ch.field_path)
         assert "1.0" in str(img.before) and "2.0" in str(img.after)
 
     def test_staging_vs_production(self):
-        staging = 'service api { image:"myapp:v1" replicas:2 }\ndatabase db { type:postgres storage:10Gi }'
-        prod = 'service api { image:"myapp:v1" replicas:5 }\ndatabase db { type:postgres storage:100Gi }'
+        staging = (
+            'service api { image:"myapp:v1" replicas:2 }\ndatabase db { type:postgres '
+            'storage:10Gi }'
+        )
+        prod = (
+            'service api { image:"myapp:v1" replicas:5 }\ndatabase db { type:postgres '
+            'storage:100Gi }'
+        )
         r = diff(staging, prod)
         assert not r.added and not r.removed
         assert len(r.changed) == 2
@@ -70,12 +84,16 @@ class TestChanged:
 
 class TestFormatting:
     def test_format_text(self):
-        r = diff('service api { image:"nginx:1.0" }', 'service api { image:"nginx:2.0" }')
+        r = diff(
+            'service api { image:"nginx:1.0" }', 'service api { image:"nginx:2.0" }'
+        )
         assert "api" in r.format(color=False)
 
     def test_format_json(self):
-        r = diff('service api { image:"nginx:1.0" }',
-                 'service api { image:"nginx:2.0" }\nservice worker { image:"redis:7" }')
+        r = diff(
+            'service api { image:"nginx:1.0" }',
+            'service api { image:"nginx:2.0" }\nservice worker { image:"redis:7" }',
+        )
         data = json.loads(r.format_json())
         assert data["has_changes"] is True
         assert "added" in data and "changed" in data
@@ -143,34 +161,39 @@ class TestDiffSummary:
     """Diff text/JSON summary contracts (consolidated from test_diff_s10)."""
 
     def test_json_summary_present(self):
-        r = diff('service api { image: "nginx:1.0" }',
-                 'service api { image: "nginx:2.0" }')
+        r = diff(
+            'service api { image: "nginx:1.0" }', 'service api { image: "nginx:2.0" }'
+        )
         data = json.loads(r.format_json())
         assert "summary" in data
         assert data["summary"] == {"changed": 1, "added": 0, "removed": 0}
 
     def test_json_summary_counts(self):
-        r = diff('service api { image: "nginx:1.0" }',
-                 'service api { image: "nginx:2.0" }\n'
-                 'service worker { image: "redis:7" }\n')
+        r = diff(
+            'service api { image: "nginx:1.0" }',
+            'service api { image: "nginx:2.0" }\nservice worker { image: "redis:7" }\n',
+        )
         data = json.loads(r.format_json())
         assert data["summary"] == {"changed": 1, "added": 1, "removed": 0}
 
     def test_text_summary_line(self):
-        r = diff('service api { image: "nginx:1.0" }',
-                 'service api { image: "nginx:2.0" }')
+        r = diff(
+            'service api { image: "nginx:1.0" }', 'service api { image: "nginx:2.0" }'
+        )
         text = r.format(color=False)
         assert "SUMMARY:" in text
         assert "1 changed, 0 added, 0 removed" in text
 
     def test_no_differences_message(self):
-        r = diff('service api { image: "nginx:1.0" }',
-                 'service api { image: "nginx:1.0" }')
+        r = diff(
+            'service api { image: "nginx:1.0" }', 'service api { image: "nginx:1.0" }'
+        )
         assert "No differences found" in r.format(color=False)
 
     def test_changed_before_after_values(self):
-        r = diff('service api { image: "nginx:1.0" }',
-                 'service api { image: "nginx:2.0" }')
+        r = diff(
+            'service api { image: "nginx:1.0" }', 'service api { image: "nginx:2.0" }'
+        )
         c = next(c for c in r.changed if c.name == "api")
         img = next(ch for ch in c.changes if "image" in ch.field_path)
         assert img.before == "nginx:1.0"
@@ -183,8 +206,9 @@ class TestDiffSummary:
 
 class TestDiffJsonShape:
     def test_json_changed_shape(self):
-        r = diff('service api { image: "nginx:1.0" }',
-                 'service api { image: "nginx:2.0" }')
+        r = diff(
+            'service api { image: "nginx:1.0" }', 'service api { image: "nginx:2.0" }'
+        )
         data = json.loads(r.format_json())
         changed = data["changed"][0]
         assert changed["kind"] == "service"

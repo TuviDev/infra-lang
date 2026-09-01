@@ -58,9 +58,7 @@ def k8s_payload(
                                 "containers": [
                                     {
                                         "image": image,
-                                        "ports": [
-                                            {"containerPort": p} for p in ports
-                                        ],
+                                        "ports": [{"containerPort": p} for p in ports],
                                         "env": [
                                             {"name": k, "value": v} for k, v in env
                                         ],
@@ -109,9 +107,7 @@ def patch_docker(monkeypatch, ps_stdout: str, inspect_stdout: str = "[]") -> Non
 
 
 class TestDiffLivePlanK8s:
-    def test_plan_replica_change_exit_1(
-        self, tmp_path, monkeypatch, tools_on_path
-    ):
+    def test_plan_replica_change_exit_1(self, tmp_path, monkeypatch, tools_on_path):
         src = write_spec(tmp_path)
         patch_kubectl(monkeypatch, k8s_payload(replicas=2))
         result = runner.invoke(app, ["diff", str(src), "--live"])
@@ -127,9 +123,7 @@ class TestDiffLivePlanK8s:
         assert result.exit_code == 1
         assert 'image: "nginx:1.24" -> "nginx:1.25"' in result.stdout
 
-    def test_plan_multiple_changes_grouped(
-        self, tmp_path, monkeypatch, tools_on_path
-    ):
+    def test_plan_multiple_changes_grouped(self, tmp_path, monkeypatch, tools_on_path):
         """The task's reference output: several fields under one service."""
         src = write_spec(tmp_path)
         patch_kubectl(
@@ -158,9 +152,7 @@ class TestDiffLivePlanK8s:
         assert "No changes" in result.stdout
         assert '= service "api" (unchanged)' in result.stdout
 
-    def test_plan_missing_service_is_create(
-        self, tmp_path, monkeypatch, tools_on_path
-    ):
+    def test_plan_missing_service_is_create(self, tmp_path, monkeypatch, tools_on_path):
         src = write_spec(tmp_path)
         patch_kubectl(monkeypatch, json.dumps({"items": []}))
         result = runner.invoke(app, ["diff", str(src), "--live"])
@@ -189,9 +181,7 @@ class TestDiffLivePlanK8s:
         assert data["drift"][0]["expected"] == "3"
         assert data["drift"][0]["live"] == "1"
 
-    def test_plan_json_no_changes_exit_0(
-        self, tmp_path, monkeypatch, tools_on_path
-    ):
+    def test_plan_json_no_changes_exit_0(self, tmp_path, monkeypatch, tools_on_path):
         src = write_spec(tmp_path)
         patch_kubectl(monkeypatch, k8s_payload())
         result = runner.invoke(app, ["diff", str(src), "--live", "-f", "json"])
@@ -253,18 +243,14 @@ class TestDiffLivePlanCompose:
             ]
         )
 
-    def test_plan_compose_replica_change(
-        self, tmp_path, monkeypatch, tools_on_path
-    ):
+    def test_plan_compose_replica_change(self, tmp_path, monkeypatch, tools_on_path):
         src = write_spec(tmp_path)
         patch_docker(monkeypatch, self._ps_row(), self._inspect())
         result = runner.invoke(app, ["diff", str(src), "--live", "-t", "compose"])
         assert result.exit_code == 1
         assert "replicas: 1 -> 3" in result.stdout
 
-    def test_plan_compose_in_sync_exit_0(
-        self, tmp_path, monkeypatch, tools_on_path
-    ):
+    def test_plan_compose_in_sync_exit_0(self, tmp_path, monkeypatch, tools_on_path):
         src = write_spec(tmp_path, SPEC.replace("replicas: 3", "replicas: 1"))
         patch_docker(monkeypatch, self._ps_row(), self._inspect())
         result = runner.invoke(app, ["diff", str(src), "--live", "-t", "compose"])
@@ -294,9 +280,7 @@ class TestDiffLiveEnvOverlay:
         result = runner.invoke(app, ["diff", str(src), "--live"])
         assert result.exit_code == 0
 
-    def test_unknown_environment_exit_1(
-        self, tmp_path, monkeypatch, tools_on_path
-    ):
+    def test_unknown_environment_exit_1(self, tmp_path, monkeypatch, tools_on_path):
         src = write_spec(tmp_path, OVERLAY_SPEC)
         patch_kubectl(monkeypatch, k8s_payload())
         result = runner.invoke(app, ["diff", str(src), "--live", "-e", "nope"])
@@ -324,9 +308,7 @@ class TestDiffLiveErrors:
         assert "docker" in result.stdout
 
     def test_source_file_not_found(self, tmp_path):
-        result = runner.invoke(
-            app, ["diff", str(tmp_path / "nope.infra"), "--live"]
-        )
+        result = runner.invoke(app, ["diff", str(tmp_path / "nope.infra"), "--live"])
         assert result.exit_code == 1
         assert "not found" in result.stdout
 

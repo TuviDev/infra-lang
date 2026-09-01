@@ -62,7 +62,6 @@ class TestParseErrorMessages:
             "database db { type: unknown_db_type }"
         )
         r = validate(parse(source))
-        codes = {e.code for e in r.errors}
         # several different error codes reported at once
         assert len(r.errors) >= 2
 

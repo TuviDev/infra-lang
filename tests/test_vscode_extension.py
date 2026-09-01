@@ -40,16 +40,22 @@ class TestExtensionStructure:
         assert data["scopeName"] == "source.infra"
 
     def test_tmlanguage_covers_keywords(self):
-        content = next(EXT.glob("syntaxes/*.tmLanguage.json")).read_text(encoding="utf-8")
+        content = next(EXT.glob("syntaxes/*.tmLanguage.json")).read_text(
+            encoding="utf-8"
+        )
         for kw in ["service", "database", "pipeline"]:
             assert kw in content
 
     def test_tmlanguage_covers_decorators(self):
-        content = next(EXT.glob("syntaxes/*.tmLanguage.json")).read_text(encoding="utf-8")
+        content = next(EXT.glob("syntaxes/*.tmLanguage.json")).read_text(
+            encoding="utf-8"
+        )
         assert "@" in content
 
     def test_tmlanguage_covers_builtin_types(self):
-        content = next(EXT.glob("syntaxes/*.tmLanguage.json")).read_text(encoding="utf-8")
+        content = next(EXT.glob("syntaxes/*.tmLanguage.json")).read_text(
+            encoding="utf-8"
+        )
         for t in ["postgres", "redis", "kafka"]:
             assert t in content
 
@@ -72,12 +78,16 @@ class TestExtensionStructure:
         assert (EXT / "language-configuration.json").exists()
 
     def test_language_config_has_comments(self):
-        data = json.loads((EXT / "language-configuration.json").read_text(encoding="utf-8"))
+        data = json.loads(
+            (EXT / "language-configuration.json").read_text(encoding="utf-8")
+        )
         assert "comments" in data
         assert data["comments"]["lineComment"] == "#"
 
     def test_language_config_has_brackets(self):
-        data = json.loads((EXT / "language-configuration.json").read_text(encoding="utf-8"))
+        data = json.loads(
+            (EXT / "language-configuration.json").read_text(encoding="utf-8")
+        )
         assert "brackets" in data
 
     def test_readme_exists_and_is_substantial(self):

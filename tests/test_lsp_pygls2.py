@@ -165,12 +165,7 @@ class TestCompletionForNewKeywords:
         assert "depends_on" in labels
 
     def test_depends_on_value_suggests_document_symbols(self):
-        src = (
-            'service db { image: "pg" }\n'
-            "service api {\n"
-            "    depends_on: [\n"
-            "}\n"
-        )
+        src = 'service db { image: "pg" }\nservice api {\n    depends_on: [\n}\n'
         items = completions_at(src, 2, len("    depends_on: ["))
         labels = {i.label for i in items}
         assert "db" in labels

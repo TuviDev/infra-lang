@@ -301,7 +301,7 @@ class TestCrossFileRenameOnDisk:
 
     def test_rename_nonexistent_on_disk(self):
         mod.workspace_index.clear()
-        ls = _make_ls({"file:///proj/a.infra": "service web {\n    image: \"x\"\n}\n"})
+        ls = _make_ls({"file:///proj/a.infra": 'service web {\n    image: "x"\n}\n'})
         params = RenameParams(
             text_document=TextDocumentIdentifier(uri="file:///proj/a.infra"),
             position=Position(line=1, character=2),
@@ -385,8 +385,8 @@ class TestOnDiskWorkspace:
         names = {s.name for s in result}
         assert names == {"api", "db"}
         kinds = {s.name: s.kind.name for s in result}
-        assert kinds["api"] == "Class"      # service
-        assert kinds["db"] == "Interface"   # database
+        assert kinds["api"] == "Class"  # service
+        assert kinds["db"] == "Interface"  # database
 
     def test_workspace_symbol_filters_by_query(self):
         from lsprotocol.types import WorkspaceSymbolParams
@@ -446,6 +446,7 @@ class TestProjectIndexingHandlers:
 
     def test_initialized_with_executor(self, tmp_path):
         import concurrent.futures
+
         (tmp_path / "a.infra").write_text("database db {}\n")
         executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         ls = self._fake_root_ls(root_uri=f"file://{tmp_path}", executor=executor)
@@ -465,9 +466,11 @@ class TestProjectIndexingHandlers:
         class FakeLS:
             class _W:
                 pass
+
             workspace = _W()
 
         from lsprotocol.types import DidCloseTextDocumentParams, TextDocumentIdentifier
+
         mod.did_close(
             FakeLS(),
             DidCloseTextDocumentParams(text_document=TextDocumentIdentifier(uri=uri)),
@@ -489,6 +492,7 @@ class TestProjectIndexingHandlers:
         mod.workspace_index.clear()
         ls = _make_ls({})
         from lsprotocol.types import ReferenceContext, ReferenceParams
+
         params = ReferenceParams(
             text_document=TextDocumentIdentifier(uri="file:///a.infra"),
             position=Position(line=0, character=3),

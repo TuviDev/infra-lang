@@ -115,7 +115,7 @@ service api {
 
     def test_schedule_named_slots(self):
         (svc,) = _user_defs(
-            'service api { schedule { default { replicas: 2 } '
+            "service api { schedule { default { replicas: 2 } "
             '"night" { replicas: 1, cpu: 100m, memory: 1Gi } } }'
         )
         assert svc.schedule.default.replicas == 2
@@ -133,15 +133,14 @@ class TestTransformerOtherDefinitions:
 
     def test_cache(self):
         (c,) = _user_defs(
-            'cache c1 { type: redis maxmemory: 512Mi policy: "lru" '
-            "persistence: true }"
+            'cache c1 { type: redis maxmemory: 512Mi policy: "lru" persistence: true }'
         )
         assert c.type == "redis"
         assert c.persistence is True
 
     def test_queue_topics_config(self):
         (q,) = _user_defs(
-            'queue q1 { topics { orders: { partitions: 6 replication: 3 } } '
+            "queue q1 { topics { orders: { partitions: 6 replication: 3 } } "
             'config { compression: "gzip" } users { svc: "pw" } }'
         )
         assert q.topics[0].name == "orders"
@@ -175,15 +174,14 @@ class TestTransformerOtherDefinitions:
 
     def test_cluster_iam_service_account(self):
         (cl,) = _user_defs(
-            'cluster c1 { provider: aws iam { '
-            'serviceAccount { name: "app-sa" } } }'
+            'cluster c1 { provider: aws iam { serviceAccount { name: "app-sa" } } }'
         )
         assert cl.iam is not None
         assert cl.iam.service_account.name == "app-sa"
 
     def test_cluster_iam_role(self):
         (cl,) = _user_defs(
-            'cluster c1 { provider: aws iam { '
+            "cluster c1 { provider: aws iam { "
             'role { name: "app-role" actions: ["ec2:Describe*"] resources: ["*"] } } }'
         )
         assert cl.iam is not None
@@ -193,7 +191,7 @@ class TestTransformerOtherDefinitions:
 
     def test_cluster_iam_sa_and_role(self):
         (cl,) = _user_defs(
-            'cluster c1 { provider: aws iam { '
+            "cluster c1 { provider: aws iam { "
             'serviceAccount { name: "sa" } '
             'role { name: "r" actions: ["s3:ListBucket"] } } }'
         )
@@ -499,9 +497,7 @@ class TestConcurrentParseLocations:
         def run(name: str, src: str) -> None:
             try:
                 prog = parse(src, filename=name)
-                svc = next(
-                    s for s in prog.statements if isinstance(s, ServiceDef)
-                )
+                svc = next(s for s in prog.statements if isinstance(s, ServiceDef))
                 results[name] = svc.location.file
             except Exception as exc:  # noqa: BLE001
                 errors.append((name, exc))
@@ -522,8 +518,7 @@ class TestConcurrentParseLocations:
         assert len(results) == 40
         for name, file_ in results.items():
             assert file_ == name, (
-                f"location.file {file_!r} leaked from another thread; "
-                f"expected {name!r}"
+                f"location.file {file_!r} leaked from another thread; expected {name!r}"
             )
 
 
@@ -531,40 +526,48 @@ class TestModuleHelpers:
     """Mutation-driven: module-level coercion helpers (_bool/_int/_lit/etc.)."""
 
     def test_bool_literal_true(self):
-        from infra.parser.transformer import _bool
         from infra.parser import ast_nodes as n
+        from infra.parser.transformer import _bool
+
         assert _bool(n.Literal(value=True)) is True
 
     def test_bool_literal_false(self):
-        from infra.parser.transformer import _bool
         from infra.parser import ast_nodes as n
+        from infra.parser.transformer import _bool
+
         assert _bool(n.Literal(value=False)) is False
 
     def test_bool_identifier_true(self):
-        from infra.parser.transformer import _bool
         from infra.parser import ast_nodes as n
+        from infra.parser.transformer import _bool
+
         assert _bool(n.Identifier(name="true")) is True
 
     def test_bool_identifier_not_true(self):
-        from infra.parser.transformer import _bool
         from infra.parser import ast_nodes as n
+        from infra.parser.transformer import _bool
+
         assert _bool(n.Identifier(name="false")) is False
 
     def test_bool_plain_value(self):
         from infra.parser.transformer import _bool
+
         assert _bool(1) is True
         assert _bool(0) is False
 
     def test_int_list_from_list_node(self):
-        from infra.parser.transformer import _int_list
         from infra.parser import ast_nodes as n
+        from infra.parser.transformer import _int_list
+
         lst = n.List(items=[n.Literal(value=80), n.Literal(value=443)])
         assert _int_list(lst) == (80, 443)
 
     def test_int_list_from_tuple(self):
         from infra.parser.transformer import _int_list
+
         assert _int_list([1, 2, 3]) == (1, 2, 3)
 
     def test_int_list_empty(self):
         from infra.parser.transformer import _int_list
+
         assert _int_list(None) == ()

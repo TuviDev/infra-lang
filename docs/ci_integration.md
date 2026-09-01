@@ -52,7 +52,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # needed for the base-ref diff
-      - uses: TuviDev/infra-lang/.github/actions/infra-check@v0.7.0
+      - uses: TuviDev/infra-lang/.github/actions/infra-check@v0.7.1
         with:
           files: "infra/**/*.infra"
           base-ref: origin/main

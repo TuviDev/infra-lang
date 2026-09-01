@@ -17,7 +17,14 @@ class TestEvaluateExpressionPaths:
 
     def test_binary_ops(self):
         c = ctx()
-        for op, expected in [("+", 3), ("-", 1), ("*", 2), ("/", 2.0), ("==", False), ("!=", True)]:
+        for op, expected in [
+            ("+", 3),
+            ("-", 1),
+            ("*", 2),
+            ("/", 2.0),
+            ("==", False),
+            ("!=", True),
+        ]:
             e = n.BinaryOp(n.Literal(2), op, n.Literal(1))
             assert evaluate_expression(e, c) == expected
 
@@ -71,7 +78,9 @@ class TestGraphCLI:
         from infra.cli.main import app
 
         f = tmp_path / "t.infra"
-        f.write_text('service a { image: "x:1" }\nservice b { image: "y:1" depends: ["a"] }')
+        f.write_text(
+            'service a { image: "x:1" }\nservice b { image: "y:1" depends: ["a"] }'
+        )
         r = CliRunner().invoke(app, ["graph", str(f)])
         assert r.exit_code == 0
         assert "a" in r.output and "b" in r.output
@@ -158,8 +167,6 @@ class TestWatchHelpers:
     def test_collect_watched_files_no_imports(self, tmp_path):
         from infra.cli.compile import _collect_watched_files
 
-        from infra.parser import parse
-
         f = tmp_path / "t.infra"
         f.write_text('service api { image: "x:1" }')
         prog = parse(f.read_text(encoding="utf-8"))
@@ -168,8 +175,6 @@ class TestWatchHelpers:
 
     def test_collect_watched_files_with_import(self, tmp_path):
         from infra.cli.compile import _collect_watched_files
-
-        from infra.parser import parse
 
         lib = tmp_path / "lib.infra"
         lib.write_text('const X = "1"')

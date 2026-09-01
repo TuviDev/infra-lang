@@ -52,9 +52,7 @@ class TestUnitHelpers:
 
 class TestCostResourceTypes:
     def test_database_postgres_with_storage(self):
-        est = estimate_cost(
-            parse("database db { type: postgres storage: 20Gi }")
-        )
+        est = estimate_cost(parse("database db { type: postgres storage: 20Gi }"))
         item = est.items[0]
         assert item.kind == "database"
         assert item.managed is True
@@ -76,12 +74,12 @@ class TestCostResourceTypes:
         assert est.items[0].managed is True
 
     def test_storage_s3_with_size(self):
-        est = estimate_cost(parse('storage s { type: s3 size: 500Gi }'))
+        est = estimate_cost(parse("storage s { type: s3 size: 500Gi }"))
         assert est.items[0].kind == "storage"
         assert est.items[0].storage_gb == 500.0
 
     def test_storage_default_size(self):
-        est = estimate_cost(parse('storage s { type: gcs }'))
+        est = estimate_cost(parse("storage s { type: gcs }"))
         assert est.items[0].storage_gb == 100.0
 
     def test_queue_ignored(self):
@@ -99,7 +97,7 @@ class TestServiceResourceBranches:
         est = estimate_cost(
             parse(
                 'service api { image: "x" '
-                'resources { limits: { cpu: 2000m, memory: 4Gi } } }'
+                "resources { limits: { cpu: 2000m, memory: 4Gi } } }"
             )
         )
         item = est.items[0]
@@ -111,7 +109,7 @@ class TestServiceResourceBranches:
         est = estimate_cost(
             parse(
                 'service api { image: "x" '
-                'resources { requests: { cpu: 500m, memory: 1Gi } } }'
+                "resources { requests: { cpu: 500m, memory: 1Gi } } }"
             )
         )
         item = est.items[0]
@@ -131,7 +129,7 @@ class TestServiceResourceBranches:
         est = estimate_cost(
             parse(
                 'service api { image: "x" '
-                'resources { limits: { cpu: 2cores, memory: 1Gi } } }'
+                "resources { limits: { cpu: 2cores, memory: 1Gi } } }"
             )
         )
         assert est.items[0].vcpu == 2.0
@@ -197,7 +195,8 @@ class TestNegativeValueClamping:
         from infra.parser import ast_nodes as n
 
         db = n.DatabaseDef(
-            name="db", type="postgres",
+            name="db",
+            type="postgres",
             storage=n.ResourceValue(value=-50, unit="Gi"),
         )
         item = _database_cost(db)

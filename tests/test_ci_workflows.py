@@ -23,7 +23,9 @@ class TestCIWorkflows:
         assert data is not None
 
     def test_ci_yml_triggers_on_push_and_pr(self):
-        data = yaml.safe_load(Path(".github/workflows/ci.yml").read_text(encoding="utf-8"))
+        data = yaml.safe_load(
+            Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+        )
         triggers = _triggers(data)
         assert "push" in triggers
         assert "pull_request" in triggers
@@ -39,7 +41,9 @@ class TestCIWorkflows:
         assert "mypy" in content
 
     def test_ci_yml_matrix_has_multiple_python_versions(self):
-        data = yaml.safe_load(Path(".github/workflows/ci.yml").read_text(encoding="utf-8"))
+        data = yaml.safe_load(
+            Path(".github/workflows/ci.yml").read_text(encoding="utf-8")
+        )
         matrix = data["jobs"]["test"]["strategy"]["matrix"]
         assert len(matrix["python-version"]) >= 2
 
@@ -52,7 +56,9 @@ class TestPublishWorkflow:
         assert data is not None
 
     def test_publish_yml_triggers_on_version_tags(self):
-        data = yaml.safe_load(Path(".github/workflows/publish.yml").read_text(encoding="utf-8"))
+        data = yaml.safe_load(
+            Path(".github/workflows/publish.yml").read_text(encoding="utf-8")
+        )
         on = _triggers(data)
         push = on.get("push", {})
         tags = push.get("tags", [])

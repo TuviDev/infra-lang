@@ -2,6 +2,50 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.7.1] - Visualization, Schema & Quality — 2026-09-01
+
+**The Visualization, Schema & Quality Block** — native PNG rendering of
+the architecture DAG with a pure-Python Pillow drawing engine (no Cairo,
+no Graphviz, no headless browsers), one-click SVG/PNG downloads straight
+from the dashboard, a new `infra schema` command exporting the complete
+JSON Schema (draft-07) of the `.infra` DSL, and a 100% ruff-clean test
+suite for the whole repository.
+
+### Added
+- **`infra graph --format png` / `-o graf.png` — native PNG export** —
+  the same collector and longest-path layered layout as the SVG renderer
+  is drawn by a new Pillow engine (`infra.analyzer.graph_png`): dark
+  slate canvas with indigo/violet node accents, rounded-rectangle node
+  cards showing the workload name and its container image tag (or
+  kind caption), arrowed dependency edges, ghost nodes for undeclared
+  references. `--format png` requires `-o/--output` (binary output is
+  never echoed to stdout); like the SVG export it takes exactly one
+  input file and honours `-e/--environment`.
+- **Dashboard download buttons** — the "Architecture DAG" card served by
+  `infra serve`/`infra ui` (and the static `--publish` export) now ships
+  **Download SVG** and **Download PNG** anchors next to the interactive
+  inline SVG. Both embed their payload as a data URI (URL-quoted SVG /
+  Base64 PNG), so a click saves the file with no server round-trip. The
+  PNG link renders lazily and disappears gracefully if Pillow is not
+  installed.
+- **`infra schema` — JSON Schema export** — writes the complete
+  draft-07 JSON Schema of the `.infra` conceptual model to
+  `-o/--output <path>` or stdout: every top-level block (`service`,
+  `database`, `cache`, `queue`, `storage`, `network`, `network_policy`,
+  `secret`, `secret_store`, `custom_resource`, `config`, `pipeline`,
+  `environment`, `cluster`) plus `import`/`let`/`const` constructs, with
+  exact enums for engine types and documented property shapes.
+
+### Changed
+- **New runtime dependency: `pillow>=10.0,<13.0`** — powers the PNG
+  drawing engine; pure wheels for all supported platforms, so nothing
+  native is compiled at install time.
+- **Test-suite hygiene** — the entire `tests/` directory was refactored
+  to be **100% ruff-clean** (`ruff check tests/` reports exactly 0
+  findings): long lines rewrapped, unused imports/variables removed,
+  import order normalized, naming convention violations fixed. No test
+  semantics changed.
+
 ## [0.7.0] - Team Integration — 2026-09-01
 
 **Block II: Team Integration** — pull-request automation and team

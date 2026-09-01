@@ -51,7 +51,9 @@ class TestDetectDrift:
         compile_to(src, out)
         # edit one line in the generated YAML
         target = out / "infra.yaml"
-        content = target.read_text(encoding="utf-8").replace("replicas: 2", "replicas: 9")
+        content = target.read_text(encoding="utf-8").replace(
+            "replicas: 2", "replicas: 9"
+        )
         target.write_text(content, encoding="utf-8")
         result = detect_drift(src, out)
         assert result.has_drift
@@ -106,7 +108,7 @@ class TestDetectDrift:
 
 class TestDriftErrors:
     def test_parse_error_propagates(self, tmp_path):
-        src = write(tmp_path / "bad.infra", 'service api { image: }')
+        src = write(tmp_path / "bad.infra", "service api { image: }")
         out = tmp_path / "out"
         from infra.errors.exceptions import InfraParseError
 
@@ -181,7 +183,8 @@ class TestCLIDrift:
     def test_cli_bad_source_exit_one(self, tmp_path):
         src = write(tmp_path / "bad.infra", "not valid !!!")
         result = runner.invoke(
-            app, ["doctor", "--check-drift", str(src), "--out-dir", str(tmp_path / "out")]
+            app,
+            ["doctor", "--check-drift", str(src), "--out-dir", str(tmp_path / "out")],
         )
         assert result.exit_code == 1
         assert "failed" in result.stdout.lower() or "error" in result.stdout.lower()

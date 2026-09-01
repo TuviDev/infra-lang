@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 
 from infra import parse, validate
 
@@ -49,7 +49,9 @@ class TestReadme:
             try:
                 parse(block.strip())
             except Exception as e:
-                pytest.fail(f"README code block {i+1} failed: {e}\nBlock:\n{block[:200]}")
+                pytest.fail(
+                    f"README code block {i + 1} failed: {e}\nBlock:\n{block[:200]}"
+                )
 
 
 class TestExamples:
@@ -89,5 +91,14 @@ class TestLanguageSpec:
         if not spec.exists():
             pytest.skip("spec not found")
         content = spec.read_text(encoding="utf-8")
-        for code in ["E001", "E002", "E003", "E004", "E005", "SEC001", "REL001", "REL002"]:
+        for code in [
+            "E001",
+            "E002",
+            "E003",
+            "E004",
+            "E005",
+            "SEC001",
+            "REL001",
+            "REL002",
+        ]:
             assert code in content, f"Error code {code} missing from spec"

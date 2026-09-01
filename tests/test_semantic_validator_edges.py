@@ -99,7 +99,7 @@ class TestExpressionRecursion:
         assert result is not None
 
     def test_match_expression_validated(self):
-        result = _validate('let s = 1\nlet m = match s { 1 -> 2 _ -> 3 }')
+        result = _validate("let s = 1\nlet m = match s { 1 -> 2 _ -> 3 }")
         assert result is not None
 
     def test_if_expression_validated(self):
@@ -111,9 +111,7 @@ class TestServiceFieldGuards:
     """Lines 282, 325: build context / network-policy-absent guards."""
 
     def test_service_with_build_context(self):
-        result = _validate(
-            'service s { image: "x" build { context: "./app" } }'
-        )
+        result = _validate('service s { image: "x" build { context: "./app" } }')
         assert result is not None
 
     def test_service_without_network_policy(self):

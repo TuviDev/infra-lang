@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from infra.analyzer.validator import SemanticValidator
-from infra.backends.base import evaluate_expression, CompileContext
+from infra.backends.base import CompileContext, evaluate_expression
 from infra.parser import Parser
 from infra.parser import ast_nodes as n
 from infra.stdlib.functions import call_builtin
@@ -17,7 +17,9 @@ def evaluate(src: str, variables: dict | None = None) -> object:
     """Parse a bare expression and evaluate it via evaluate_expression."""
     # wrap in let, then grab the value
     program = P.parse(f"let __x = {src}", "eval.infra")
-    value = [s for s in program.statements if hasattr(s, "name") and s.name == "__x"][0].value
+    value = [s for s in program.statements if hasattr(s, "name") and s.name == "__x"][
+        0
+    ].value
     ctx = CompileContext(program=program, symbol_table=None, variables=variables or {})
     return evaluate_expression(value, ctx)
 
@@ -116,8 +118,9 @@ class TestPrelude:
     def test_prelude_loads_without_error(self):
         # parsing any file implicitly loads prelude
         prog = P.parse('service a { image: "x" }', "s.infra")
-        prelude_names = [s.name for s in prog.statements
-                         if isinstance(s, n.VariableDecl)]
+        prelude_names = [
+            s.name for s in prog.statements if isinstance(s, n.VariableDecl)
+        ]
         assert "SMALL_CPU" in prelude_names
         assert "MEDIUM_MEM" in prelude_names
 

@@ -58,10 +58,15 @@ class TestServiceParsing:
         parses('service a { image: "x" health http("/health") }')
 
     def test_service_with_health_block(self):
-        parses('service a { image: "x" health http("/health") { interval: 10s timeout: 5s } }')
+        parses(
+            'service a { image: "x" health http("/health") { interval: 10s timeout: 5s '
+            '} }'
+        )
 
     def test_service_with_volumes_list(self):
-        parses('service a { image: "x" volumes [ { name: "data" mountPath: "/data" } ] }')
+        parses(
+            'service a { image: "x" volumes [ { name: "data" mountPath: "/data" } ] }'
+        )
 
     def test_service_with_volumes_block(self):
         parses('service a { image: "x" volumes { data: { mountPath: "/data" } } }')
@@ -73,7 +78,10 @@ class TestServiceParsing:
         parses('service a { image: "x" strategy { type: "canary" } }')
 
     def test_service_with_security_block(self):
-        parses('service a { image: "x" security { user: 1000 readOnlyRootFilesystem: true } }')
+        parses(
+            'service a { image: "x" security { user: 1000 readOnlyRootFilesystem: true '
+            '} }'
+        )
 
     def test_service_with_lifecycle(self):
         parses('service a { image: "x" lifecycle { preStop { exec: ["sleep 30"] } } }')
@@ -91,16 +99,26 @@ class TestServiceParsing:
         parses('service a { image: "x" port 80 ingress { host: "a.example.com" } }')
 
     def test_service_with_ingress_rate_limit(self):
-        parses('service a { image: "x" port 80 ingress { rate_limit { rps: 100 burst: 50 } } }')
+        parses(
+            'service a { image: "x" port 80 ingress { rate_limit { rps: 100 burst: 50 '
+            '} '
+            '} }'
+        )
 
     def test_service_with_ingress_cors(self):
         parses('service a { image: "x" port 80 ingress { cors { origins: ["*"] } } }')
 
     def test_service_with_probes(self):
-        parses('service a { image: "x" probes { liveness http("/live") readiness http("/ready") } }')
+        parses(
+            'service a { image: "x" probes { liveness http("/live") readiness '
+            'http("/ready") } }'
+        )
 
     def test_service_with_labels_annotations(self):
-        parses('service a { image: "x" labels: { app: "api" } annotations: { note: "hi" } }')
+        parses(
+            'service a { image: "x" labels: { app: "api" } annotations: { note: "hi" } '
+            '}'
+        )
 
     def test_service_with_build(self):
         parses('service a { build { context: "." dockerfile: "Dockerfile" } }')
@@ -113,23 +131,28 @@ class TestServiceParsing:
 
 class TestDatabaseParsing:
     def test_minimal_database(self):
-        parses('database db { type: postgres }')
+        parses("database db { type: postgres }")
 
     def test_database_with_version_storage(self):
         parses('database db { type: postgres version: "15" size: 10Gi }')
 
     def test_database_with_replicas_ha(self):
-        parses('database db { type: postgres replicas: 2 ha: true }')
+        parses("database db { type: postgres replicas: 2 ha: true }")
 
     def test_database_with_backup(self):
-        parses('database db { type: postgres backup { enabled: true schedule: "0 2 * * *" } }')
+        parses(
+            'database db { type: postgres backup { enabled: true schedule: "0 2 * * *" '
+            '} }'
+        )
 
     def test_database_with_users(self):
         parses('database db { type: postgres users { admin: "pw" reader: "rw" } }')
 
-    @pytest.mark.parametrize("db_type", ["postgres", "mysql", "mariadb", "mongodb", "redis", "sqlite"])
+    @pytest.mark.parametrize(
+        "db_type", ["postgres", "mysql", "mariadb", "mongodb", "redis", "sqlite"]
+    )
     def test_database_types(self, db_type):
-        parses(f'database db {{ type: {db_type} }}')
+        parses(f"database db {{ type: {db_type} }}")
 
 
 # --------------------------------------------------------------------------- #
@@ -139,17 +162,17 @@ class TestDatabaseParsing:
 
 class TestCacheParsing:
     def test_minimal_cache(self):
-        parses('cache c { type: redis }')
+        parses("cache c { type: redis }")
 
     def test_cache_with_memory_replicas(self):
-        parses('cache c { type: redis maxmemory: 256Mi replicas: 3 }')
+        parses("cache c { type: redis maxmemory: 256Mi replicas: 3 }")
 
     def test_cache_with_persistence(self):
-        parses('cache c { type: redis persistence: true }')
+        parses("cache c { type: redis persistence: true }")
 
     @pytest.mark.parametrize("cache_type", ["redis", "memcached", "valkey"])
     def test_cache_types(self, cache_type):
-        parses(f'cache c {{ type: {cache_type} }}')
+        parses(f"cache c {{ type: {cache_type} }}")
 
 
 # --------------------------------------------------------------------------- #
@@ -159,17 +182,20 @@ class TestCacheParsing:
 
 class TestQueueParsing:
     def test_minimal_queue(self):
-        parses('queue q { type: rabbitmq }')
+        parses("queue q { type: rabbitmq }")
 
     def test_queue_with_topics(self):
-        parses('queue q { type: kafka topics { orders: { partitions: 3 replication: 2 } } }')
+        parses(
+            "queue q { type: kafka topics { orders: { partitions: 3 replication: 2 } } "
+            "}"
+        )
 
     def test_queue_with_users(self):
         parses('queue q { type: rabbitmq users { app: "pw" } }')
 
     @pytest.mark.parametrize("queue_type", ["rabbitmq", "kafka", "nats"])
     def test_queue_types(self, queue_type):
-        parses(f'queue q {{ type: {queue_type} }}')
+        parses(f"queue q {{ type: {queue_type} }}")
 
 
 # --------------------------------------------------------------------------- #
@@ -179,17 +205,19 @@ class TestQueueParsing:
 
 class TestStorageParsing:
     def test_minimal_storage(self):
-        parses('storage s { type: s3 }')
+        parses("storage s { type: s3 }")
 
     def test_storage_with_bucket_region(self):
         parses('storage s { type: s3 bucket: "my-bucket" region: "eu-west-1" }')
 
     def test_storage_with_lifecycle(self):
-        parses('storage s { type: s3 lifecycle { expiration: 30d retention: 7d } }')
+        parses("storage s { type: s3 lifecycle { expiration: 30d retention: 7d } }")
 
-    @pytest.mark.parametrize("storage_type", ["s3", "gcs", "azure_blob", "minio", "pvc", "efs"])
+    @pytest.mark.parametrize(
+        "storage_type", ["s3", "gcs", "azure_blob", "minio", "pvc", "efs"]
+    )
     def test_storage_types(self, storage_type):
-        parses(f'storage s {{ type: {storage_type} }}')
+        parses(f"storage s {{ type: {storage_type} }}")
 
 
 # --------------------------------------------------------------------------- #
@@ -202,10 +230,15 @@ class TestNetworkParsing:
         parses("network n { }")
 
     def test_network_with_cidr_subnets(self):
-        parses('network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "10.0.1.0/24" } } }')
+        parses(
+            'network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "10.0.1.0/24" } } }'
+        )
 
     def test_network_with_policies(self):
-        parses('network n { policy { allow_internal: { from: "10.0.0.0/16" to: "*" ports: [80, 443] } } }')
+        parses(
+            'network n { policy { allow_internal: { from: "10.0.0.0/16" to: "*" ports: '
+            '[80, 443] } } }'
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -254,37 +287,71 @@ class TestConfigParsing:
 
 class TestPipelineParsing:
     def test_minimal_pipeline(self):
-        parses('pipeline p { stages { test: { image: "ubuntu" steps { s: { run: "x" } } } } }')
+        parses(
+            'pipeline p { stages { test: { image: "ubuntu" steps { s: { run: "x" } } } '
+            '} }'
+        )
 
     def test_pipeline_trigger_branches(self):
-        parses('pipeline p { trigger { branches: ["main"] } stages { t: { steps { s: { run: "x" } } } } }')
+        parses(
+            'pipeline p { trigger { branches: ["main"] } stages { t: { steps { s: { '
+            'run: "x" } } } } }'
+        )
 
     def test_pipeline_trigger_schedule(self):
-        parses('pipeline p { trigger { schedule: "0 0 * * *" } stages { t: { steps { s: { run: "x" } } } } }')
+        parses(
+            'pipeline p { trigger { schedule: "0 0 * * *" } stages { t: { steps { s: { '
+            'run: "x" } } } } }'
+        )
 
     def test_pipeline_trigger_manual(self):
-        parses('pipeline p { trigger { manual: true } stages { t: { steps { s: { run: "x" } } } } }')
+        parses(
+            'pipeline p { trigger { manual: true } stages { t: { steps { s: { run: "x" '
+            '} } } } }'
+        )
 
     def test_pipeline_stage_run_and_uses(self):
-        parses('pipeline p { stages { t: { steps { a: { run: "echo hi" } b: { uses: "checkout" } } } } }')
+        parses(
+            'pipeline p { stages { t: { steps { a: { run: "echo hi" } b: { uses: '
+            '"checkout" } } } } }'
+        )
 
     def test_pipeline_stage_needs(self):
-        parses('pipeline p { stages { a: { steps { s: { run: "x" } } } b: { needs: ["a"] steps { s: { run: "y" } } } } }')
+        parses(
+            'pipeline p { stages { a: { steps { s: { run: "x" } } } b: { needs: ["a"] '
+            'steps { s: { run: "y" } } } } }'
+        )
 
     def test_pipeline_stage_matrix(self):
-        parses('pipeline p { stages { t: { matrix { python: ["3.10", "3.11"] } steps { s: { run: "pytest" } } } } }')
+        parses(
+            'pipeline p { stages { t: { matrix { python: ["3.10", "3.11"] } steps { s: '
+            '{ run: "pytest" } } } } }'
+        )
 
     def test_pipeline_stage_parallel(self):
-        parses('pipeline p { stages { a: { parallel { x: { steps { s: { run: "1" } } } y: { steps { s: { run: "2" } } } } } } }')
+        parses(
+            'pipeline p { stages { a: { parallel { x: { steps { s: { run: "1" } } } y: '
+            '{ steps { s: { run: "2" } } } } } } }'
+        )
 
     def test_pipeline_artifacts(self):
-        parses('pipeline p { artifacts { upload: ["dist/"] } stages { t: { steps { s: { run: "x" } } } } }')
+        parses(
+            'pipeline p { artifacts { upload: ["dist/"] } stages { t: { steps { s: { '
+            'run: "x" } } } } }'
+        )
 
     def test_pipeline_cache(self):
-        parses('pipeline p { cache { path: "~/.cache" key: "${{ runner.os }}" } stages { t: { steps { s: { run: "x" } } } } }')
+        parses(
+            'pipeline p { cache { path: "~/.cache" key: "${{ runner.os }}" } stages { '
+            't: { steps { s: { run: "x" } } } } }'
+        )
 
     def test_pipeline_concurrency(self):
-        parses('pipeline p { concurrency { group: "deploy" cancelInProgress: true } stages { t: { steps { s: { run: "x" } } } } }')
+        parses(
+            'pipeline p { concurrency { group: "deploy" cancelInProgress: true } '
+            'stages '
+            '{ t: { steps { s: { run: "x" } } } } }'
+        )
 
     def test_pipeline_step_shorthand(self):
         parses('pipeline p { stages { t: { steps { hello: "echo hello" } } } }')
@@ -297,7 +364,7 @@ class TestPipelineParsing:
 
 class TestEnvironmentParsing:
     def test_minimal_environment(self):
-        parses('environment dev { }')
+        parses("environment dev { }")
 
     def test_environment_with_namespace(self):
         parses('environment dev { namespace: "myapp-dev" }')
@@ -311,19 +378,28 @@ class TestClusterParsing:
         parses("cluster c { }")
 
     def test_cluster_with_provider(self):
-        parses('cluster c { provider: aws }')
+        parses("cluster c { provider: aws }")
 
     def test_cluster_with_single_node_pool(self):
-        parses('cluster c { provider: aws nodes { w: { machine type: "t3.medium" min: 1 max: 5 } } }')
+        parses(
+            'cluster c { provider: aws nodes { w: { machine type: "t3.medium" min: 1 '
+            'max: 5 } } }'
+        )
 
     def test_cluster_with_multiple_node_pools(self):
-        parses('cluster c { provider: aws nodes { w1: { min: 1 max: 2 } w2: { min: 1 max: 3 } } }')
+        parses(
+            "cluster c { provider: aws nodes { w1: { min: 1 max: 2 } w2: { min: 1 max: "
+            "3 } } }"
+        )
 
     def test_cluster_with_networking(self):
         parses('cluster c { networking { cidr: "10.0.0.0/16" } }')
 
     def test_cluster_with_iam(self):
-        parses('cluster c { iam { serviceAccount { name: "app-sa" } role { actions: ["eks:DescribeCluster"] } } }')
+        parses(
+            'cluster c { iam { serviceAccount { name: "app-sa" } role { actions: '
+            '["eks:DescribeCluster"] } } }'
+        )
 
 
 # --------------------------------------------------------------------------- #
@@ -370,11 +446,15 @@ class TestExpressionParsing:
     def test_nested_map(self):
         parses("let x = {a: {b: 1}}")
 
-    @pytest.mark.parametrize("src", ["a + b", "a - b", "a * b", "a / b", "a % b", "a ** b"])
+    @pytest.mark.parametrize(
+        "src", ["a + b", "a - b", "a * b", "a / b", "a % b", "a ** b"]
+    )
     def test_arithmetic(self, src):
         parses(f"let x = {src}")
 
-    @pytest.mark.parametrize("src", ["a == b", "a != b", "a < b", "a <= b", "a > b", "a >= b"])
+    @pytest.mark.parametrize(
+        "src", ["a == b", "a != b", "a < b", "a <= b", "a > b", "a >= b"]
+    )
     def test_comparisons(self, src):
         parses(f"let x = {src}")
 
@@ -450,7 +530,7 @@ class TestEdgeCases:
         parses('service a { image: "x"  # trailing comment\n}')
 
     def test_block_comment(self):
-        parses("/* leading */\nservice a { image: \"x\" }")
+        parses('/* leading */\nservice a { image: "x" }')
 
     def test_long_identifiers(self):
         parses("let this_is_a_very_long_variable_name_that_should_work_fine = 1")
@@ -483,7 +563,7 @@ class TestParseErrors:
         assert err.location is not None
 
     def test_missing_value_after_colon(self):
-        err = fails('service a { image: }')
+        err = fails("service a { image: }")
         assert err.location is not None
 
     def test_invalid_decorator(self):

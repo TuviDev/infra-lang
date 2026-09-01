@@ -126,7 +126,7 @@ class TestParseTemplate:
 
     def test_template_string_token_end_to_end(self):
         # DSL level: the template string rule routes through _parse_template.
-        prog = parse('let t = `hello { name }!`')
+        prog = parse("let t = `hello { name }!`")
         value = _last(prog, n.VariableDecl).value
         assert isinstance(value, n.TemplateString)
         assert value.parts == ("hello ", ("expr", " name "), "!")
@@ -268,7 +268,7 @@ class TestUnitValueAndResourceCoercions:
     def test_scale_up_delay_uses_unit_value(self):
         prog = parse(
             'service api { image: "x" autoscale { min: 1, max: 5, '
-            'scale_up_delay: 30s } }'
+            "scale_up_delay: 30s } }"
         )
         svc = _last(prog, n.ServiceDef)
         assert svc.autoscale is not None
@@ -374,8 +374,7 @@ class TestDispatchChainVariantSweeps:
 
     def test_probes_all_three(self):
         svc = self._svc(
-            'probes { liveness http("/h"), readiness http("/r"), '
-            'startup http("/s") }'
+            'probes { liveness http("/h"), readiness http("/r"), startup http("/s") }'
         )
         assert svc.probes is not None
 

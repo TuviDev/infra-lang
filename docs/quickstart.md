@@ -225,12 +225,12 @@ The `web/` directory contains a complete **static playground** (Monaco
 editor, Compose/Kubernetes/Terraform/SVG/dashboard tabs, shareable URLs,
 waitlist section) that runs the real Python compiler in WebAssembly via
 Pyodide. Host it on GitHub Pages or Vercel together with the
-`infra_lang-0.7.0-py3-none-any.whl` — the page installs the wheel in the
+`infra_lang-0.7.1-py3-none-any.whl` — the page installs the wheel in the
 browser at load time (no backend required):
 
 ```bash
-python -m build                        # produces dist/infra_lang-0.7.0-py3-none-any.whl
-cp dist/infra_lang-0.7.0-py3-none-any.whl web/
+python -m build                        # produces dist/infra_lang-0.7.1-py3-none-any.whl
+cp dist/infra_lang-0.7.1-py3-none-any.whl web/
 python -m http.server -d web 8000      # then open http://localhost:8000
 ```
 
@@ -250,6 +250,21 @@ web_api.list_examples()              # embedded hello_world/web_app/microservice
 `web_api` is guaranteed free of disk/process/browser side effects
 (checked by dedicated tests), which makes it safe for WASM sandboxes and
 serverless embeddings.
+
+## Visualization & schema tooling (since 0.7.1)
+
+```bash
+# Native PNG architecture graph (Pillow drawing engine, dark theme)
+infra graph app.infra --format png -o graf.png
+
+# JSON Schema (draft-07) of the whole DSL for editors and tooling
+infra schema -o infra-schema.json
+```
+
+The `infra serve` / `infra ui` dashboard embeds the interactive
+architecture SVG and adds **Download SVG** / **Download PNG** buttons
+(data-URI payloads — the browser saves the files with no server round
+trip).
 
 ## Team integration: PR comments, alerts, policies (since 0.7.0)
 

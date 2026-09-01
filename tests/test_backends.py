@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import yaml
 
-from infra import parse, compile as infra_compile
+from infra import compile as infra_compile
+from infra import parse
 
 
 def parse_and_compile(source: str, backend_name: str, **opts) -> dict:
@@ -32,27 +33,39 @@ def load_all_yaml(content: str) -> list:
 
 class TestKubernetesBackend:
     def test_service_generates_deployment(self):
-        files = parse_and_compile('service api { image: "myapp:latest" port: 8080 replicas: 3 }', "kubernetes")
+        files = parse_and_compile(
+            'service api { image: "myapp:latest" port: 8080 replicas: 3 }', "kubernetes"
+        )
         content = "\n".join(files.values())
         kinds = [d["kind"] for d in load_all_yaml(content)]
         assert "Deployment" in kinds
         assert "Service" in kinds
 
     def test_deployment_correct_replicas(self):
-        files = parse_and_compile('service api { image: "nginx" replicas: 5 }', "kubernetes")
+        files = parse_and_compile(
+            'service api { image: "nginx" replicas: 5 }', "kubernetes"
+        )
         content = "\n".join(files.values())
-        deployment = next(d for d in load_all_yaml(content) if d["kind"] == "Deployment")
+        deployment = next(
+            d for d in load_all_yaml(content) if d["kind"] == "Deployment"
+        )
         assert deployment["spec"]["replicas"] == 5
 
     def test_deployment_correct_image(self):
         files = parse_and_compile('service api { image: "myapp:v1.2.3" }', "kubernetes")
         content = "\n".join(files.values())
-        deployment = next(d for d in load_all_yaml(content) if d["kind"] == "Deployment")
-        assert deployment["spec"]["template"]["spec"]["containers"][0]["image"] == "myapp:v1.2.3"
+        deployment = next(
+            d for d in load_all_yaml(content) if d["kind"] == "Deployment"
+        )
+        assert (
+            deployment["spec"]["template"]["spec"]["containers"][0]["image"]
+            == "myapp:v1.2.3"
+        )
 
     def test_service_with_ingress(self):
         files = parse_and_compile(
-            'service api { image: "nginx" port 80 ingress { host: "api.example.com" tls: true } }',
+            'service api { image: "nginx" port 80 ingress { host: "api.example.com" '
+            'tls: true } }',
             "kubernetes",
         )
         content = "\n".join(files.values())
@@ -60,19 +73,25 @@ class TestKubernetesBackend:
         assert "Ingress" in kinds
 
     def test_database_generates_statefulset(self):
-        files = parse_and_compile('database db { type: postgres size: 10Gi }', "kubernetes")
+        files = parse_and_compile(
+            "database db { type: postgres size: 10Gi }", "kubernetes"
+        )
         content = "\n".join(files.values())
         kinds = [d["kind"] for d in load_all_yaml(content)]
         assert "StatefulSet" in kinds
 
     def test_secret_generates_k8s_secret(self):
-        files = parse_and_compile('secret db-creds { password: "supersecret" }', "kubernetes")
+        files = parse_and_compile(
+            'secret db-creds { password: "supersecret" }', "kubernetes"
+        )
         content = "\n".join(files.values())
         kinds = [d["kind"] for d in load_all_yaml(content)]
         assert "Secret" in kinds
 
     def test_config_generates_configmap(self):
-        files = parse_and_compile('config app { LOG_LEVEL: "info" MAX_CONN: 100 }', "kubernetes")
+        files = parse_and_compile(
+            'config app { LOG_LEVEL: "info" MAX_CONN: 100 }', "kubernetes"
+        )
         content = "\n".join(files.values())
         kinds = [d["kind"] for d in load_all_yaml(content)]
         assert "ConfigMap" in kinds
@@ -85,20 +104,29 @@ class TestKubernetesBackend:
     def test_output_is_valid_yaml(self):
         files = parse_and_compile(
             'service api { image: "nginx" replicas: 2 }\n'
-            'database db { type: postgres size: 5Gi }\n'
-            'cache c { type: redis maxmemory: 256Mi }',
+            "database db { type: postgres size: 5Gi }\n"
+            "cache c { type: redis maxmemory: 256Mi }",
             "kubernetes",
         )
         for filename, content in files.items():
             docs = list(yaml.safe_load_all(content))
-            assert all(d is None or isinstance(d, dict) for d in docs), f"Bad YAML in {filename}"
+            assert all(d is None or isinstance(d, dict) for d in docs), (
+                f"Bad YAML in {filename}"
+            )
 
     def test_split_mode_multiple_files(self):
-        files = parse_and_compile('service api { image: "nginx" }\nservice worker { image: "w" }', "kubernetes", split=True)
+        files = parse_and_compile(
+            'service api { image: "nginx" }\nservice worker { image: "w" }',
+            "kubernetes",
+            split=True,
+        )
         assert len(files) >= 2
 
     def test_resources_mapping(self):
-        files = parse_and_compile('service api { image: "nginx" resources { cpu: 500m memory: 128Mi } }', "kubernetes")
+        files = parse_and_compile(
+            'service api { image: "nginx" resources { cpu: 500m memory: 128Mi } }',
+            "kubernetes",
+        )
         content = "\n".join(files.values())
         assert "500m" in content
         assert "128Mi" in content
@@ -122,30 +150,41 @@ class TestDockerComposeBackend:
         assert data["services"]["api"]["image"] == "myapp:v2"
 
     def test_ports_mapping(self):
-        files = parse_and_compile('service api { image: "nginx" port: 8080 }', "compose")
+        files = parse_and_compile(
+            'service api { image: "nginx" port: 8080 }', "compose"
+        )
         data = load_yaml(files["docker-compose.yml"])
         ports = data["services"]["api"].get("ports", [])
         assert any("8080" in str(p) for p in ports)
 
     def test_env_vars_present(self):
-        files = parse_and_compile('service api { image: "nginx" env { DEBUG: "true" PORT: "8080" } }', "compose")
+        files = parse_and_compile(
+            'service api { image: "nginx" env { DEBUG: "true" PORT: "8080" } }',
+            "compose",
+        )
         data = load_yaml(files["docker-compose.yml"])
         env = data["services"]["api"].get("environment", {})
         env_str = str(env)
         assert "DEBUG" in env_str
 
     def test_database_postgres_image(self):
-        files = parse_and_compile('database db { type: postgres version: "15" }', "compose")
+        files = parse_and_compile(
+            'database db { type: postgres version: "15" }', "compose"
+        )
         data = load_yaml(files["docker-compose.yml"])
         assert "postgres" in data["services"]["db"]["image"]
 
     def test_database_env_vars(self):
-        files = parse_and_compile('database db { type: postgres }', "compose")
+        files = parse_and_compile("database db { type: postgres }", "compose")
         data = load_yaml(files["docker-compose.yml"])
         assert "POSTGRES" in str(data["services"]["db"].get("environment", {}))
 
     def test_depends_on_mapping(self):
-        files = parse_and_compile('service db { image: "postgres" }\nservice api { image: "myapp" depends: ["db"] }', "compose")
+        files = parse_and_compile(
+            'service db { image: "postgres" }\nservice api { image: "myapp" depends: '
+            '["db"] }',
+            "compose",
+        )
         data = load_yaml(files["docker-compose.yml"])
         assert "db" in str(data["services"]["api"].get("depends_on", {}))
 
@@ -154,7 +193,11 @@ class TestDockerComposeBackend:
         assert any(".env" in f for f in files.keys())
 
     def test_output_is_valid_yaml(self):
-        files = parse_and_compile('service api { image: "nginx" }\ndatabase db { type: postgres }\ncache c { type: redis }', "compose")
+        files = parse_and_compile(
+            'service api { image: "nginx" }\ndatabase db { type: postgres }\ncache c { '
+            'type: redis }',
+            "compose",
+        )
         for filename, content in files.items():
             if filename.endswith((".yml", ".yaml")):
                 load_yaml(content)
@@ -167,7 +210,10 @@ class TestDockerComposeBackend:
 
 class TestTerraformBackend:
     def test_cluster_generates_tf(self):
-        files = parse_and_compile('cluster main { provider: aws region: "eu-west-1" version: "1.28" }', "terraform")
+        files = parse_and_compile(
+            'cluster main { provider: aws region: "eu-west-1" version: "1.28" }',
+            "terraform",
+        )
         assert any(".tf" in f for f in files.keys())
 
     def test_required_files_exist(self):
@@ -183,17 +229,24 @@ class TestTerraformBackend:
         assert "infra-lang" in content
 
     def test_database_rds(self):
-        files = parse_and_compile('database db { type: postgres size: 20Gi }', "terraform")
+        files = parse_and_compile(
+            "database db { type: postgres size: 20Gi }", "terraform"
+        )
         content = "\n".join(files.values())
         assert "aws_db_instance" in content
 
     def test_s3_bucket(self):
-        files = parse_and_compile('storage assets { type: s3 bucket: "my-assets" region: "us-east-1" }', "terraform")
+        files = parse_and_compile(
+            'storage assets { type: s3 bucket: "my-assets" region: "us-east-1" }',
+            "terraform",
+        )
         content = "\n".join(files.values())
         assert "aws_s3_bucket" in content
 
     def test_secret_terraform(self):
-        files = parse_and_compile('secret creds { api_key: from vault "x" }', "terraform")
+        files = parse_and_compile(
+            'secret creds { api_key: from vault "x" }', "terraform"
+        )
         content = "\n".join(files.values())
         assert "aws_secretsmanager_secret" in content
 
@@ -213,7 +266,9 @@ class TestGitHubActionsBackend:
     def test_pipeline_generates_workflow(self):
         files = parse_and_compile(
             'pipeline ci { trigger { branches: ["main"] } '
-            'stages { test: { runsOn: "ubuntu-latest" steps { s: { run: "echo hi" } } } } }',
+            'stages { test: { runsOn: "ubuntu-latest" steps { s: { run: "echo hi" } } '
+            '} '
+            '} }',
             "github",
         )
         assert len(files) > 0
@@ -223,7 +278,8 @@ class TestGitHubActionsBackend:
 
     def test_trigger_branches(self):
         files = parse_and_compile(
-            'pipeline ci { trigger { branches: ["main", "develop"] } stages { t: { steps { s: { run: "x" } } } } }',
+            'pipeline ci { trigger { branches: ["main", "develop"] } stages { t: { '
+            'steps { s: { run: "x" } } } } }',
             "github",
         )
         on = self._workflow(files)
@@ -232,7 +288,9 @@ class TestGitHubActionsBackend:
     def test_matrix(self):
         files = parse_and_compile(
             'pipeline ci { stages { test: { runsOn: "ubuntu-latest" '
-            'matrix { python: ["3.10", "3.11", "3.12"] } steps { s: { run: "pytest" } } } } }',
+            'matrix { python: ["3.10", "3.11", "3.12"] } steps { s: { run: "pytest" } '
+            '} '
+            '} } }',
             "github",
         )
         data = load_yaml(list(files.values())[0])
@@ -252,7 +310,9 @@ class TestGitHubActionsBackend:
 
     def test_uses_action(self):
         files = parse_and_compile(
-            'pipeline ci { stages { build: { runsOn: "ubuntu-latest" steps { c: { uses: "actions/checkout@v4" } } } } }',
+            'pipeline ci { stages { build: { runsOn: "ubuntu-latest" steps { c: { '
+            'uses: '
+            '"actions/checkout@v4" } } } } }',
             "github",
         )
         content = list(files.values())[0]
@@ -260,7 +320,8 @@ class TestGitHubActionsBackend:
 
     def test_output_valid_yaml(self):
         files = parse_and_compile(
-            'pipeline ci { trigger { branches: ["main"] } stages { t: { runsOn: "ubuntu-latest" steps { s: { run: "echo ok" } } } } }',
+            'pipeline ci { trigger { branches: ["main"] } stages { t: { runsOn: '
+            '"ubuntu-latest" steps { s: { run: "echo ok" } } } } }',
             "github",
         )
         for content in files.values():
@@ -274,15 +335,18 @@ class TestSharedImageMaps:
     def test_backends_share_same_cache_map(self):
         import infra.backends.compose as c
         import infra.backends.kubernetes as k
+
         assert k._CACHE_IMAGES is c._CACHE_IMAGES
 
     def test_backends_share_same_queue_map(self):
         import infra.backends.compose as c
         import infra.backends.kubernetes as k
+
         assert k._QUEUE_IMAGES is c._QUEUE_IMAGES
 
     def test_shared_maps_have_expected_engines(self):
         from infra.backends._images import CACHE_IMAGES, QUEUE_IMAGES
+
         assert set(CACHE_IMAGES) == {"redis", "valkey", "memcached"}
         assert set(QUEUE_IMAGES) == {"rabbitmq", "kafka", "nats"}
 
@@ -290,6 +354,7 @@ class TestSharedImageMaps:
         # A new engine added to the shared map would be picked up by both.
         import infra.backends.compose as c
         import infra.backends.kubernetes as k
+
         for engine in ("redis", "valkey", "memcached"):
             kimg = k._CACHE_IMAGES.get(engine, "redis")
             cimg = c._CACHE_IMAGES.get(engine, "redis")
@@ -298,6 +363,7 @@ class TestSharedImageMaps:
     def test_queue_engine_resolves_in_both_backends(self):
         import infra.backends.compose as c
         import infra.backends.kubernetes as k
+
         for engine, expected in (
             ("rabbitmq", "rabbitmq:3-management"),
             ("kafka", "bitnami/kafka"),
@@ -329,16 +395,16 @@ class TestGeneratedHeader:
             files = parse_and_compile(source, backend)
             assert files, f"{backend} produced no files"
             first_content = next(iter(files.values()))
-            assert first_content.startswith(
-                "# AUTO-GENERATED by infra-lang"
-            ), f"{backend} missing header"
+            assert first_content.startswith("# AUTO-GENERATED by infra-lang"), (
+                f"{backend} missing header"
+            )
 
     def test_header_includes_version_and_source(self):
         source = 'service api { image: "nginx:1.25" port 80 }'
         files = parse_and_compile(source, "kubernetes")
         head = files["infra.yaml"].splitlines()[:3]
         joined = "\n".join(head)
-        assert "v0.7.0" in joined
+        assert "v0.7.1" in joined
         assert "# Source:" in joined
         assert "# Regenerate: infra compile" in joined
 
@@ -346,15 +412,15 @@ class TestGeneratedHeader:
         source = 'service api { image: "nginx:1.25" port 80 }'
         files = parse_and_compile(source, "terraform")
         for name, content in files.items():
-            assert content.startswith(
-                "# AUTO-GENERATED by infra-lang"
-            ), f"{name} missing header"
+            assert content.startswith("# AUTO-GENERATED by infra-lang"), (
+                f"{name} missing header"
+            )
 
     def test_github_pipeline_has_header(self):
         source = 'pipeline deploy { stages { t: { runsOn: "ubuntu" } } }'
         files = parse_and_compile(source, "github")
         assert files
         for name, content in files.items():
-            assert content.startswith(
-                "# AUTO-GENERATED by infra-lang"
-            ), f"{name} missing header"
+            assert content.startswith("# AUTO-GENERATED by infra-lang"), (
+                f"{name} missing header"
+            )

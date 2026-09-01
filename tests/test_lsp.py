@@ -35,9 +35,7 @@ class TestDiagnosticsLogic:
         }
         """
         diags = _diagnose(source, "test.infra")
-        errors = [
-            d for d in diags if d.severity == DiagnosticSeverity.Error
-        ]
+        errors = [d for d in diags if d.severity == DiagnosticSeverity.Error]
         assert len(errors) == 0, (
             f"Valid service should have no errors: "
             f"{[(d.code, d.message) for d in errors]}"
@@ -294,12 +292,13 @@ class TestCompletionIntegration:
         # pygls registers the handler via the @server.feature decorator; the
         # completion method must be reachable on the module.
         assert hasattr(server, "completion") or callable(
-            getattr(__import__("infra.lsp.server", fromlist=["completion"]), "completion")
+            getattr(
+                __import__("infra.lsp.server", fromlist=["completion"]), "completion"
+            )
         )
         assert TEXT_DOCUMENT_COMPLETION == "textDocument/completion"
 
     def test_completion_handler_returns_completion_list(self):
-        from infra.lsp.server import completion
         from lsprotocol.types import (
             CompletionContext,
             CompletionList,
@@ -308,6 +307,8 @@ class TestCompletionIntegration:
             Position,
             TextDocumentIdentifier,
         )
+
+        from infra.lsp.server import completion
 
         class FakeDoc:
             source = "service api {\n    \n}"
@@ -323,22 +324,21 @@ class TestCompletionIntegration:
         params = CompletionParams(
             text_document=TextDocumentIdentifier(uri="file:///t.infra"),
             position=Position(line=1, character=4),
-            context=CompletionContext(
-                trigger_kind=CompletionTriggerKind.Invoked
-            ),
+            context=CompletionContext(trigger_kind=CompletionTriggerKind.Invoked),
         )
         result = completion(FakeLS(), params)
         assert isinstance(result, CompletionList)
         assert result.items  # non-empty
 
     def test_completion_no_crash_on_empty_doc(self):
-        from infra.lsp.server import completion
         from lsprotocol.types import (
             CompletionList,
             CompletionParams,
             Position,
             TextDocumentIdentifier,
         )
+
+        from infra.lsp.server import completion
 
         class FakeDoc:
             source = ""

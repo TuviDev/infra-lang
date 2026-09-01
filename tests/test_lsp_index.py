@@ -8,8 +8,8 @@ try:
     from infra.lsp.workspace_index import (
         KIND_TO_SYMBOL_KIND,
         WorkspaceIndex,
-        find_references_in_sources,
         _scan_source,
+        find_references_in_sources,
     )
 
     HAS_LSP = True
@@ -71,7 +71,7 @@ class TestWorkspaceIndexScan:
 
     def test_non_existent_root_no_crash(self):
         idx = WorkspaceIndex()
-        idx.scan_directory(tmp_path := __import__("tempfile").mkdtemp())
+        idx.scan_directory(__import__("tempfile").mkdtemp())
         idx.scan_directory(__import__("pathlib").Path("/definitely/not/here"))
         assert idx.sources() == {}
 
@@ -116,21 +116,35 @@ class TestFindReferencesInSources:
         assert locs[0].uri == "file:///a.infra"
 
     def test_absent_name_returns_empty(self):
-        assert find_references_in_sources({"file:///a.infra": "service x {}\n"}, "zzz") == []
+        assert (
+            find_references_in_sources({"file:///a.infra": "service x {}\n"}, "zzz")
+            == []
+        )
 
 
 class TestKindMapping:
     def test_all_block_kinds_mapped(self):
         # every top-level block keyword maps to a SymbolKind name
-        for kw in ("service", "database", "cache", "queue", "storage",
-                   "network", "secret", "config", "pipeline", "environment",
-                   "cluster"):
+        for kw in (
+            "service",
+            "database",
+            "cache",
+            "queue",
+            "storage",
+            "network",
+            "secret",
+            "config",
+            "pipeline",
+            "environment",
+            "cluster",
+        ):
             assert KIND_TO_SYMBOL_KIND.get(kw), f"{kw} missing mapping"
 
 
 class TestWorkspaceIndexEdgeBranches:
     def test_max_files_cap_breaks_scan(self, tmp_path):
         from infra.lsp.workspace_index import MAX_FILES
+
         for i in range(MAX_FILES + 2):
             (tmp_path / f"f{i}.infra").write_text("service a {}\n")
         idx = WorkspaceIndex()

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from lsprotocol.types import HoverParams, Position, TextDocumentIdentifier
 
 from infra.lsp import server as mod

@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from infra import parse, validate
 
 
@@ -21,7 +19,7 @@ def warn_codes(source: str) -> list:
 
 class TestErrorCodes:
     def test_e001_undefined_variable(self):
-        r = v('service api { image: missing_var }')
+        r = v("service api { image: missing_var }")
         e = next(e for e in r.errors if e.code == "E001")
         assert "missing_var" in e.message
 
@@ -60,10 +58,14 @@ class TestErrorCodes:
         assert "E021" in error_codes("database db { type: postgres replicas: 0 }")
 
     def test_e022_invalid_backup_cron(self):
-        assert "E022" in error_codes('database db { type: postgres backup { schedule: "bad" } }')
+        assert "E022" in error_codes(
+            'database db { type: postgres backup { schedule: "bad" } }'
+        )
 
     def test_e023_duplicate_db_user(self):
-        assert "E023" in error_codes("database db { type: postgres users { a: '1' a: '2' } }")
+        assert "E023" in error_codes(
+            "database db { type: postgres users { a: '1' a: '2' } }"
+        )
 
     def test_e024_unknown_cache(self):
         assert "E024" in error_codes("cache c { type: banana }")
@@ -78,15 +80,23 @@ class TestErrorCodes:
         assert "E027" in error_codes('secret s { a: "1" a: "2" }')
 
     def test_e030_stage_undefined_dep(self):
-        r = v('pipeline p { stages { a: { needs: ["nope"] steps { s: { run: "x" } } } } }')
+        r = v(
+            'pipeline p { stages { a: { needs: ["nope"] steps { s: { run: "x" } } } } }'
+        )
         assert "E030" in [e.code for e in r.errors]
 
     def test_e031_cyclic_pipeline(self):
-        src = 'pipeline p { stages { a: { needs: ["b"] steps { s: { run: "1" } } } b: { needs: ["a"] steps { s: { run: "2" } } } } }'
+        src = (
+            'pipeline p { stages { a: { needs: ["b"] steps { s: { run: "1" } } } b: { '
+            'needs: ["a"] steps { s: { run: "2" } } } } }'
+        )
         assert "E031" in error_codes(src)
 
     def test_e032_invalid_pipeline_cron(self):
-        assert "E032" in error_codes('pipeline p { trigger { schedule: "nope" } stages { a: { steps { s: { run: "x" } } } } }')
+        assert "E032" in error_codes(
+            'pipeline p { trigger { schedule: "nope" } stages { a: { steps { s: { run: '
+            '"x" } } } } }'
+        )
 
     def test_e033_unknown_provider(self):
         assert "E033" in error_codes("cluster c { provider: banana }")
@@ -97,7 +107,9 @@ class TestWarningCodes:
         assert "W001" in warn_codes('service api { image: "a" depends: ["db"] }')
 
     def test_w002_rolling_replicas1(self):
-        assert "W002" in warn_codes('service api { image: "a" replicas: 1 strategy: rolling }')
+        assert "W002" in warn_codes(
+            'service api { image: "a" replicas: 1 strategy: rolling }'
+        )
 
     def test_w003_unused_variable(self):
         assert "W003" in warn_codes('let unused = 1\nservice api { image: "a" }')
@@ -168,7 +180,10 @@ class TestReliabilityMessages:
         assert "backup" in w.message
 
     def test_all_rel_have_hints(self):
-        r = v('service api { image: "nginx:1.0" replicas: 5 }\ndatabase db { type: postgres replicas: 2 ha: true }')
+        r = v(
+            'service api { image: "nginx:1.0" replicas: 5 }\ndatabase db { type: '
+            'postgres replicas: 2 ha: true }'
+        )
         for w in r.warnings:
             if w.code and w.code.startswith("REL"):
                 assert w.hint

@@ -18,12 +18,18 @@ class TestGCPProvider:
         assert "google_container_cluster" in content
 
     def test_gcp_database(self):
-        files = compile_tf("database db { type: postgres }\ncluster main { provider: gcp }")
+        files = compile_tf(
+            "database db { type: postgres }\ncluster main { provider: gcp }"
+        )
         content = "\n".join(files.values())
         assert "google_sql_database_instance" in content
 
     def test_gcp_storage(self):
-        files = compile_tf('storage assets { type: gcs bucket: "my-bucket" }\ncluster main { provider: gcp }')
+        files = compile_tf(
+            'storage assets { type: gcs bucket: "my-bucket" }\ncluster main { '
+            'provider: '
+            'gcp }'
+        )
         content = "\n".join(files.values())
         assert "google_storage_bucket" in content
 
@@ -40,12 +46,16 @@ class TestAzureProvider:
         assert "azurerm_kubernetes_cluster" in content
 
     def test_azure_database(self):
-        files = compile_tf("database db { type: postgres }\ncluster main { provider: azure }")
+        files = compile_tf(
+            "database db { type: postgres }\ncluster main { provider: azure }"
+        )
         content = "\n".join(files.values())
         assert "azurerm_postgresql_server" in content
 
     def test_azure_storage(self):
-        files = compile_tf("storage blob { type: azure_blob }\ncluster main { provider: azure }")
+        files = compile_tf(
+            "storage blob { type: azure_blob }\ncluster main { provider: azure }"
+        )
         content = "\n".join(files.values())
         assert "azurerm_storage_account" in content
 
@@ -62,6 +72,10 @@ class TestAWSProvider:
         assert "aws" in content.lower()
 
     def test_aws_rds(self):
-        files = compile_tf("database db { type: postgres storage: 20Gi }\ncluster main { provider: aws }")
+        files = compile_tf(
+            "database db { type: postgres storage: 20Gi }\ncluster main { provider: "
+            "aws "
+            "}"
+        )
         content = "\n".join(files.values())
         assert "aws_db_instance" in content

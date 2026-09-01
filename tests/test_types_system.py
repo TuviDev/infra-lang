@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from infra.analyzer import types as T
+from infra.analyzer import types as it
 from infra.backends.base import (
     CompileContext,
     CompileResult,
@@ -13,62 +13,62 @@ from infra.parser import ast_nodes as n
 
 class TestTypes:
     def test_primitives_compatibility(self):
-        assert T.STRING.is_compatible(T.STRING)
-        assert not T.STRING.is_compatible(T.INT)
-        assert not T.INT.is_compatible(T.STRING)
-        assert T.INT.is_assignable_from(T.FLOAT)  # int usable as float
-        assert T.FLOAT.is_assignable_from(T.FLOAT)
+        assert it.STRING.is_compatible(it.STRING)
+        assert not it.STRING.is_compatible(it.INT)
+        assert not it.INT.is_compatible(it.STRING)
+        assert it.INT.is_assignable_from(it.FLOAT)  # int usable as float
+        assert it.FLOAT.is_assignable_from(it.FLOAT)
 
     def test_optional_type(self):
-        opt = T.OptionalType(T.INT)
-        assert opt.is_assignable_from(T.INT)
-        assert opt.is_assignable_from(T.NULL)
-        assert not opt.is_assignable_from(T.STRING)
+        opt = it.OptionalType(it.INT)
+        assert opt.is_assignable_from(it.INT)
+        assert opt.is_assignable_from(it.NULL)
+        assert not opt.is_assignable_from(it.STRING)
 
     def test_list_type(self):
-        lt = T.ListType(T.STRING)
-        assert lt.is_assignable_from(T.ListType(T.STRING))
+        lt = it.ListType(it.STRING)
+        assert lt.is_assignable_from(it.ListType(it.STRING))
         assert str(lt) == "list[string]"
 
     def test_union_type(self):
-        u = T.UnionType((T.STRING, T.INT))
-        assert u.is_assignable_from(T.STRING)
-        assert u.is_assignable_from(T.INT)
+        u = it.UnionType((it.STRING, it.INT))
+        assert u.is_assignable_from(it.STRING)
+        assert u.is_assignable_from(it.INT)
         assert str(u) == "string | int"
 
     def test_any_unknown_error_compatible_with_all(self):
-        for special in (T.ANY, T.UNKNOWN, T.ERROR):
-            for t in (T.STRING, T.INT, T.FLOAT, T.NULL):
+        for special in (it.ANY, it.UNKNOWN, it.ERROR):
+            for t in (it.STRING, it.INT, it.FLOAT, it.NULL):
                 assert special.is_compatible(t)
 
     def test_map_type(self):
-        m = T.MapType(T.STRING, T.INT)
-        assert m.is_assignable_from(T.MapType(T.STRING, T.INT))
+        m = it.MapType(it.STRING, it.INT)
+        assert m.is_assignable_from(it.MapType(it.STRING, it.INT))
         assert str(m) == "map[string, int]"
 
     def test_duration_and_resource_types(self):
-        assert str(T.DURATION) == "duration"
-        assert str(T.RESOURCE) == "resource"
-        assert str(T.PERCENTAGE) == "percentage"
+        assert str(it.DURATION) == "duration"
+        assert str(it.RESOURCE) == "resource"
+        assert str(it.PERCENTAGE) == "percentage"
 
     def test_infer_literal_type(self):
-        assert T.infer_literal_type("x") == T.STRING
-        assert T.infer_literal_type(42) == T.INT
-        assert T.infer_literal_type(3.14) == T.FLOAT
-        assert T.infer_literal_type(True) == T.BOOL
-        assert T.infer_literal_type(None) == T.NULL
-        assert T.infer_literal_type([1]) == T.ANY
+        assert it.infer_literal_type("x") == it.STRING
+        assert it.infer_literal_type(42) == it.INT
+        assert it.infer_literal_type(3.14) == it.FLOAT
+        assert it.infer_literal_type(True) == it.BOOL
+        assert it.infer_literal_type(None) == it.NULL
+        assert it.infer_literal_type([1]) == it.ANY
 
     def test_are_types_compatible(self):
-        assert T.are_types_compatible(T.STRING, T.STRING)
-        assert not T.are_types_compatible(T.STRING, T.INT)
+        assert it.are_types_compatible(it.STRING, it.STRING)
+        assert not it.are_types_compatible(it.STRING, it.INT)
 
     def test_unify_types(self):
-        assert T.unify_types([T.STRING, T.STRING]) == T.STRING
-        assert T.unify_types([T.INT, T.FLOAT]) == T.FLOAT
-        assert isinstance(T.unify_types([T.STRING, T.INT]), T.UnionType)
-        assert T.unify_types([]) == T.ANY
-        assert T.unify_types([T.ANY, T.STRING]) == T.ANY
+        assert it.unify_types([it.STRING, it.STRING]) == it.STRING
+        assert it.unify_types([it.INT, it.FLOAT]) == it.FLOAT
+        assert isinstance(it.unify_types([it.STRING, it.INT]), it.UnionType)
+        assert it.unify_types([]) == it.ANY
+        assert it.unify_types([it.ANY, it.STRING]) == it.ANY
 
 
 class TestBaseBackend:
@@ -102,12 +102,19 @@ class TestBaseBackend:
 
     def test_evaluate_binary_op(self):
         ctx = self._ctx()
-        assert evaluate_expression(n.BinaryOp(n.Literal(1), "+", n.Literal(2)), ctx) == 3
-        assert evaluate_expression(n.BinaryOp(n.Literal("a"), "+", n.Literal("b")), ctx) == "ab"
+        assert (
+            evaluate_expression(n.BinaryOp(n.Literal(1), "+", n.Literal(2)), ctx) == 3
+        )
+        assert (
+            evaluate_expression(n.BinaryOp(n.Literal("a"), "+", n.Literal("b")), ctx)
+            == "ab"
+        )
 
     def test_evaluate_list_and_map(self):
         ctx = self._ctx()
-        assert evaluate_expression(n.List(items=(n.Literal("a"), n.Literal("b"))), ctx) == ["a", "b"]
+        assert evaluate_expression(
+            n.List(items=(n.Literal("a"), n.Literal("b"))), ctx
+        ) == ["a", "b"]
 
     def test_evaluate_call_builtin(self):
         ctx = self._ctx()
@@ -115,7 +122,9 @@ class TestBaseBackend:
         assert evaluate_expression(call, ctx) == "HI"
 
     def test_from_program_loads_variables(self):
-        program = n.Program(statements=(n.VariableDecl(name="V", value=n.Literal("x")),))
+        program = n.Program(
+            statements=(n.VariableDecl(name="V", value=n.Literal("x")),)
+        )
         ctx = CompileContext.from_program(program, symbol_table=None)
         assert "V" in ctx.variables
 

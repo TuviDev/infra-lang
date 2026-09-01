@@ -63,14 +63,18 @@ class TestInitMicroservices:
         root = _init(tmp_path, "micro", "microservices")
         services_dir = root / "infra" / "services"
         assert len(list(services_dir.glob("*.infra"))) == 3
-        content = "".join(f.read_text(encoding="utf-8") for f in services_dir.glob("*.infra"))
+        content = "".join(
+            f.read_text(encoding="utf-8") for f in services_dir.glob("*.infra")
+        )
         for svc in ("api", "worker", "frontend"):
             assert f"service {svc}" in content
 
     def test_includes_db_cache_queue(self, tmp_path):
         root = _init(tmp_path, "micro", "microservices")
         db = (root / "infra" / "databases" / "main.infra").read_text(encoding="utf-8")
-        cache = (root / "infra" / "caches" / "session.infra").read_text(encoding="utf-8")
+        cache = (root / "infra" / "caches" / "session.infra").read_text(
+            encoding="utf-8"
+        )
         queue = (root / "infra" / "queues" / "events.infra").read_text(encoding="utf-8")
         assert "database db" in db
         assert "cache session" in cache

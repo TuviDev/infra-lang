@@ -36,7 +36,9 @@ class TestAwsCluster:
         assert 'name     = "c"' in main
 
     def test_aws_node_group(self):
-        main = _tf('cluster c { provider: aws nodes { main: { min: 2 max: 5 } } }')["main.tf"]
+        main = _tf("cluster c { provider: aws nodes { main: { min: 2 max: 5 } } }")[
+            "main.tf"
+        ]
         assert 'resource "aws_eks_node_group" "c_main"' in main
 
     def test_aws_iam_role(self):
@@ -84,7 +86,9 @@ class TestAzureCluster:
 
 class TestDatabaseAndStorage:
     def test_aws_rds_database(self):
-        main = _tf("cluster c { provider: aws }\ndatabase db { type: postgres }")["main.tf"]
+        main = _tf("cluster c { provider: aws }\ndatabase db { type: postgres }")[
+            "main.tf"
+        ]
         assert "aws_db_instance" in main
 
     def test_database_outputs(self):
@@ -92,11 +96,15 @@ class TestDatabaseAndStorage:
         assert "output" in files["outputs.tf"]
 
     def test_aws_storage_s3(self):
-        main = _tf('cluster c { provider: aws }\nstorage s { type: s3 bucket: "b" }')["main.tf"]
+        main = _tf('cluster c { provider: aws }\nstorage s { type: s3 bucket: "b" }')[
+            "main.tf"
+        ]
         assert "aws_s3_bucket" in main
 
     def test_gcp_storage_bucket(self):
-        main = _tf('cluster c { provider: gcp }\nstorage s { type: gcs bucket: "b" }')["main.tf"]
+        main = _tf('cluster c { provider: gcp }\nstorage s { type: gcs bucket: "b" }')[
+            "main.tf"
+        ]
         assert "google_storage_bucket" in main
 
     def test_versions_file(self):
@@ -141,7 +149,9 @@ class TestProviderCombinations:
 
     def test_aws_default_region_variable(self):
         files = _tf("cluster c { provider: aws }")
-        assert 'variable "aws_region" { default = "eu-west-1" }' in files["variables.tf"]
+        assert (
+            'variable "aws_region" { default = "eu-west-1" }' in files["variables.tf"]
+        )
 
     def test_aws_provider_has_default_tags(self):
         files = _tf("cluster c { provider: aws }")
@@ -172,17 +182,16 @@ class TestVariableInterpolation:
         assert files["main.tf"]
 
     def test_aws_storage_with_bucket_compiles(self):
-        main = _tf(
-            'cluster c { provider: aws }\nstorage s { type: s3 bucket: "b" }'
-        )["main.tf"]
+        main = _tf('cluster c { provider: aws }\nstorage s { type: s3 bucket: "b" }')[
+            "main.tf"
+        ]
         assert "aws_s3_bucket" in main
 
 
 class TestTerraformNetworkSecretQueue:
     def test_network_vpc_subnets(self):
         main = _tf(
-            'network n { cidr: "10.0.0.0/16" '
-            'subnets { a: { cidr: "10.0.1.0/24" } } }'
+            'network n { cidr: "10.0.0.0/16" subnets { a: { cidr: "10.0.1.0/24" } } }'
         )["main.tf"]
         assert 'resource "aws_vpc" "n"' in main
         assert 'resource "aws_subnet" "n_a"' in main

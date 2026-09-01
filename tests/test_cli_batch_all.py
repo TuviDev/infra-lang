@@ -184,7 +184,7 @@ class TestFmtAll:
     def test_check_mode_detects_pending_changes(self, workspace):
         (workspace / "bad.infra").unlink()
         messy = workspace / "services" / "worker.infra"
-        messy.write_text("service worker {   image: \"x\"   depends_on: [jobs] }\n")
+        messy.write_text('service worker {   image: "x"   depends_on: [jobs] }\n')
         result = runner.invoke(app, ["fmt", "--all", "--check"])
         assert result.exit_code == 1
         assert "would reformat" in result.output

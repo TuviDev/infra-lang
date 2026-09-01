@@ -36,28 +36,33 @@ class TestServiceContent:
 
     def test_env_from_secret(self):
         svc = _svc(
-            'secret s { v: from env "X" }\nservice api { image: "x" env { P: from secret "s".v } }',
+            'secret s { v: from env "X" }\nservice api { image: "x" env { P: from '
+            'secret "s".v } }',
             "api",
         )
         assert "${s_v}" in svc["environment"]["P"]
 
     def test_secret_mounted_when_from_secret(self):
         svc = _svc(
-            'secret s { v: from env "X" }\nservice api { image: "x" env { P: from secret "s".v } }',
+            'secret s { v: from env "X" }\nservice api { image: "x" env { P: from '
+            'secret "s".v } }',
             "api",
         )
         assert svc.get("secrets") == ["s"]
 
     def test_depends_on_condition_healthy(self):
         svc = _svc(
-            'service a { image: "x" health http("/h") }\nservice b { image: "y" depends: [a] }',
+            'service a { image: "x" health http("/h") }\nservice b { image: "y" '
+            'depends: [a] }',
             "b",
         )
         assert svc["depends_on"] == {"a": {"condition": "service_healthy"}}
 
     def test_depends_on_no_health_uses_healthy_condition(self):
         # compose backend always uses service_healthy even without health block
-        svc = _svc('service a { image: "x" }\nservice b { image: "y" depends: [a] }', "b")
+        svc = _svc(
+            'service a { image: "x" }\nservice b { image: "y" depends: [a] }', "b"
+        )
         assert svc["depends_on"]["a"]["condition"] == "service_healthy"
 
     def test_healthcheck_http(self):
@@ -67,7 +72,9 @@ class TestServiceContent:
         assert hc["test"]
 
     def test_healthcheck_interval(self):
-        svc = _svc('service api { image: "x" health http("/h") { interval: 30s } }', "api")
+        svc = _svc(
+            'service api { image: "x" health http("/h") { interval: 30s } }', "api"
+        )
         assert svc["healthcheck"]["interval"] == "30s"
 
     def test_healthcheck_retries(self):
@@ -75,13 +82,17 @@ class TestServiceContent:
         assert svc["healthcheck"]["retries"] == 7
 
     def test_volumes_listed_in_service(self):
-        svc = _svc('service api { image: "x" volumes { data: { mountPath: "/var/data" } } }', "api")
+        svc = _svc(
+            'service api { image: "x" volumes { data: { mountPath: "/var/data" } } }',
+            "api",
+        )
         assert any("data" in v and "/var/data" in v for v in svc["volumes"])
 
     def test_volumes_top_level_declared(self):
-        data, _ = _compose('service api { image: "x" volumes { data: { mountPath: "/var/data" } } }')
+        data, _ = _compose(
+            'service api { image: "x" volumes { data: { mountPath: "/var/data" } } }'
+        )
         assert "data" in data.get("volumes", {})
-
 
     def test_replicas_deploy(self):
         svc = _svc('service api { image: "x" replicas: 3 }', "api")
@@ -96,14 +107,17 @@ class TestServiceContent:
         assert svc["build"]["context"] == "."
 
     def test_build_dockerfile_and_target(self):
-        svc = _svc('service api { build { context: "." dockerfile: "D.f" target: "prod" } }', "api")
+        svc = _svc(
+            'service api { build { context: "." dockerfile: "D.f" target: "prod" } }',
+            "api",
+        )
         assert svc["build"]["dockerfile"] == "D.f"
         assert svc["build"]["target"] == "prod"
 
 
 class TestDatabaseContent:
     def test_postgres_image(self):
-        svc = _svc("database db { type: postgres version: \"15\" }", "db")
+        svc = _svc('database db { type: postgres version: "15" }', "db")
         assert svc["image"] == "postgres:15"
 
     def test_postgres_env_vars(self):
@@ -113,7 +127,7 @@ class TestDatabaseContent:
         assert "POSTGRES_USER" in str(env)
 
     def test_mysql_image(self):
-        svc = _svc("database db { type: mysql version: \"8\" }", "db")
+        svc = _svc('database db { type: mysql version: "8" }', "db")
         assert svc["image"].startswith("mysql:8")
 
     def test_database_no_ports_exposed_by_default(self):
@@ -123,7 +137,7 @@ class TestDatabaseContent:
 
 class TestCacheQueueContent:
     def test_redis_image(self):
-        svc = _svc("cache c { type: redis version: \"7\" }", "c")
+        svc = _svc('cache c { type: redis version: "7" }', "c")
         assert svc["image"] == "redis:7"
 
     def test_rabbitmq_image(self):
@@ -139,6 +153,7 @@ class TestComposeTopLevel:
     def test_configs_top_level(self):
         data, _ = _compose('config c { K: "v" }')
         assert "c" in data.get("configs", {}) or "c" in data.get("configs", {}) or True
+
 
 class TestHealthcheckDetail:
     def test_http_healthcheck_url_with_path(self):
@@ -160,7 +175,9 @@ class TestHealthcheckDetail:
         assert "localhost" in test
 
     def test_healthcheck_timeout(self):
-        svc = _svc('service api { image: "x" health http("/h") { timeout: 5s } }', "api")
+        svc = _svc(
+            'service api { image: "x" health http("/h") { timeout: 5s } }', "api"
+        )
         assert svc["healthcheck"]["timeout"] == "5s"
 
     def test_healthcheck_absent_when_no_health(self):
@@ -173,6 +190,7 @@ class TestConfigContent:
         data, _ = _compose('config c { K1: "v1" K2: "v2" }')
         # configs referenced by services; top-level config may use external/file
         assert "c" in data.get("configs", {}) or data.get("configs") is not None
+
 
 class TestDatabaseDetail:
     def test_postgres_users_password(self):
@@ -254,7 +272,9 @@ class TestConsolidatedFromAudit:
 
     def test_compose_output_is_valid_yaml_dict(self):
         result = _compose(
-            'service api { image: "nginx:1.25" }\ndatabase db { type: postgres }\ncache c { type: redis }'
+            'service api { image: "nginx:1.25" }\ndatabase db { type: postgres '
+            '}\ncache '
+            'c { type: redis }'
         )[1]
         for name, content in result.files.items():
             if name.endswith((".yml", ".yaml")):
@@ -313,17 +333,15 @@ class TestComposeTopLevelVolumes:
 
     def test_env_file_generated_from_secret(self):
         # .env.example is populated from literal secret/config values
-        _, result = _compose(
-            'secret s { password: "v" }\nservice api { image: "x" }'
-        )
+        _, result = _compose('secret s { password: "v" }\nservice api { image: "x" }')
         env_file = result.files.get(".env.example", "")
         assert "S_PASSWORD=v" in env_file
 
 
 class TestComposeSingleAndMinio:
     def test_compile_service_single(self):
-        from infra.parser import ast_nodes as n
         from infra.backends.compose import DockerComposeBackend
+        from infra.parser import ast_nodes as n
 
         prog = parse('service api { image: "nginx:1" }')
         svc = [s for s in prog.statements if isinstance(s, n.ServiceDef)][0]
@@ -332,8 +350,8 @@ class TestComposeSingleAndMinio:
         assert "image:" in out
 
     def test_compile_database_single(self):
-        from infra.parser import ast_nodes as n
         from infra.backends.compose import DockerComposeBackend
+        from infra.parser import ast_nodes as n
 
         prog = parse("database db { type: postgres }")
         db = [s for s in prog.statements if isinstance(s, n.DatabaseDef)][0]
@@ -342,7 +360,7 @@ class TestComposeSingleAndMinio:
         assert "POSTGRES_DB: db" in out
 
     def test_minio_storage(self):
-        data, _ = _compose('storage s { type: minio }')
+        data, _ = _compose("storage s { type: minio }")
         assert "s" in data["services"]
         svc = data["services"]["s"]
         assert "MINIO_ROOT_USER" in svc["environment"]

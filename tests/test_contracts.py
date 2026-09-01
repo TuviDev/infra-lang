@@ -47,7 +47,9 @@ def get_all_contract_blocks():
     blocks = []
     for doc in PUBLIC_DOCS:
         if doc.exists():
-            for block, src in extract_infra_blocks(doc.read_text(encoding="utf-8"), str(doc)):
+            for block, src in extract_infra_blocks(
+                doc.read_text(encoding="utf-8"), str(doc)
+            ):
                 blocks.append((block, src))
     return blocks
 
@@ -69,9 +71,7 @@ class TestPublicDocumentationSyntax:
             parse(block, filename=source)
         except Exception as e:
             pytest.fail(
-                f"Public example in {source} fails to parse:\n"
-                f"{block[:200]}\n"
-                f"Error: {e}"
+                f"Public example in {source} fails to parse:\n{block[:200]}\nError: {e}"
             )
 
 

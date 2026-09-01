@@ -5,10 +5,9 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
+from pathlib import Path
 
 import pytest
-from pathlib import Path
 from typer.testing import CliRunner
 
 from infra.cli.main import app
@@ -34,59 +33,91 @@ def write_infra(path: Path, content: str) -> Path:
 
 @pytest.fixture
 def simple_service(tmp_path):
-    return write_infra(tmp_path / "test.infra", 'service api { image: "nginx:1.25" replicas: 2 }')
+    return write_infra(
+        tmp_path / "test.infra", 'service api { image: "nginx:1.25" replicas: 2 }'
+    )
 
 
 @pytest.fixture
 def invalid_service(tmp_path):
-    return write_infra(tmp_path / "bad.infra", 'service api { image: "nginx" replicas: 0 }')
+    return write_infra(
+        tmp_path / "bad.infra", 'service api { image: "nginx" replicas: 0 }'
+    )
 
 
 class TestCompileCommand:
     def test_compile_kubernetes_default(self, simple_service, tmp_path):
         out = tmp_path / "out"
-        result = runner.invoke(app, ["compile", str(simple_service), "--output", str(out)])
+        result = runner.invoke(
+            app, ["compile", str(simple_service), "--output", str(out)]
+        )
         assert result.exit_code == 0, result.output
         assert len(list(out.glob("*.yaml"))) > 0
 
     def test_compile_compose(self, simple_service, tmp_path):
         out = tmp_path / "out"
-        result = runner.invoke(app, ["compile", str(simple_service), "--target", "compose", "--output", str(out)])
+        result = runner.invoke(
+            app,
+            [
+                "compile",
+                str(simple_service),
+                "--target",
+                "compose",
+                "--output",
+                str(out),
+            ],
+        )
         assert result.exit_code == 0, result.output
         assert len(list(out.glob("docker-compose*"))) > 0
 
     def test_compile_github(self, tmp_path):
-        src = write_infra(tmp_path / "pipe.infra",
-                          'pipeline ci { trigger { branches: ["main"] } '
-                          'stages { t: { runsOn: "ubuntu-latest" steps { s: { run: "echo ok" } } } } }')
+        src = write_infra(
+            tmp_path / "pipe.infra",
+            'pipeline ci { trigger { branches: ["main"] } '
+            'stages { t: { runsOn: "ubuntu-latest" steps { s: { run: "echo ok" } } } } '
+            '}',
+        )
         out = tmp_path / "out"
-        result = runner.invoke(app, ["compile", str(src), "--target", "github", "--output", str(out)])
+        result = runner.invoke(
+            app, ["compile", str(src), "--target", "github", "--output", str(out)]
+        )
         assert result.exit_code == 0, result.output
 
     def test_compile_terraform(self, tmp_path):
         src = write_infra(tmp_path / "tf.infra", "cluster main { provider: aws }")
         out = tmp_path / "out"
-        result = runner.invoke(app, ["compile", str(src), "--target", "terraform", "--output", str(out)])
+        result = runner.invoke(
+            app, ["compile", str(src), "--target", "terraform", "--output", str(out)]
+        )
         assert result.exit_code == 0, result.output
 
     def test_compile_dry_run(self, simple_service, tmp_path):
         out = tmp_path / "dry-out"
-        result = runner.invoke(app, ["compile", str(simple_service), "--dry-run", "--output", str(out)])
+        result = runner.invoke(
+            app, ["compile", str(simple_service), "--dry-run", "--output", str(out)]
+        )
         assert result.exit_code == 0
         assert not out.exists()
 
     def test_compile_split(self, tmp_path):
-        src = write_infra(tmp_path / "multi.infra",
-                          'service api { image: "nginx:1.0" }\nservice worker { image: "redis:7" }')
+        src = write_infra(
+            tmp_path / "multi.infra",
+            'service api { image: "nginx:1.0" }\nservice worker { image: "redis:7" }',
+        )
         out = tmp_path / "out"
-        result = runner.invoke(app, ["compile", str(src), "--split", "--output", str(out)])
+        result = runner.invoke(
+            app, ["compile", str(src), "--split", "--output", str(out)]
+        )
         assert result.exit_code == 0
         assert len(list(out.glob("*.yaml"))) >= 2
 
     def test_compile_errors_exit_1(self, invalid_service, tmp_path):
         out = tmp_path / "out"
-        result = runner.invoke(app, ["compile", str(invalid_service), "--output", str(out)],
-                               catch_exceptions=False)
+        result = runner.invoke(
+            app,
+            ["compile", str(invalid_service), "--output", str(out)],
+            catch_exceptions=False,
+        )
         assert result.exit_code == 1
 
     def test_compile_nonexistent_file(self):
@@ -95,7 +126,10 @@ class TestCompileCommand:
 
     def test_compile_var_option(self, simple_service, tmp_path):
         out = tmp_path / "out"
-        result = runner.invoke(app, ["compile", str(simple_service), "--var", "ENV=prod", "--output", str(out)])
+        result = runner.invoke(
+            app,
+            ["compile", str(simple_service), "--var", "ENV=prod", "--output", str(out)],
+        )
         assert result.exit_code == 0
 
 
@@ -105,16 +139,23 @@ class TestValidateCommand:
         assert result.exit_code == 0
 
     def test_validate_invalid_exits_1(self, invalid_service):
-        result = runner.invoke(app, ["validate", str(invalid_service)], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["validate", str(invalid_service)], catch_exceptions=False
+        )
         assert result.exit_code == 1
 
     def test_validate_shows_error(self, invalid_service):
-        result = runner.invoke(app, ["validate", str(invalid_service)], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["validate", str(invalid_service)], catch_exceptions=False
+        )
         assert "replicas" in result.output.lower() or "E0" in result.output
 
     def test_validate_json_format(self, invalid_service):
-        result = runner.invoke(app, ["validate", str(invalid_service), "--format", "json"],
-                               catch_exceptions=False)
+        result = runner.invoke(
+            app,
+            ["validate", str(invalid_service), "--format", "json"],
+            catch_exceptions=False,
+        )
         data = json.loads(result.output)
         assert "valid" in data
         assert data["valid"] is False
@@ -122,8 +163,11 @@ class TestValidateCommand:
         assert len(data["errors"]) > 0
 
     def test_validate_github_format(self, invalid_service):
-        result = runner.invoke(app, ["validate", str(invalid_service), "--format", "github"],
-                               catch_exceptions=False)
+        result = runner.invoke(
+            app,
+            ["validate", str(invalid_service), "--format", "github"],
+            catch_exceptions=False,
+        )
         assert "::error" in result.output
 
     def test_validate_json_flag_valid(self, simple_service):
@@ -148,8 +192,13 @@ class TestValidateCommand:
             assert key in first
 
     def test_validate_strict_warnings_as_errors(self, tmp_path):
-        src = write_infra(tmp_path / "w.infra", 'let unused_var = "hello"\nservice api { image: "nginx:1.0" }')
-        result = runner.invoke(app, ["validate", str(src), "--strict"], catch_exceptions=False)
+        src = write_infra(
+            tmp_path / "w.infra",
+            'let unused_var = "hello"\nservice api { image: "nginx:1.0" }',
+        )
+        result = runner.invoke(
+            app, ["validate", str(src), "--strict"], catch_exceptions=False
+        )
         assert result.exit_code == 1
 
     def test_validate_multiple_files(self, tmp_path):
@@ -168,7 +217,9 @@ class TestFmtCommand:
 
     def test_fmt_check_unformatted_exits_1(self, tmp_path):
         src = write_infra(tmp_path / "fmt.infra", 'service api{image:"nginx:1.0"}')
-        result = runner.invoke(app, ["fmt", str(src), "--check"], catch_exceptions=False)
+        result = runner.invoke(
+            app, ["fmt", str(src), "--check"], catch_exceptions=False
+        )
         assert result.exit_code == 1
 
     def test_fmt_idempotent(self, tmp_path):
@@ -249,7 +300,9 @@ class TestErrorReporter:
 
         source = invalid_service.read_text(encoding="utf-8")
         result = validate(parse(source))
-        output = ErrorReporter().report_semantic_errors(result.errors, result.warnings, source)
+        output = ErrorReporter().report_semantic_errors(
+            result.errors, result.warnings, source
+        )
         assert isinstance(output, str)
         assert len(output) > 0
 

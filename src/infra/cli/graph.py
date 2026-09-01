@@ -110,7 +110,7 @@ def _render_mermaid(
 def graph(
     files: List[Path] = typer.Argument(..., help=".infra file(s)"),
     format: str = typer.Option(
-        "ascii", "--format", help="Output format: ascii, dot, mermaid, svg"
+        "ascii", "--format", help="Output format: ascii, dot, mermaid, svg, png"
     ),
     output: Optional[Path] = typer.Option(
         None, "--output", "-o", help="Write to file"
@@ -119,20 +119,48 @@ def graph(
         None, "--environment", "-e", "--env", help="Environment overlay name"
     ),
 ) -> None:
-    """Print the infrastructure dependency graph (or export it to SVG).
+    """Print the dependency graph (or export it to SVG/PNG).
 
     The ``svg`` format renders the architecture DAG exactly like the
     dashboard (same collector and layout) as a self-contained ``.svg``
-    document and requires exactly one input file. ``-o out.svg`` without an
-    explicit ``--format`` implies ``--format svg``.
+    document; the ``png`` format draws the same DAG natively with Pillow
+    (dark theme, rounded nodes, arrowed edges). Both require exactly one
+    input file, and ``png`` always needs ``-o/--output`` (binary output
+    cannot echo to stdout). ``-o out.svg``/``-o out.png`` without an
+    explicit ``--format`` implies the matching image format.
     """
     from infra.cli.compile import _apply_environment
 
     env_name = environment or ""
     fmt = format
-    if output is not None and output.suffix.lower() == ".svg" and fmt == "ascii":
+    suffix = output.suffix.lower() if output is not None else ""
+    if fmt == "ascii" and suffix in (".svg", ".png"):
         # ``-o out.svg`` says more than the (default) ascii format.
-        fmt = "svg"
+        fmt = suffix[1:]
+
+    if fmt == "png":
+        from infra.analyzer.graph_png import render_dag_png_bytes
+
+        if len(files) != 1:
+            typer.echo(
+                "[FAIL] PNG export requires exactly one .infra file "
+                f"(got {len(files)}).",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        if output is None:
+            typer.echo(
+                "[FAIL] PNG export requires --output/-o "
+                "(binary data cannot be printed).",
+                err=True,
+            )
+            raise typer.Exit(code=1)
+        program = _apply_environment(
+            _parser().parse_file(files[0]), env_name
+        )
+        output.write_bytes(render_dag_png_bytes(program))
+        typer.echo(f"[OK] Graph written to {output}")
+        return
 
     if fmt == "svg":
         from infra.analyzer.ui_generator import generate_dag_svg

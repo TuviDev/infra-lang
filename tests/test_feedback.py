@@ -6,8 +6,6 @@ the CLI/LSP or leak source code / paths / PII.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from infra.config import InfraConfig, load_config, write_config
@@ -23,7 +21,9 @@ def _isolate_home(tmp_path, monkeypatch):
     home = tmp_path / "home"
     home.mkdir()
     monkeypatch.setenv("HOME", str(home))
-    monkeypatch.setattr(cfg, "USER_CONFIG_PATH", home / ".config" / "infra" / "config.yaml")
+    monkeypatch.setattr(
+        cfg, "USER_CONFIG_PATH", home / ".config" / "infra" / "config.yaml"
+    )
     yield
 
 
@@ -41,9 +41,7 @@ class TestConfigDefaults:
 
     def test_env_can_disable_even_with_file(self, monkeypatch, tmp_path):
         write_config(tmp_path / ".infra-config.yaml", True)
-        cfg = load_config(
-            project_dir=tmp_path, env={"INFRA_FEEDBACK_OFF": "true"}
-        )
+        cfg = load_config(project_dir=tmp_path, env={"INFRA_FEEDBACK_OFF": "true"})
         assert cfg.feedback_enabled is False
 
 

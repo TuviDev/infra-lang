@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from infra import parse, validate
-from infra.diff.engine import DiffResult, FieldChange, InfraDiff
+from infra.diff.engine import FieldChange, InfraDiff
 from infra.errors.exceptions import (
     InfraCompileError,
     InfraError,
@@ -93,12 +93,18 @@ class TestDiffEngine:
         return InfraDiff().diff(parse(a), parse(b))
 
     def test_added_removed_changed(self):
-        r = self._diff('service a { image: "x:1" }', 'service a { image: "x:2" }\nservice b { image: "y" }')
+        r = self._diff(
+            'service a { image: "x:1" }',
+            'service a { image: "x:2" }\nservice b { image: "y" }',
+        )
         assert any(i.name == "b" for i in r.added)
         assert len(r.changed) == 1
 
     def test_changed_fields(self):
-        r = self._diff('service a { image: "x:1" replicas: 2 }', 'service a { image: "x:2" replicas: 5 }')
+        r = self._diff(
+            'service a { image: "x:1" replicas: 2 }',
+            'service a { image: "x:2" replicas: 5 }',
+        )
         c = r.changed[0]
         assert any("image" in ch.field_path for ch in c.changes)
         assert any("replicas" in ch.field_path for ch in c.changes)
@@ -115,7 +121,9 @@ class TestDiffEngine:
     def test_changed_item_format(self):
         from infra.diff.engine import ChangedItem
 
-        ci = ChangedItem(kind="service", name="a", changes=[FieldChange("replicas", 2, 5)])
+        ci = ChangedItem(
+            kind="service", name="a", changes=[FieldChange("replicas", 2, 5)]
+        )
         assert "change(s)" in ci.format(color=False)
 
 
@@ -123,13 +131,17 @@ class TestLinterInternals:
     def test_reliability_checker(self):
         from infra.analyzer.reliability import ReliabilityChecker
 
-        warnings = ReliabilityChecker().check(parse('service a { image: "x:1" replicas: 5 }'))
+        warnings = ReliabilityChecker().check(
+            parse('service a { image: "x:1" replicas: 5 }')
+        )
         assert any(w.code == "REL001" for w in warnings)
 
     def test_security_checker(self):
         from infra.analyzer.security import SecurityChecker
 
-        findings = SecurityChecker().check(parse('service a { image: "x:latest" env { PASSWORD: "bad" } }'))
+        findings = SecurityChecker().check(
+            parse('service a { image: "x:latest" env { PASSWORD: "bad" } }')
+        )
         assert any(getattr(f, "code", "") == "SEC001" for f in findings)
 
 
@@ -138,22 +150,19 @@ class TestExpressionRecursion:
 
     def _err_codes(self, src):
         from infra import parse, validate
+
         return {e.code for e in validate(parse(src)).errors}
 
     def test_binary_op_expression(self):
         # 1 + 2 references nothing undefined -> no E001
-        assert "E001" not in self._err_codes(
-            "let a = 1 + 2\nservice s { image: \"x\" }"
-        )
+        assert "E001" not in self._err_codes('let a = 1 + 2\nservice s { image: "x" }')
 
     def test_unary_op_expression(self):
-        assert "E001" not in self._err_codes(
-            "let a = !false\nservice s { image: \"x\" }"
-        )
+        assert "E001" not in self._err_codes('let a = !false\nservice s { image: "x" }')
 
     def test_list_expression(self):
         assert "E001" not in self._err_codes(
-            "let a = [1,2,3]\nservice s { image: \"x\" }"
+            'let a = [1,2,3]\nservice s { image: "x" }'
         )
 
     def test_call_expression(self):
@@ -163,12 +172,14 @@ class TestExpressionRecursion:
 
     def test_if_expr_expression(self):
         assert "E001" not in self._err_codes(
-            'let cond = true\nservice s { image: "x" env { A: if cond then "a" else "b" } }'
+            'let cond = true\nservice s { image: "x" env { A: if cond then "a" else '
+            '"b" '
+            '} }'
         )
 
     def test_undefined_identifier_flagged(self):
         assert "E001" in self._err_codes(
-            "let a = missing_var\nservice s { image: \"x\" }"
+            'let a = missing_var\nservice s { image: "x" }'
         )
 
     def test_call_with_undefined_arg_flagged(self):

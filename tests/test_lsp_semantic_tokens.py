@@ -42,7 +42,7 @@ class TestTokenize:
         assert (1, 14, "number") in toks  # 3
 
     def test_type_value(self):
-        toks = _types('database db {\n    type: postgres\n}\n')
+        toks = _types("database db {\n    type: postgres\n}\n")
         assert (1, 10, "type") in toks  # postgres
 
     def test_comment_tokenized(self):
@@ -50,7 +50,7 @@ class TestTokenize:
         assert (0, 0, "comment") in toks
 
     def test_trailing_comment(self):
-        toks = _types('service api {  # trailing\n}\n')
+        toks = _types("service api {  # trailing\n}\n")
         assert any(t[0] == 0 and t[2] == "comment" for t in toks)
 
     def test_depends_values_are_variables(self):
@@ -67,7 +67,7 @@ class TestTokenize:
 
 class TestDeltaEncoding:
     def test_delta_reconstructs_positions(self):
-        src = "service api {\n    image: \"x:1\"\n}\n"
+        src = 'service api {\n    image: "x:1"\n}\n'
         tokens = sorted(tokenize_source(src), key=lambda t: (t.line, t.start))
         data = encode_delta(tokens)
         # every token = 5 ints
@@ -139,7 +139,12 @@ class TestSemanticTokensHandler:
         assert TOKEN_TYPES == list(TOKEN_TYPES)
         assert len(TOKEN_TYPES) == len(set(TOKEN_TYPES))
         required = {
-            "keyword", "type", "variable", "property", "string", "number",
+            "keyword",
+            "type",
+            "variable",
+            "property",
+            "string",
+            "number",
             "comment",
         }
         assert required.issubset(set(TOKEN_TYPES))
