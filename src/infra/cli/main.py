@@ -48,11 +48,14 @@ def main(
 def register_commands() -> None:
     from infra.cli import check, diff, docs, fmt, graph, init, repl, validate
     from infra.cli import compile as compile_cmd
+    from infra.cli.alert_cmd import alert_cmd
+    from infra.cli.ci_comment import ci_comment_cmd
     from infra.cli.cost_cmd import cost_cmd
     from infra.cli.doctor import doctor
     from infra.cli.feedback_cmd import feedback_cmd
     from infra.cli.import_cmd import import_cmd
     from infra.cli.lsp_cmd import lsp_cmd
+    from infra.cli.policy_cmd import policy_check_cmd
     from infra.cli.serve_cmd import serve_cmd
     from infra.cli.up_cmd import down, up
 
@@ -78,6 +81,18 @@ def register_commands() -> None:
         help="Import existing Kubernetes YAML and generate .infra source.",
     )(import_cmd)
     app.command(name="check", help="Quick syntax check (no semantics).")(check.check)
+    app.command(
+        name="alert",
+        help="Send Slack/Teams/Discord alerts (drift, cost, security).",
+    )(alert_cmd)
+    app.command(
+        name="policy-check",
+        help="Check a .infra file against declarative YAML policy rules.",
+    )(policy_check_cmd)
+    app.command(
+        name="ci-comment",
+        help="Generate a PR-ready CI comment (changes, cost delta, SEC*/REL*).",
+    )(ci_comment_cmd)
     app.command(name="graph", help="Print the dependency graph.")(graph.graph)
     app.command(name="docs", help="Generate documentation from .infra files.")(
         docs.docs

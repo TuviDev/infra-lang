@@ -2,6 +2,67 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.7.0] - Team Integration — 2026-09-01
+
+**Block II: Team Integration** — pull-request automation and team
+guardrails at 0 PLN: a PR comment CLI with a composite GitHub Action,
+Slack/Teams/Discord alerting, a declarative YAML policy engine and a
+static, host-anywhere team dashboard export. No DSL grammar changes, no
+new runtime dependencies (alerting is stdlib `urllib`), no paid SaaS.
+
+### Added
+- **`infra ci-comment` — PR-ready report** — renders what a .infra
+  change does: added/removed/changed resources (via the diff engine),
+  the **monthly cost delta** against a `--base` file, and the SEC*/REL*
+  findings. Formats: `github-comment` (Markdown with an update-in-place
+  HTML marker, pipeable to `gh pr comment --body-file -`), `json`,
+  `text`. Gates: `--max-monthly-cost <usd>` and `--fail-on-security`
+  (SEC* **error** findings; warnings like SEC003 never fail the gate)
+  return exit code 1 so CI turns red — `[OK]`/`[FAIL]` status lines go
+  to stderr, keeping stdout a clean comment body.
+- **GitHub Action `infra-check`** — composite action at
+  `.github/actions/infra-check/` wrapping `infra ci-comment`: inputs
+  `files` (globs), `base-ref`, `max-monthly-cost`, `fail-on-security`,
+  `version`, `github-token`; posts/updates one marker-tagged PR comment
+  (even when the gate step fails — `if: always()`), uploads the comment
+  body as an artifact on non-PR runs, and exposes the `gate-passed`
+  output. Usage documented in `docs/ci_integration.md`.
+- **`infra alert` — Slack/Teams/Discord webhooks** — evaluates a file
+  (`--max-monthly-cost`, SEC* violations, optional `--live-drift`
+  read-only probe with `-t/--target` and `-n/--namespace`) and POSTs
+  rich payloads (Slack blocks, Teams MessageCard, Discord embeds) to
+  `--webhook` URLs and/or `.infra-alert.yml` subscriptions with
+  per-webhook event filters (`drift`, `cost_exceeded`,
+  `security_violation`). Delivery is stdlib `urllib` with `--timeout`
+  (default 10 s), webhook URLs are masked in all output
+  (`scheme://host/***`), `--dry-run` renders payloads without sending,
+  `--always` sends an all-clear summary. No real webhooks are contacted
+  by the test-suite (HTTP fully mocked).
+- **`infra policy-check` — declarative YAML policies** —
+  `infra-policy.yaml` (auto-discovered in the CWD, or `--policy <path>`)
+  with four rule classes: `max_monthly_cost` (POL001),
+  `max_service_cost` (POL002), `disallow_secret_env` (POL003, reuses the
+  SEC secret-name list + custom `names:`), `disallow_image_tag`
+  (POL004; tagless images count as implicit `latest`, custom `tags:`
+  list supported). Stable `POLxxx` codes, `text`/`json` formats, exit 1
+  on any violation. Policies live **outside** the .infra grammar — zero
+  DSL changes.
+- **`infra ui --publish <dir>` — static team dashboard site** — writes
+  `index.html`, one page per declared environment (`envs/<env>.html`,
+  names filesystem-sanitized), `data/summary.json` (cost/resource/env
+  snapshot incl. tool version) and an append-only history
+  (`data/history/<timestamp>.json` + `index.json`). Re-run in CI and
+  commit the directory to GitHub Pages/S3 for a 0-cost team cost & drift
+  history; `--live-drift` snapshots are supported. Conflicts with
+  `--compare`/`-o` exit 1 with a readable message.
+- **Tests** — `tests/test_ci_comment.py` (43), `tests/test_alerts.py`
+  (56), `tests/test_policy.py` (39), `tests/test_ui_publish.py` (17):
+  CLI end-to-end via CliRunner, payload contracts, config validation
+  errors, gate exit codes, history append/corruption recovery —
+  coverage gates unchanged (LINE ≥ 97.6 %, BRANCH ≥ 93.7 %).
+- **Docs** — `docs/ci_integration.md` (CLI + Action + workflow example),
+  README “Team Integration” section, quickstart update.
+
 ## [0.6.0] - Playground Ready — 2026-08-30
 
 **Block I: Playground Ready & Web API Foundation** — the full compiler

@@ -225,12 +225,12 @@ The `web/` directory contains a complete **static playground** (Monaco
 editor, Compose/Kubernetes/Terraform/SVG/dashboard tabs, shareable URLs,
 waitlist section) that runs the real Python compiler in WebAssembly via
 Pyodide. Host it on GitHub Pages or Vercel together with the
-`infra_lang-0.6.0-py3-none-any.whl` — the page installs the wheel in the
+`infra_lang-0.7.0-py3-none-any.whl` — the page installs the wheel in the
 browser at load time (no backend required):
 
 ```bash
-python -m build                        # produces dist/infra_lang-0.6.0-py3-none-any.whl
-cp dist/infra_lang-0.6.0-py3-none-any.whl web/
+python -m build                        # produces dist/infra_lang-0.7.0-py3-none-any.whl
+cp dist/infra_lang-0.7.0-py3-none-any.whl web/
 python -m http.server -d web 8000      # then open http://localhost:8000
 ```
 
@@ -250,6 +250,27 @@ web_api.list_examples()              # embedded hello_world/web_app/microservice
 `web_api` is guaranteed free of disk/process/browser side effects
 (checked by dedicated tests), which makes it safe for WASM sandboxes and
 serverless embeddings.
+
+## Team integration: PR comments, alerts, policies (since 0.7.0)
+
+```bash
+# PR comment with change list + monthly cost delta + SEC*/REL* findings
+infra ci-comment app.infra --base /tmp/base-from-main.infra \
+    --max-monthly-cost 500 --fail-on-security > comment.md
+
+# Slack / Teams / Discord alerts (also from .infra-alert.yml)
+infra alert app.infra --webhook "$SLACK_WEBHOOK" --format slack \
+    --max-monthly-cost 500 --live-drift --dry-run
+
+# Declarative team policy (budgets, no secrets in env, no :latest tags)
+infra policy-check app.infra                # reads ./infra-policy.yaml
+
+# Static team dashboard site for GitHub Pages/S3 (offline, with history)
+infra ui app.infra --publish site/
+```
+
+See [CI integration](ci_integration.md) for the composite GitHub Action
+(`infra-check`) that posts/updates the comment on every pull request.
 
 ## Validate
 ```bash

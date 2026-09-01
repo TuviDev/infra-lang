@@ -1,0 +1,144 @@
+name: "Infra Lang Check"
+description: >-
+  Validate .infra files in a pull request and post a comment with the
+  monthly cost delta, resource changes and security (SEC*) findings.
+  Fails the step when the --max-monthly-cost gate is exceeded or SEC*
+  errors are found with fail-on-security: "true".
+author: "infra-lang"
+branding:
+  icon: "check-circle"
+  color: "blue"
+
+inputs:
+  files:
+    description: >-
+      Space- or newline-separated glob(s) of .infra files to check
+      (evaluated with bash globstar).
+    required: false
+    default: "**/*.infra"
+  base-ref:
+    description: >-
+      Git ref to diff against (e.g. "origin/main"). Empty disables the
+      diff and reports absolute costs only.
+    required: false
+    default: ""
+  max-monthly-cost:
+    description: >-
+      Fail the check when the estimated monthly cost of any file exceeds
+      this USD amount. Empty disables the cost gate.
+    required: false
+    default: ""
+  fail-on-security:
+    description: "Fail the check when SEC* error findings are present."
+    required: false
+    default: "false"
+  version:
+    description: "infra-lang version to install (empty = latest from PyPI)."
+    required: false
+    default: ""
+  github-token:
+    description: "Token used to post/update the PR comment."
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  gate-passed:
+    description: "true when every configured gate passed."
+    value: ${{ steps.run.outputs.gate-passed }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.13"
+
+    - name: Install infra-lang
+      shell: bash
+      env:
+        INFRA_VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        if [ -n "$INFRA_VERSION" ]; then
+          python -m pip install "infra-lang==$INFRA_VERSION"
+        else
+          python -m pip install infra-lang
+        fi
+
+    - name: Run infra ci-comment
+      id: run
+      shell: bash
+      env:
+        FILES: ${{ inputs.files }}
+        BASE_REF: ${{ inputs.base-ref }}
+        MAX_COST: ${{ inputs.max-monthly-cost }}
+        FAIL_SEC: ${{ inputs.fail-on-security }}
+      run: |
+        # Deliberately NOT `set -e`: a failing gate must still leave the
+        # comment body behind so the PR can be annotated.
+        set -uo pipefail
+        shopt -s globstar nullglob
+        : > comment.md
+        failed=0
+        for f in $FILES; do
+          base_args=()
+          if [ -n "$BASE_REF" ] && git cat-file -e "$BASE_REF:$f" 2>/dev/null; then
+            tmp="$(mktemp)"
+            git show "$BASE_REF:$f" > "$tmp"
+            base_args=(--base "$tmp")
+          fi
+          extra=()
+          if [ -n "$MAX_COST" ]; then
+            extra+=(--max-monthly-cost "$MAX_COST")
+          fi
+          if [ "$FAIL_SEC" = "true" ]; then
+            extra+=(--fail-on-security)
+          fi
+          echo "::: infra ci-comment $f :::"
+          if ! infra ci-comment "$f" --format github-comment \
+              "${base_args[@]}" "${extra[@]}" >> comment.md; then
+            failed=1
+          fi
+          printf '\n' >> comment.md
+        done
+        if [ $failed -eq 0 ]; then
+          echo "gate-passed=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "gate-passed=false" >> "$GITHUB_OUTPUT"
+        fi
+        exit $failed
+
+    - name: Comment on the pull request
+      # Comment even when the gate step failed — the author needs the report.
+      if: ${{ always() && github.event_name == 'pull_request' }}
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github-token }}
+        script: |
+          const fs = require('fs');
+          const body = fs.readFileSync('comment.md', 'utf8');
+          if (!body.trim()) { core.info('empty comment body, skipping'); return; }
+          const marker = '<!-- infra-lang:ci-comment -->';
+          const {owner, repo, number} = context.issue;
+          const comments = await github.rest.issues.listComments({
+            owner, repo, issue_number: number, per_page: 100,
+          });
+          const existing = comments.data.find(
+            (c) => c.body && c.body.includes(marker));
+          if (existing) {
+            await github.rest.issues.updateComment({
+              owner, repo, comment_id: existing.id, body});
+            core.info(`updated comment ${existing.id}`);
+          } else {
+            await github.rest.issues.createComment({
+              owner, repo, issue_number: number, body});
+            core.info('created a new comment');
+          }
+
+    - name: Upload comment body (non-PR runs)
+      if: ${{ always() && github.event_name != 'pull_request' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: infra-check-comment
+        path: comment.md

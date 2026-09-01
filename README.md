@@ -202,6 +202,57 @@ web_api.list_examples()                                # hello_world, web_app, �
 `web_api` never touches the disk, processes or a browser API — errors are
 returned as data — so it is safe to embed anywhere.
 
+## Team Integration: CI comments, alerts, policies (since 0.7.0)
+
+Everything a team needs around pull requests — at zero cost, no SaaS:
+
+**PR comments with cost delta & security** — `infra ci-comment` renders a
+Markdown report (changes, monthly cost delta vs `--base`, SEC*/REL*
+findings) ready for `gh pr comment`, with CI gates:
+
+```bash
+infra ci-comment infra/app.infra --base /tmp/base.infra \
+    --max-monthly-cost 500 --fail-on-security   # exit 1 when a gate fails
+```
+
+Or use the ready-made GitHub Action (see
+[`docs/ci_integration.md`](docs/ci_integration.md)):
+
+```yaml
+- uses: TuviDev/infra-lang/.github/actions/infra-check@v0.7.0
+  with:
+    files: "infra/**/*.infra"
+    base-ref: origin/main
+    max-monthly-cost: "500"
+    fail-on-security: "true"
+```
+
+**Alerts** — Slack / Teams / Discord webhooks for budget overruns,
+security violations and live drift, from flags or `.infra-alert.yml`
+(never log full webhook URLs — they carry secrets):
+
+```bash
+infra alert infra/app.infra --webhook "$SLACK_WEBHOOK" --format slack \
+    --max-monthly-cost 500 --live-drift -t k8s -n default
+```
+
+**Team policies** — declarative `infra-policy.yaml` (budgets, no
+hardcoded secrets in env, no `:latest` tags), enforced with stable
+`POLxxx` codes:
+
+```bash
+infra policy-check infra/app.infra          # auto-discovers ./infra-policy.yaml
+infra policy-check infra/app.infra -p policy.yaml -f json
+```
+
+**Static team dashboard** — publish the visual dashboard as an offline
+site for GitHub Pages/S3, with JSON summary and append-only cost/drift
+history:
+
+```bash
+infra ui infra/app.infra --publish site/    # index.html + envs/ + data/
+```
+
 ## Try it in Codespaces
 
 Click the button below to open this project in GitHub Codespaces:

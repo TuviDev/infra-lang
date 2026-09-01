@@ -8,17 +8,24 @@ reload. With ``--output-html`` a static single-file report is written to
 disk instead (fully offline), without starting the HTTP server. With
 ``--live-drift`` the drift panel shows a read-only live probe
 (``kubectl``/``docker compose``) instead of an empty placeholder (v0.5.6).
+With ``--publish <dir>`` a complete **static site** (index.html, one page
+per environment, JSON summary and a timestamped history snapshot) is
+generated for GitHub Pages / S3-style hosting — no backend, 0-cost
+(v0.7.0).
 """
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 import webbrowser
+from datetime import datetime, timezone
 from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from socketserver import ThreadingMixIn
-from typing import Callable, ClassVar, Optional, Tuple
+from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
 
 import typer
 
@@ -28,6 +35,7 @@ from infra.analyzer.ui_generator import generate_compare_html, generate_ui_html
 from infra.errors.exceptions import InfraError
 from infra.parser import ast_nodes as n
 from infra.parser import parse_file
+from infra.version import __version__
 
 #: Default HTTP port for the dashboard server.
 DEFAULT_PORT = 8080
@@ -105,6 +113,163 @@ def render_compare(file: Path, env_a: str, env_b: str) -> str:
     overlay names — the special name ``base`` selects the unoverlaid file.
     """
     return generate_compare_html(parse_file(file), env_a, env_b)
+
+
+#: Only these characters are kept when turning an environment name into a
+#: static filename (3-OS safe, no path traversal).
+_SAFE_PAGE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _page_name(env: str) -> str:
+    """Filesystem-safe page name for an environment (never a path)."""
+    safe = _SAFE_PAGE_NAME.sub("-", env)
+    # Collapse dot/dash runs so nothing resembling a `..` segment survives
+    # and names stay tidy ("weird/../name" -> "weird-name").
+    safe = re.sub(r"\.{2,}", "-", safe)
+    safe = re.sub(r"-{2,}", "-", safe).strip("-.")
+    return safe or "env"
+
+
+def _read_history_index(path: Path) -> List[Dict[str, Any]]:
+    """Read an existing history index, tolerating missing/corrupt files."""
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    return data if isinstance(data, list) else []
+
+
+def publish_site(
+    file: Path,
+    directory: Path,
+    environment: Optional[str],
+    live_drift: bool = False,
+    target: str = "k8s",
+    namespace: str = "default",
+) -> Dict[str, Any]:
+    """Generate a static, offline team dashboard site into *directory*.
+
+    Layout::
+
+        <dir>/index.html                 dashboard (base or -e overlay)
+        <dir>/envs/<env>.html            one page per declared environment
+        <dir>/data/summary.json          machine-readable snapshot
+        <dir>/data/history/<ts>.json     timestamped run snapshot
+        <dir>/data/history/index.json    append-only list of snapshots
+
+    Re-running `infra ui --publish <dir>` (e.g. in CI on every merge) appends
+    history snapshots — commit *directory* to a Pages/S3 branch for a 0-cost
+    team cost & drift history.
+
+    Raises ``InfraError`` on parse problems and ``typer.Exit(1)`` for
+    unknown environment overlays (same contract as :func:`render_dashboard`).
+    Returns a dict describing the written files (used by tests and the CLI
+    status lines).
+    """
+    from dataclasses import replace as _dc_replace
+
+    from infra.cli.compile import _apply_environment
+
+    base = parse_file(file)
+    program = _apply_environment(base, environment or "")
+    if environment:
+        program = _dc_replace(program, environments=base.environments)
+
+    drift_report: Optional[DriftReport] = None
+    if live_drift:
+        drift_report = _probe_drift_safely(program, target, namespace)
+
+    now = datetime.now(timezone.utc)
+    stamp = now.strftime("%Y%m%dT%H%M%S-%fZ")
+    generated_at = now.isoformat()
+
+    directory.mkdir(parents=True, exist_ok=True)
+    data_dir = directory / "data"
+    history_dir = data_dir / "history"
+    envs_dir = directory / "envs"
+    history_dir.mkdir(parents=True, exist_ok=True)
+
+    index_html = generate_ui_html(
+        program,
+        estimate_cost(program),
+        drift_report=drift_report,
+        env_name=environment or None,
+    )
+    (directory / "index.html").write_text(index_html, encoding="utf-8")
+
+    env_pages: Dict[str, str] = {}
+    if base.environments:
+        envs_dir.mkdir(parents=True, exist_ok=True)
+    for env_def in base.environments:
+        overlaid = _dc_replace(
+            _apply_environment(base, env_def.name),
+            environments=base.environments,
+        )
+        page = f"envs/{_page_name(env_def.name)}.html"
+        (directory / page).write_text(
+            generate_ui_html(
+                overlaid,
+                estimate_cost(overlaid),
+                env_name=env_def.name,
+            ),
+            encoding="utf-8",
+        )
+        env_pages[env_def.name] = page
+
+    cost = estimate_cost(program)
+    snapshot: Dict[str, Any] = {
+        "tool": "infra-lang",
+        "version": __version__,
+        "source": str(file),
+        "environment": environment or None,
+        "generated_at": generated_at,
+        "monthly_usd": cost.total_monthly_usd,
+        "currency": "USD",
+        "resources": [
+            {
+                "name": item.name,
+                "kind": item.kind,
+                "monthly_usd": item.monthly_usd,
+            }
+            for item in cost.items
+        ],
+        "environments": [e.name for e in base.environments],
+        "drift": drift_report.to_dict() if drift_report is not None else None,
+    }
+    summary = dict(snapshot)
+    summary["pages"] = {"index": "index.html", "environments": env_pages}
+    (data_dir / "summary.json").write_text(
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
+
+    snapshot_name = f"{stamp}.json"
+    (history_dir / snapshot_name).write_text(
+        json.dumps(snapshot, indent=2) + "\n", encoding="utf-8"
+    )
+    index_path = history_dir / "index.json"
+    history = _read_history_index(index_path)
+    history.append(
+        {
+            "file": snapshot_name,
+            "generated_at": generated_at,
+            "environment": environment or None,
+            "monthly_usd": cost.total_monthly_usd,
+            "resources": len(cost.items),
+            "drift": (
+                drift_report.has_drift if drift_report is not None else None
+            ),
+        }
+    )
+    index_path.write_text(json.dumps(history, indent=2) + "\n", encoding="utf-8")
+
+    return {
+        "directory": directory,
+        "index": directory / "index.html",
+        "summary": data_dir / "summary.json",
+        "env_pages": env_pages,
+        "snapshot": history_dir / snapshot_name,
+        "history_count": len(history),
+    }
 
 
 class _DashboardHTTPServer(ThreadingMixIn, HTTPServer):
@@ -225,6 +390,13 @@ def serve_cmd(
         "-o",
         help="Write a standalone HTML report and exit (no HTTP server).",
     ),
+    publish: Optional[Path] = typer.Option(
+        None,
+        "--publish",
+        help="Generate a static dashboard SITE into this directory "
+        "(index.html + env pages + data/summary.json + history snapshot) "
+        "for Pages/S3 hosting, and exit (no HTTP server).",
+    ),
     compare: Optional[Tuple[str, str]] = typer.Option(
         None,
         "--compare",
@@ -279,6 +451,49 @@ def serve_cmd(
             "compare report has none — use one or the other.[/red]"
         )
         raise typer.Exit(code=1)
+
+    if publish is not None and compare is not None:
+        console.print(
+            "[red]--publish exports the dashboard site; the compare report "
+            "is a single page — use -o/--output-html for it instead.[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    if publish is not None and output_html is not None:
+        console.print(
+            "[red]--publish already writes a static site — "
+            "-o/--output-html is not needed (use one or the other).[/red]"
+        )
+        raise typer.Exit(code=1)
+
+    if publish is not None:
+        try:
+            written = publish_site(
+                file, publish, environment, live_drift, target, namespace
+            )
+        except InfraError as exc:
+            console.print(f"[red]{exc}[/red]")
+            raise typer.Exit(code=1) from exc
+        console.print(
+            f"[OK] Static dashboard published: {publish.as_posix()}"
+        )
+        console.print(f"[OK]   index: {written['index'].as_posix()}")
+        if written["env_pages"]:
+            names = ", ".join(sorted(written["env_pages"]))
+            console.print(
+                f"[OK]   environments ({len(written['env_pages'])}): {names}"
+            )
+        console.print(f"[OK]   summary: {written['summary'].as_posix()}")
+        console.print(
+            f"[OK]   history snapshot #{written['history_count']}: "
+            f"{written['snapshot'].as_posix()}"
+        )
+        if live_drift:
+            console.print(
+                f"[OK]   live drift snapshot included "
+                f"(target: {target}, namespace: {namespace}, read-only)."
+            )
+        return
 
     # Render once up-front so syntax/validation/unknown-overlay problems
     # surface before the server socket is announced as ready.
