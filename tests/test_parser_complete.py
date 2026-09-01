@@ -169,7 +169,7 @@ class TestCLISmoke:
         from infra.cli.main import app
 
         result = CliRunner().invoke(app, ["--version"])
-        assert "0.8.0" in result.output
+        assert "0.9.0" in result.output
 
     def test_help_lists_commands(self):
         from typer.testing import CliRunner

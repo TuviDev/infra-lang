@@ -250,11 +250,65 @@ class InfraPrinter:
                 body.append(f"  limits: {self._rmap(s.resources.limits)}")
             body.append("}")
         if s.health:
-            h = s.health
-            body.append(f'health {h.kind}("{h.path or "/"}")')
+            body.append("health " + self._health_spec(s.health))
+        if s.probes:
+            body.append("probes {")
+            for probe_name, probe in (
+                ("liveness", s.probes.liveness),
+                ("readiness", s.probes.readiness),
+                ("startup", s.probes.startup),
+            ):
+                if probe is not None:
+                    body.append(f"  {probe_name}: {self._health_spec(probe)}")
+            body.append("}")
+        if s.lifecycle:
+            body.append("lifecycle {")
+            for hook_name, hook in (
+                ("postStart", s.lifecycle.post_start),
+                ("preStop", s.lifecycle.pre_stop),
+            ):
+                if hook is not None:
+                    body.append(f"  {hook_name} {self._hook_spec(hook)}")
+            body.append("}")
         prefix = self._decorators(s.decorators)
         block = self._render_block("service " + s.name, body)
         return prefix + block
+
+    def _health_spec(self, h: n.HealthSpec) -> str:
+        """Render a health/probe spec, including optional timing params."""
+        if h.kind == "exec" and h.command:
+            head = f"exec({self._join(self._str_list(h.command))})"
+        else:
+            head = f'{h.kind}("{h.path or "/"}")'
+        params: list[str] = []
+        if h.interval is not None:
+            params.append(f"interval: {self._num(h.interval.value)}{h.interval.unit}")
+        if h.timeout is not None:
+            params.append(f"timeout: {self._num(h.timeout.value)}{h.timeout.unit}")
+        if h.retries is not None:
+            params.append(f"retries: {h.retries}")
+        if h.start_period is not None:
+            params.append(
+                f"startPeriod: "
+                f"{self._num(h.start_period.value)}{h.start_period.unit}"
+            )
+        if h.initial_delay is not None:
+            params.append(
+                f"initialDelay: "
+                f"{self._num(h.initial_delay.value)}{h.initial_delay.unit}"
+            )
+        if h.port is not None:
+            params.append(f"port: {h.port}")
+        if params:
+            return head + " { " + " ".join(params) + " }"
+        return head
+
+    def _hook_spec(self, hook: n.HookSpec) -> str:
+        """Render a lifecycle hook (exec / http)."""
+        if hook.kind == "http" and hook.url:
+            return f'{{ http: "{hook.url}" }}'
+        items = ", ".join(f'"{c}"' for c in hook.command)
+        return f"{{ exec: [{items}] }}"
 
     def _env_val(self, e: n.EnvEntry) -> str:
         if e.value is not None:

@@ -124,6 +124,16 @@ infra compile app.infra --target github
   `.infra` file (per-resource table, `--json` for CI gates, `--currency`).
 - **Visual infrastructure dashboard** — `infra serve` / `infra ui` render any
   `.infra` file as an interactive, fully-offline HTML dashboard (see below).
+- **Architecture insight reports** — `infra explain` renders a deterministic
+  overview (costs, dependencies & SPOFs, security, reliability, what-if
+  scenarios) for humans (markdown/text) or AI agents (compact JSON).
+- **Auto-fix for common findings** — `infra doctor --fix` safely rewrites
+  hardcoded secrets into `secret_store` references and fills in missing
+  memory limits, health checks, backups and graceful-shutdown hooks.
+- **SBOM generation** — `infra sbom` emits SPDX 2.3 / CycloneDX 1.5 / markdown
+  from the images your file already declares, with tag-mutability risk badges.
+- **FinOps CodeLens** — the language server shows cost, replica, warning and
+  reliability-grade badges right above every block in your editor.
 - **Reusable pieces** — template-string interpolation, `import` with cycle
   detection, `extends` inheritance, 25+ stdlib functions and a prelude of
   shared constants.
@@ -201,6 +211,83 @@ web_api.list_examples()                                # hello_world, web_app, �
 
 `web_api` never touches the disk, processes or a browser API — errors are
 returned as data — so it is safe to embed anywhere.
+
+## Insight & Intelligence: explain, CodeLens, auto-fix, SBOM (since 0.9.0)
+
+### 🧠 Understanding Your Architecture
+
+`infra explain` turns any `.infra` file into a deterministic insight report —
+no AI/ML runtime, just the existing static analyzers plus templated prose:
+
+```bash
+infra explain app.infra                      # markdown report for humans
+infra explain app.infra --format text        # terminal-friendly plain text
+infra explain app.infra --for ai             # compact JSON + _meta/_summary
+infra explain app.infra --sections cost,security
+```
+
+Seven sections: **Overview** (with top-3 cost drivers), **Services** (with an
+A–F reliability grade each), **Dependencies** (including single points of
+failure), **Cost Breakdown** (compute / storage / network / managed),
+**Security Warnings**, **Reliability Report**, and **What-If** scenarios
+(zone-failure blast radius, doubling replicas). The same report is one click
+away in the Web Playground's **🧠 Insight Report** tab.
+
+### 💰 See Cost & Risk Inline
+
+The language server now answers "what does this cost and how risky is it?"
+directly in your editor. A CodeLens badge above every `service`, `database`,
+`cache`, `queue`, `storage` and `environment` block shows monthly cost,
+replicas, SEC\*/REL\* warning counts and a reliability grade:
+
+```
+💰 $47.20/mo · ⚡ 3 replicas · 🔒 2 warnings · 📊 Grade: A
+```
+
+Fully configurable (`infra.codelens.enabled`, `showCost`, `showSecurity`,
+`showReliability`, `showEmoji`), with an ASCII fallback for terminals.
+Hover cards also carry a "💡 Insight" section per block.
+
+### 🔧 Auto-Fix Common Issues
+
+`infra doctor --fix` rewrites your file **in place** (keeping a
+`file.infra.bak` backup by default), applying deterministic fixes for the
+most common security & reliability findings:
+
+| Code  | Fix applied |
+|-------|-------------|
+| SEC001 | hardcoded secret env → `from secret "auto_secrets".VAR` + generated `secret_store` |
+| SEC003 | mutable `:latest` tag → inline FIXME comment (never guesses versions) |
+| REL003 | missing memory limit → `resources { limits { memory: 512Mi } }` |
+| REL004 | missing health check → `health http("/health") { interval: 30s timeout: 5s }` |
+| REL006 | missing backup → `backup { enabled: true schedule: "0 2 * * *" retention: 7d }` |
+| REL009 | multi-replica without graceful shutdown → `lifecycle { preStop … }` |
+
+```bash
+infra doctor app.infra --fix                 # apply all fixes (with backup)
+infra doctor app.infra --dry-run             # colored unified diff, no write
+infra doctor app.infra --fix --only SEC001,REL003
+infra doctor app.infra --fix --no-backup     # live dangerously (or in git)
+```
+
+Round-trip guaranteed: untouched parts of your file print back byte-stable.
+
+### 📋 Enterprise-Ready SBOM
+
+`infra sbom` produces a Software Bill of Materials from the container images
+your `.infra` file already declares — offline, deterministic, auditable:
+
+```bash
+infra sbom app.infra                          # markdown table + risk badges
+infra sbom app.infra --format spdx-json       # SPDX 2.3 JSON
+infra sbom app.infra --format cyclonedx-json  # CycloneDX 1.5 JSON
+infra sbom app.infra --include-transitive     # + best-effort base images
+infra sbom app.infra --registry-check         # best-effort availability probe
+```
+
+Every image is scored for tag mutability: `:latest` & friends → **HIGH**,
+pinned tags → **LOW**, `@sha256:` digests → **ZERO**. Attach the SPDX or
+CycloneDX output to releases, or diff the markdown in code review.
 
 ## Interactive learning & playground (since 0.8.0)
 

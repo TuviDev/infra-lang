@@ -2,7 +2,7 @@
   "name": "infra-lang",
   "displayName": "Infra Lang",
   "description": "Syntax highlighting, snippets, and language server for .infra files",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "infra-lang",
   "license": "MIT",
   "repository": {
@@ -60,7 +60,42 @@
         "language": "infra",
         "path": "./snippets/infra.json"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Infra Lang",
+      "properties": {
+        "infra.codelens.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show FinOps CodeLens badges (cost, replicas, warnings, grades) above service/database/environment blocks."
+        },
+        "infra.codelens.showCost": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include the monthly cost estimate in CodeLens badges."
+        },
+        "infra.codelens.showSecurity": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include the security warning count in CodeLens badges."
+        },
+        "infra.codelens.showReliability": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include reliability grades/findings in CodeLens badges."
+        },
+        "infra.codelens.emoji": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "true",
+            "false"
+          ],
+          "default": "auto",
+          "description": "Emoji labels in CodeLens badges ('auto' follows the locale; 'false' forces ASCII-safe labels like [$], [R], [!], [G:A])."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

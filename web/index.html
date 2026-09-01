@@ -47,6 +47,7 @@
       <button class="tab" data-tab="terraform"  role="tab" aria-selected="false">🏗️ Terraform</button>
       <button class="tab" data-tab="dag"        role="tab" aria-selected="false">🕸️ DAG Graph</button>
       <button class="tab" data-tab="dashboard"  role="tab" aria-selected="false">📊 Visual Dashboard</button>
+      <button class="tab" data-tab="insight"    role="tab" aria-selected="false">🧠 Insight Report</button>
     </nav>
     <div class="outputs">
       <pre id="out-compose"    class="output active"><code>…</code></pre>
@@ -54,6 +55,7 @@
       <pre id="out-terraform"  class="output"><code>…</code></pre>
       <div id="out-dag"        class="output output-svg">…</div>
       <div id="out-dashboard"  class="output output-dash"><iframe id="dash-frame" title="Infra Lang dashboard preview" sandbox="allow-scripts"></iframe></div>
+      <pre id="out-insight"    class="output"><code>…</code></pre>
     </div>
     <div id="error-panel" class="error-panel hidden" role="alert">
       <h2>Compilation problems</h2>
@@ -80,7 +82,7 @@
 </section>
 
 <footer class="foot">
-  <span>Infra Lang v0.8.0 — open source under MIT.</span>
+  <span>Infra Lang v0.9.0 — open source under MIT.</span>
   <span>Compiler runs entirely in your browser via WebAssembly; nothing you type leaves this page.</span>
 </footer>
 

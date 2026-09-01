@@ -16,8 +16,16 @@ Kubernetes, Docker Compose, Terraform, Helm, and GitHub Actions.
   and sub-blocks, plus documentation on hover.
 - **Go to definition / references / rename** — navigate and rename symbols,
   including across files in the same project.
-- **12 code snippets** to scaffold services, databases, caches, pipelines,
+- **18 code snippets** to scaffold services, databases, caches, pipelines,
   resources and environments.
+- **CodeLens FinOps badges** *(v0.9.0)* — see cost & risk inline, right above
+  each block declaration: `💰 $47.20/mo · ⚡ 3 replicas · 🔒 2 warnings ·
+  📊 Grade: A` for services, storage/backup badges for databases, and totals
+  for environments. ASCII-safe labels (`[$]`, `[R]`, `[!]`, `[G:A]`) are used
+  automatically when Unicode is unavailable.
+- **Hover Insight cards** *(v0.9.0)* — hovering a block declaration shows its
+  cost breakdown, SEC*/REL* warnings, dependency neighbourhood and suggested
+  optimizations.
 
 ## Requirements
 
@@ -42,6 +50,20 @@ Python interpreter; if you use a virtual environment, point VS Code at it:
   "python.defaultInterpreterPath": "/path/to/python"
 }
 ```
+
+### CodeLens settings (v0.9.0)
+
+The inline FinOps badges can be tuned or disabled entirely:
+
+| Setting | Default | Description |
+| --- | --- | --- |
+| `infra.codelens.enabled` | `true` | Master switch for the CodeLens badges. |
+| `infra.codelens.showCost` | `true` | Show the monthly cost estimate badge. |
+| `infra.codelens.showSecurity` | `true` | Show the security warning count badge. |
+| `infra.codelens.showReliability` | `true` | Show reliability grades/backup badges. |
+| `infra.codelens.emoji` | `"auto"` | `"auto"` follows the locale; `false` forces ASCII labels. |
+
+Changes apply live — no window reload needed.
 
 ## Usage
 

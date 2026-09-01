@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "infra-lang"
-version = "0.8.0"
+version = "0.9.0"
 description = "Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions"
 readme = "README.md"
 license = "MIT"
@@ -78,6 +78,7 @@ include = [
     "src/infra/**/*.py",
     "src/infra/**/*.lark",
     "src/infra/**/*.infra",
+    "src/infra/**/*.json",
 ]
 
 [tool.pytest.ini_options]

@@ -236,3 +236,64 @@ class TestWasmGuarantees:
         source = Path(web_api.__file__).read_text(encoding="utf-8")
         for needle in ("open(", "read_text", "write_text", "Path("):
             assert needle not in source, needle
+
+
+# --------------------------------------------------------------------------- #
+# generate_explain_report (v0.9.0)
+# --------------------------------------------------------------------------- #
+
+
+class TestGenerateExplainReport:
+    def test_success_default_markdown(self):
+        result = web_api.generate_explain_report(SRC)
+        assert result["success"] is True
+        assert result["format"] == "markdown"
+        assert result["errors"] == []
+        assert "# Architecture Insight" in result["report"]
+
+    def test_text_format(self):
+        result = web_api.generate_explain_report(SRC, format="text")
+        assert result["success"] is True
+        assert "ARCHITECTURE INSIGHT" in result["report"]
+        assert "# Architecture" not in result["report"]
+
+    def test_json_format_parseable(self):
+        result = web_api.generate_explain_report(SRC, format="json")
+        assert result["success"] is True
+        doc = json.loads(result["report"])
+        assert isinstance(doc, dict)
+
+    def test_ai_audience_has_meta_and_summary(self):
+        result = web_api.generate_explain_report(SRC, format="json",
+                                                 audience="ai")
+        assert result["success"] is True
+        doc = json.loads(result["report"])
+        assert set(doc["_meta"]) >= {"language", "generator_version",
+                                     "checksum"}
+        assert 3 <= len(doc["_summary"]) <= 5
+
+    def test_unknown_format_returns_error_dict(self):
+        result = web_api.generate_explain_report(SRC, format="yaml")
+        assert result["success"] is False
+        assert result["report"] == ""
+        assert "yaml" in result["errors"][0]
+
+    def test_unknown_audience_returns_error_dict(self):
+        result = web_api.generate_explain_report(SRC, audience="robot")
+        assert result["success"] is False
+        assert "robot" in result["errors"][0]
+
+    def test_parse_error_never_raises(self):
+        result = web_api.generate_explain_report(BROKEN)
+        assert result["success"] is False
+        assert result["errors"]
+
+    def test_environment_overlay_applied(self):
+        base = web_api.generate_explain_report(SRC, env_name="prod")
+        assert base["success"] is True
+        assert "replicas: 5" in base["report"] or "5" in base["report"]
+
+    def test_deterministic_repeated_calls(self):
+        first = web_api.generate_explain_report(SRC)
+        second = web_api.generate_explain_report(SRC)
+        assert first == second

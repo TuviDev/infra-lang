@@ -174,6 +174,44 @@ class TestMarketplaceMetadata:
         assert "upload-artifact" in content
 
 
+class TestCodeLensConfiguration:
+    """Settings contributed for the FinOps CodeLens feature (v0.9.0)."""
+
+    def _props(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        return data["contributes"]["configuration"]["properties"]
+
+    def test_configuration_section_present(self):
+        data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))
+        assert "configuration" in data["contributes"]
+
+    def test_codelens_enabled_key(self):
+        props = self._props()
+        assert props["infra.codelens.enabled"]["type"] == "boolean"
+        assert props["infra.codelens.enabled"]["default"] is True
+
+    def test_codelens_badge_toggles(self):
+        props = self._props()
+        for key in ("showCost", "showSecurity", "showReliability"):
+            cfg = props[f"infra.codelens.{key}"]
+            assert cfg["type"] == "boolean"
+            assert cfg["default"] is True
+
+    def test_codelens_emoji_enum(self):
+        cfg = self._props()["infra.codelens.emoji"]
+        assert cfg["type"] == "string"
+        assert cfg["enum"] == ["auto", "true", "false"]
+        assert cfg["default"] == "auto"
+
+    def test_extension_ts_forwards_settings(self):
+        ts = Path("vscode-infra-lang/src/extension.ts").read_text(
+            encoding="utf-8"
+        )
+        assert "initializationOptions" in ts
+        assert "infra.codelens.enabled" in ts
+        assert "workspace/didChangeConfiguration" in ts
+
+
 class TestPublishScripts:
     def test_publish_scripts_present(self):
         data = json.loads((EXT / "package.json").read_text(encoding="utf-8"))

@@ -251,6 +251,52 @@ web_api.list_examples()              # embedded hello_world/web_app/microservice
 (checked by dedicated tests), which makes it safe for WASM sandboxes and
 serverless embeddings.
 
+## Insight & intelligence: explain, CodeLens, auto-fix, SBOM (since 0.9.0)
+
+### 🧠 Understanding Your Architecture
+
+```bash
+# deterministic insight report — 7 sections, zero LLM runtime
+infra explain app.infra                  # markdown for humans
+infra explain app.infra --for ai         # compact JSON + _meta + _summary
+infra explain app.infra --sections overview,cost,security
+```
+
+Overview with top-3 cost drivers, per-service A–F grades, dependency graph
+with SPOFs, per-category cost breakdown, SEC*/REL* findings and what-if
+scenarios (zone failure, scale ×2). See [insight.md](insight.md). The Web
+Playground renders the same report in its **🧠 Insight Report** tab.
+
+### 💰 See Cost & Risk Inline
+
+Open any `.infra` file in VS Code: a CodeLens badge above each block shows
+`💰 $47.20/mo · ⚡ 3 replicas · 🔒 2 warnings · 📊 Grade: A`. Configure via
+`infra.codelens.*` settings; ASCII badges available for plain terminals.
+
+### 🔧 Auto-Fix Common Issues
+
+```bash
+infra doctor app.infra --dry-run          # preview: colored unified diff
+infra doctor app.infra --fix              # rewrite in place (+ .infra.bak)
+infra doctor app.infra --fix --only SEC001,REL003
+```
+
+Six deterministic rules: hardcoded secrets → `secret_store` references,
+FIXME comments on `:latest` tags, memory limits, health checks, backups and
+graceful-shutdown hooks. See [autofix.md](autofix.md).
+
+### 📋 Enterprise-Ready SBOM
+
+```bash
+infra sbom app.infra                      # markdown table, risk badges
+infra sbom app.infra --format spdx-json -o sbom.spdx.json
+infra sbom app.infra --format cyclonedx-json --include-transitive
+```
+
+Tag-mutability scoring (`:latest` = HIGH, pinned = LOW, `@sha256:` = ZERO)
+over every image a service/database/cache/queue/storage block implies.
+See [sbom.md](sbom.md).
+
 ## Interactive tutorial & playground polish (since 0.8.0)
 
 ```bash

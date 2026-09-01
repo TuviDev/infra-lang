@@ -272,7 +272,128 @@ def _check_drift_json(infra_path: Path, out_dir: Path, target: str) -> Dict[str,
     }
 
 
+def _parse_only_codes(raw: Optional[str]) -> Optional[List[str]]:
+    """Validate a ``--only SEC001,REL003`` selector against known rules."""
+    from infra.analyzer.autofix import FIXABLE_CODES
+
+    if raw is None:
+        return None
+    codes = [c.strip().upper() for c in raw.split(",") if c.strip()]
+    unknown = [c for c in codes if c not in FIXABLE_CODES]
+    if unknown:
+        from rich.console import Console
+
+        Console().print(
+            f"[red]Unknown autofix code(s): {', '.join(unknown)}.[/red] "
+            f"Fixable: {', '.join(FIXABLE_CODES)}"
+        )
+        raise typer.Exit(code=1)
+    if not codes:
+        from rich.console import Console
+
+        Console().print("[red]--only requires at least one code.[/red]")
+        raise typer.Exit(code=1)
+    return codes
+
+
+def _color_diff_line(line: str) -> str:
+    """Rich-markup wrapped diff line (green additions / red removals)."""
+    from rich.markup import escape
+
+    if line.startswith("+++") or line.startswith("---"):
+        color = "green" if line.startswith("+") else "red"
+        return f"[bold {color}]{escape(line)}[/bold {color}]"
+    if line.startswith("+"):
+        return f"[green]{escape(line)}[/green]"
+    if line.startswith("-"):
+        return f"[red]{escape(line)}[/red]"
+    if line.startswith("@@"):
+        return f"[cyan]{escape(line)}[/cyan]"
+    return escape(line)
+
+
+def _fix_mode(
+    file: Path,
+    *,
+    apply: bool,
+    dry_run: bool,
+    only: Optional[List[str]],
+    no_backup: bool,
+    default_memory: str,
+) -> None:
+    """Auto-fix ``file`` in place (--fix) or preview the diff (--dry-run)."""
+    from rich.console import Console
+
+    from infra.analyzer.autofix import parse_memory_value
+    from infra.analyzer.source_editor import compute_fixes, render_diff
+    from infra.parser import parse_file
+
+    console = Console()
+
+    if not file.exists():
+        console.print(f"[red]Source file not found:[/red] {file}")
+        raise typer.Exit(code=1)
+
+    try:
+        parse_memory_value(default_memory)
+    except ValueError as exc:
+        console.print(f"[red]{exc}[/red]")
+        raise typer.Exit(code=1) from exc
+
+    try:
+        program = parse_file(file)
+    except Exception as exc:
+        detail = str(exc).splitlines()[0] if str(exc) else "parse error"
+        console.print(f"[red]Cannot parse {file}:[/red] {detail}")
+        raise typer.Exit(code=1) from exc
+
+    result, old_source, new_source = compute_fixes(
+        program, only=only, default_memory=default_memory
+    )
+
+    if not result.changed:
+        console.print("[green]No auto-fixable findings.[/green] "
+                      f"{file} is already clean.")
+        for skip in result.skipped:
+            console.print(f"  - {skip.code} {skip.target}: {skip.description}")
+        return
+
+    if dry_run or not apply:
+        diff = render_diff(
+            old_source,
+            new_source,
+            from_name=f"{file} (current)",
+            to_name=f"{file} (fixed)",
+        )
+        for line in diff.splitlines():
+            console.print(_color_diff_line(line))
+        console.print(
+            f"\n[bold]{len(result.applied)} fix(es) available.[/bold] "
+            f"Run `infra doctor {file} --fix` to apply "
+            "(a .bak backup is created first)."
+        )
+        return
+
+    if not no_backup:
+        backup = file.with_suffix(file.suffix + ".bak")
+        backup.write_text(
+            file.read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        console.print(f"[blue]Backup saved to[/blue] {backup}")
+    file.write_text(new_source, encoding="utf-8")
+    console.print(f"[green]Applied {len(result.applied)} fix(es) to[/green] {file}:")
+    for fix in result.applied:
+        console.print(f"  - {fix.code} {fix.target}: {fix.description}")
+    for skip in result.skipped:
+        console.print(f"  [yellow]~ {skip.code} {skip.target}: "
+                      f"{skip.description}[/yellow]")
+
+
 def doctor(
+    file: Optional[Path] = typer.Argument(
+        None,
+        help=".infra file to auto-fix (requires --fix or --dry-run).",
+    ),
     check_drift: Optional[Path] = typer.Option(
         None,
         "--check-drift",
@@ -319,14 +440,80 @@ def doctor(
         "-a",
         help="Recursively diagnose every .infra file in the workspace.",
     ),
+    fix: bool = typer.Option(
+        False,
+        "--fix",
+        help="Apply auto-fixes in place (backup to .bak by default).",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Preview the auto-fix diff without writing any changes.",
+    ),
+    only: Optional[str] = typer.Option(
+        None,
+        "--only",
+        help="Fix only these codes, comma-separated "
+        "(e.g. --only SEC001,REL003).",
+    ),
+    no_backup: bool = typer.Option(
+        False,
+        "--no-backup",
+        help="Skip the .bak backup when using --fix.",
+    ),
+    default_memory: str = typer.Option(
+        "512Mi",
+        "--default-memory",
+        help="Memory limit injected by the REL003 fix (e.g. 256Mi, 1Gi).",
+    ),
 ) -> None:
-    """Check the user's environment, or detect drift with --check-drift.
+    """Check the user's environment, detect drift, or auto-fix a file.
 
     Without --live the drift check compares the compiled output against
     on-disk generated files; with --live it compares the spec against the
     live cluster (k8s) or Docker Compose state (read-only probes).
+
+    With ``--fix`` / ``--dry-run`` the command instead rewrites a single
+    .infra file using the auto-fix engine (SEC001, SEC003, REL003, REL004,
+    REL006, REL009).
     """
     import json as _json
+
+    fix_mode = fix or dry_run or only is not None or no_backup
+    if fix_mode:
+        if file is None:
+            from rich.console import Console
+
+            Console().print(
+                "[red]--fix/--dry-run require a .infra file argument.[/red] "
+                "Usage: infra doctor <file.infra> --fix|--dry-run"
+            )
+            raise typer.Exit(code=1)
+        if check_drift is not None:
+            from rich.console import Console
+
+            Console().print(
+                "[red]--fix cannot be combined with --check-drift.[/red]"
+            )
+            raise typer.Exit(code=1)
+        codes = _parse_only_codes(only)
+        _fix_mode(
+            file,
+            apply=fix,
+            dry_run=dry_run,
+            only=codes,
+            no_backup=no_backup,
+            default_memory=default_memory,
+        )
+        return
+    if file is not None:
+        from rich.console import Console
+
+        Console().print(
+            "[red]Passing a file requires --fix or --dry-run.[/red] "
+            "Without them, `infra doctor` only checks the environment."
+        )
+        raise typer.Exit(code=1)
 
     if all_files:
         _doctor_all(json_output)

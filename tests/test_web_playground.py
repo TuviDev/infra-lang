@@ -94,9 +94,38 @@ class TestSelectorAndTabs:
 
     def test_output_pane_ids_stay_in_sync(self):
         index = _index()
-        for tab in ("compose", "kubernetes", "terraform", "dag", "dashboard"):
+        for tab in (
+            "compose",
+            "kubernetes",
+            "terraform",
+            "dag",
+            "dashboard",
+            "insight",
+        ):
             assert f'"{tab}"' in index or f'"{tab},' not in index  # tab listed
             assert f'id="out-{tab}"' in index, f"missing output pane {tab}"
+
+
+class TestInsightReportTab:
+    """Playground wiring for the v0.9.0 `infra explain` integration."""
+
+    def test_insight_tab_button_and_pane(self):
+        index = _index()
+        assert 'data-tab="insight"' in index
+        assert "Insight Report" in index
+        assert 'id="out-insight"' in index
+
+    def test_insight_tab_wired_to_generate_explain_report(self):
+        app = _app_js()
+        assert "renderInsight" in app
+        assert "generate_explain_report" in app
+        assert 'activeTab === "insight"' in app
+
+    def test_insight_uses_dict_result_contract(self):
+        app = _app_js()
+        # generate_explain_report returns a dict like compile_to_target
+        assert "result.success" in app
+        assert "result.report" in app
 
 
 class TestBundleExport:
@@ -126,5 +155,6 @@ class TestVersionPinning:
             "export_dag_svg",
             "generate_ui_report",
             "list_examples",
+            "generate_explain_report",
         ):
             assert call in app

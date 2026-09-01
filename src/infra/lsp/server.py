@@ -18,6 +18,7 @@ from typing import Any, Callable, Optional, cast
 from lsprotocol.types import (
     INITIALIZED,
     TEXT_DOCUMENT_CODE_ACTION,
+    TEXT_DOCUMENT_CODE_LENS,
     TEXT_DOCUMENT_COMPLETION,
     TEXT_DOCUMENT_DEFINITION,
     TEXT_DOCUMENT_DID_CHANGE,
@@ -35,16 +36,20 @@ from lsprotocol.types import (
     TEXT_DOCUMENT_RENAME,
     TEXT_DOCUMENT_SEMANTIC_TOKENS_FULL,
     TEXT_DOCUMENT_SIGNATURE_HELP,
+    WORKSPACE_DID_CHANGE_CONFIGURATION,
     WORKSPACE_SYMBOL,
     CodeAction,
     CodeActionParams,
     CodeDescription,
+    CodeLens,
+    CodeLensParams,
     CompletionList,
     CompletionParams,
     DefinitionParams,
     Diagnostic,
     DiagnosticRelatedInformation,
     DiagnosticSeverity,
+    DidChangeConfigurationParams,
     DidChangeTextDocumentParams,
     DidCloseTextDocumentParams,
     DidOpenTextDocumentParams,
@@ -84,6 +89,13 @@ from lsprotocol.types import (
 )
 
 from ..errors.exceptions import InfraLexError, InfraParseError
+from ..lsp.codelens import (
+    LensOptions,
+    block_decl_at,
+    build_lenses,
+    hover_insight_section,
+    options_from_initialization,
+)
 from ..lsp.completion import completions_at
 from ..lsp.quickfix import quick_fixes
 from ..lsp.semantic_tokens import TOKEN_TYPES, encode_delta, tokenize_source
@@ -142,7 +154,7 @@ except ImportError:  # pragma: no cover - tied to lsprotocol 2023.x installs
 
 server = LanguageServer(
     name="infra-lang",
-    version="0.8.0",
+    version="0.9.0",
 )
 
 #: Project-wide on-disk symbol index. Scanned after initialization; consulted by
@@ -520,6 +532,51 @@ def folding_range(
     return folding_ranges(source)
 
 
+#: Latest CodeLens settings pushed by the client via
+#: ``workspace/didChangeConfiguration`` (v0.9.0). When set, it overrides the
+#: initialization options so toggling badges in VS Code does not require a
+#: server restart.
+_live_lens_settings: dict[str, Any] = {}
+
+
+def _lens_options(ls: LanguageServer) -> LensOptions:
+    """Resolve CodeLens flags from client settings (v0.9.0)."""
+    init: Any = _live_lens_settings
+    if not init:
+        init = getattr(ls, "initialization_options", None)
+        if init is None:
+            protocol = getattr(ls, "protocol", None)
+            init = getattr(protocol, "initialization_options", None)
+    try:
+        return options_from_initialization(init)
+    except Exception:  # pragma: no cover - defensive; never crash the server
+        return LensOptions()
+
+
+@server.feature(WORKSPACE_DID_CHANGE_CONFIGURATION)
+def did_change_configuration(
+    ls: LanguageServer, params: DidChangeConfigurationParams
+) -> None:
+    """Pick up live ``infra.codelens.*`` updates from the client (v0.9.0)."""
+    settings = params.settings
+    if isinstance(settings, dict):
+        for key, value in settings.items():
+            _live_lens_settings[key] = value
+
+
+@server.feature(TEXT_DOCUMENT_CODE_LENS)
+def code_lens(
+    ls: LanguageServer,
+    params: CodeLensParams,
+) -> Optional[list[CodeLens]]:
+    """Per-block FinOps badges (cost, replicas, warnings, grades) (v0.9.0)."""
+    opts = _lens_options(ls)
+    if not opts.enabled:
+        return None
+    source = _doc_source(ls, params.text_document.uri)
+    return build_lenses(source, opts)
+
+
 @server.feature(TEXT_DOCUMENT_DID_OPEN)
 def did_open(
     ls: LanguageServer,
@@ -889,11 +946,29 @@ def hover(
 
     word = _get_word_at(line_text, params.position.character)
 
+    # v0.9.0: hovering a top-level block declaration line appends an
+    # "💡 Insight" card (cost breakdown, warnings, dependency neighbourhood).
+    decl = block_decl_at(line_text)
+    insight: str | None = None
+    if decl is not None:
+        source = "\n".join(doc.lines)
+        insight = hover_insight_section(source, decl[0], decl[1])
+
     if word and word in FIELD_DOCS:
+        value = f"**{word}**\n\n{FIELD_DOCS[word]}"
+        if insight is not None:
+            value = f"{value}\n\n{insight}"
         return Hover(
             contents=MarkupContent(
                 kind=MarkupKind.Markdown,
-                value=f"**{word}**\n\n{FIELD_DOCS[word]}",
+                value=value,
+            )
+        )
+    if insight is not None:
+        return Hover(
+            contents=MarkupContent(
+                kind=MarkupKind.Markdown,
+                value=insight,
             )
         )
     return None

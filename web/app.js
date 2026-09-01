@@ -1,11 +1,11 @@
-/* Infra Lang Web Playground — Monaco + Pyodide (v0.8.0).
+/* Infra Lang Web Playground — Monaco + Pyodide (v0.9.0).
  * Everything below runs client-side only; the compiler executes in
  * WebAssembly inside the browser tab. */
 "use strict";
 
 const PYODIDE_CDN = "https://cdn.jsdelivr.net/pyodide/v0.26.4/full/";
 const MONACO_CDN = "https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min";
-const WHEEL_NAME = "infra_lang-0.8.0-py3-none-any.whl";
+const WHEEL_NAME = "infra_lang-0.9.0-py3-none-any.whl";
 
 const statusEl = document.getElementById("engine-status");
 const errorPanel = document.getElementById("error-panel");
@@ -455,7 +455,22 @@ function runActiveTab() {
   clearErrors();
   if (activeTab === "dashboard") return renderDashboard(source);
   if (activeTab === "dag") return renderDag(source);
+  if (activeTab === "insight") return renderInsight(source);
   return renderCompile(source, activeTab);
+}
+
+function renderInsight(source) {
+  try {
+    const result = toJs(webApi.generate_explain_report(source, "markdown"));
+    if (result.success) {
+      setCodeOutput("insight", result.report);
+    } else {
+      setCodeOutput("insight", "# insight report failed — see below");
+      showErrors(result.errors || ["Unknown insight error."]);
+    }
+  } catch (err) {
+    showErrors([pythonMessage(err)]);
+  }
 }
 
 function renderCompile(source, target) {

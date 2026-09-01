@@ -2,6 +2,89 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [0.9.0] - Insight & Intelligence — 2026-09-01
+
+**The Insight & Intelligence Block** — understand what you wrote, see cost
+and risk where you write it, fix common findings with one flag, and ship an
+auditable SBOM with every release. All of it deterministic and offline:
+no AI/ML runtime, no network requirement, 100% DSL backward compatibility.
+
+### Added — `infra explain` (architecture insight reports)
+- **New `infra explain <file>` command** — renders a deterministic,
+  template-driven insight report over any `.infra` file using only the
+  existing static analyzers (cost, security, reliability, validator).
+  Seven sections: Overview (with top-3 cost drivers and an architecture-type
+  heuristic), Services (with per-service A–F reliability grades),
+  Dependencies (including single points of failure), Cost Breakdown
+  (compute/storage/network/managed), Security Warnings, Reliability Report
+  (impact-labelled) and What-If scenarios (zone-failure blast radius,
+  scale-×2 cost delta).
+- **Human & AI formats** — `--format markdown|text|json` with
+  `--for human|ai`; the AI variant is a compact JSON document with a
+  `_meta` block (language, generator version, source checksum, timestamp)
+  and a 3–5 sentence `_summary` assembled from fixed templates — zero LLM
+  calls, byte-identical output for an unchanged file (the timestamp is
+  derived from the file mtime).
+- **Composable** — `--sections` subset selection, `-e/--environment`
+  overlays, `--var` overrides and `-o` file output.
+
+### Added — Editor CodeLens (FinOps inline)
+- **CodeLens badges in the language server** — one lens above every
+  `service`, `database`, `cache`, `queue`, `storage` and `environment`
+  block showing monthly cost, replicas, SEC\*/REL\* warning counts and a
+  reliability grade, e.g. `💰 $47.20/mo · ⚡ 3 replicas · 🔒 2 warnings ·
+  📊 Grade: A`; database lenses add size & backup status, environment
+  lenses add service count, total cost and compile target.
+- **ASCII fallback & full configurability** — `infra.codelens.enabled`,
+  `showCost`, `showSecurity`, `showReliability` and `showEmoji` settings
+  (live-updated via `workspace/didChangeConfiguration`); emoji-free
+  terminals get `[$] 47.20/mo | [R] 3 replicas | [!] 2 warnings | [G:A]`.
+- **Hover insight cards** — hover popups now carry a "💡 Insight" section
+  with the same per-block summary. Works on both pygls 1.3 and 2.x.
+
+### Added — `infra doctor --fix` (auto-fix)
+- **Six deterministic fix rules** keyed to validator codes: **SEC001**
+  (hardcoded secret env → `from secret "auto_secrets".VAR` plus a generated
+  `secret_store` block), **SEC003** (mutable `:latest` tag → inline FIXME
+  comment — never guesses a version), **REL003** (missing memory limit →
+  `limits { memory: 512Mi }`, tunable via `--default-memory`), **REL004**
+  (missing health check → `health http("/health") { interval: 30s
+  timeout: 5s }`; services without a port are skipped and reported),
+  **REL006** (database backup → `enabled: true`, schedule `0 2 * * *`,
+  retention 7d) and **REL009** (`replicas > 1` → `lifecycle { preStop … }`
+  graceful-shutdown hook).
+- **Safe by construction** — in-place rewrite with a `file.infra.bak`
+  backup by default (`--no-backup` to skip), `--dry-run` prints a colored
+  unified diff without writing, and `--only SEC001,REL003` restricts the
+  rule set. Fixes are AST-to-source round-trips through the existing
+  printer: idempotent, syntax-verified and byte-stable for untouched code.
+
+### Added — `infra sbom` (supply-chain inventory)
+- **New `infra sbom <file>` command** — collects every container image a
+  `service`/`database`/`cache`/`queue`/`storage` block implies and emits
+  **SPDX 2.3 JSON**, **CycloneDX 1.5 JSON**, a **markdown** table or plain
+  **text**. Deterministic serial numbers (name-based UUIDv5) and document
+  namespaces (source checksum).
+- **Tag-mutability risk scoring** — `:latest` & friends → `[!] HIGH`,
+  pinned tags → `[~] LOW`, `@sha256:` digests → `[OK] ZERO`, surfaced as
+  badges in the human formats and as annotations/properties in the JSON
+  formats.
+- **`--include-transitive`** — best-effort base-image expansion from the
+  bundled ~50-entry `base_images.json` database (e.g. nginx → alpine,
+  postgres → debian), rendered as DEPENDS_ON/dependencies edges.
+- **`--registry-check`** — best-effort availability probe (Docker Hub tag
+  API / registry v2 manifests) with an injectable fetcher; CI never
+  touches the network.
+
+### Added — Playground & docs
+- **Web Playground "🧠 Insight Report" tab** — renders `infra explain`
+  output in the browser via the new Pyodide-safe
+  `infra.web_api.generate_explain_report(source, format="markdown")`
+  (never raises; errors come back as data).
+- **New documentation** — `docs/insight.md`, `docs/autofix.md`,
+  `docs/sbom.md`, plus README and quickstart sections covering the whole
+  Insight & Intelligence block.
+
 ## [0.8.0] - Interactive & Product Polish — 2026-09-01
 
 **The Interactive & Product Polish Block** — developer experience and

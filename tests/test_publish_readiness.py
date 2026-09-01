@@ -138,7 +138,7 @@ class TestPublishReadiness:
         )
         assert vresult.returncode == 0, vresult.stderr
         installed_version = vresult.stdout.strip()
-        assert installed_version == "0.8.0", (
-            f"clean-venv installed version: {installed_version!r} != 0.8.0"
+        assert installed_version == "0.9.0", (
+            f"clean-venv installed version: {installed_version!r} != 0.9.0"
         )
         assert installed_version in result.stdout or "infra" in result.stdout.lower()

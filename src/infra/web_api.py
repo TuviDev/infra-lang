@@ -42,6 +42,7 @@ __all__ = [
     "export_dag_svg",
     "get_ast_json",
     "list_examples",
+    "generate_explain_report",
 ]
 
 # ---------------------------------------------------------------------- #
@@ -219,6 +220,57 @@ def generate_ui_report(
         drift_report=None,
         env_name=env_name,
     )
+
+
+def generate_explain_report(
+    source_code: str,
+    format: str = "markdown",
+    audience: str = "human",
+    env_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Render the `infra explain` insight report fully in memory.
+
+    Returns ``{"success": bool, "format": str, "report": str,
+    "errors": [...]}`` — this function never raises, matching the
+    ``compile_to_target`` API contract. The report is deterministic: no
+    timestamp is embedded (``now=None``), so repeated calls on the same
+    source produce byte-identical output. Pyodide-safe.
+    """
+    from infra.explain import collect_explain_data
+    from infra.explain.renderer import AUDIENCES, FORMATS, render_explain
+
+    fmt = format.lower()
+    if fmt not in FORMATS:
+        return {
+            "success": False,
+            "format": fmt,
+            "report": "",
+            "errors": [
+                f"Unknown format '{format}'. Valid formats: {', '.join(FORMATS)}"
+            ],
+        }
+    aud = audience.lower()
+    if aud not in AUDIENCES:
+        return {
+            "success": False,
+            "format": fmt,
+            "report": "",
+            "errors": [
+                f"Unknown audience '{audience}'. "
+                f"Valid audiences: {', '.join(AUDIENCES)}"
+            ],
+        }
+    try:
+        program = _load_program(source_code, env_name)
+        data = collect_explain_data(program, source=source_code,
+                                    project="playground")
+        report = render_explain(data, output_format=fmt, audience=aud)
+        return {"success": True, "format": fmt, "report": report,
+                "errors": []}
+    except Exception as exc:  # noqa: BLE001 - API contract: errors as data
+        message = str(exc) or type(exc).__name__
+        return {"success": False, "format": fmt, "report": "",
+                "errors": [message]}
 
 
 def export_dag_svg(source_code: str, env_name: Optional[str] = None) -> str:
