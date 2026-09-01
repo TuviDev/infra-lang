@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import re
-
-"""Tests for `infra ci-comment` â€” PR report generator (v0.7.0)."""
-
-
+# Tests for `infra ci-comment` — PR report generator (v0.7.0).
 import json
+import re
 
 import pytest
 from typer.testing import CliRunner
@@ -156,20 +153,20 @@ class TestRender:
             )
         )
         assert md.startswith(COMMENT_MARKER)
-        assert "## đźš€ Infra Lang" in md
-        assert "### đź’° Monthly cost" in md
-        assert "đź”ş" in md  # positive delta arrow
-        assert "âž•" in md  # added cache
-        assert "âśŹď¸Ź" in md  # changed api
-        assert "### đźš¦ Gates" in md
-        assert "âťŚ **cost gate:**" in md
-        assert "âś… **security gate:**" in md
+        assert "## 🚀 Infra Lang" in md
+        assert "### 💰 Monthly cost" in md
+        assert "🔺" in md  # positive delta arrow
+        assert "➕" in md  # added cache
+        assert "✏️" in md  # changed api
+        assert "### 🚦 Gates" in md
+        assert "❌ **cost gate:**" in md
+        assert "✅ **security gate:**" in md
 
     def test_markdown_no_base_no_changes_section(self):
         md = render_markdown(self._report())
         assert "**base:**" not in md
-        assert "### đź“¦ Changes" not in md
-        assert "â€”" not in md.split("Monthly cost")[1].split("###")[0]
+        assert "### 📦 Changes" not in md
+        assert "—" not in md.split("Monthly cost")[1].split("###")[0]
 
     def test_markdown_no_resource_changes(self):
         md = render_markdown(
@@ -186,23 +183,23 @@ class TestRender:
                 base_source="b",
             )
         )
-        assert "đźź˘" in md
-        assert "âž–" in md
+        assert "🟢" in md
+        assert "➖" in md
 
     def test_markdown_security_section_with_icons(self):
         md = render_markdown(build_report(parse(INSECURE), source="a"))
-        assert "### đź”’ Security findings" in md
-        assert "âťŚ `SEC001`" in md
+        assert "### 🔒 Security findings" in md
+        assert "❌ `SEC001`" in md
 
     def test_markdown_reliability_section(self):
         md = render_markdown(self._report())
-        assert "### đź›ˇď¸Ź Reliability hints" in md
+        assert "### 🛡️ Reliability hints" in md
 
     def test_markdown_gates_within_limits(self):
         md = render_markdown(
             self._report(max_monthly_cost=10**9, fail_on_security=True)
         )
-        assert "âś… **cost gate:**" in md
+        assert "✅ **cost gate:**" in md
 
     def test_json_roundtrip(self):
         payload = json.loads(
@@ -238,7 +235,7 @@ class TestCiCommentCLI:
         f = _write(tmp_path, "app.infra", BASE)
         result = runner.invoke(app, ["ci-comment", str(f)])
         assert result.exit_code == 0
-        assert result.output.startswith(COMMENT_MARKER)
+        assert re.match(re.escape(COMMENT_MARKER), result.output)
 
     def test_gate_status_goes_to_stderr(self, tmp_path):
         f = _write(tmp_path, "app.infra", BASE)
@@ -252,7 +249,7 @@ class TestCiCommentCLI:
         result = runner.invoke(app, ["ci-comment", str(head), "-b", str(base)])
         assert result.exit_code == 0
         assert "base.infra" in result.output
-        assert "âž•" in result.output
+        assert "➕" in result.output
 
     def test_max_monthly_cost_exceeded_exits_1(self, tmp_path):
         f = _write(tmp_path, "app.infra", BASE)
@@ -353,8 +350,7 @@ class TestCiCommentCLI:
     def test_help_mentions_gates(self):
         result = runner.invoke(app, ["ci-comment", "--help"])
         assert result.exit_code == 0
-        clean_out = re.sub(r"\x1b\[[0-9;]*m", "", result.output)
-        assert "max-monthly-cost" in clean_out
+        assert "max-monthly-cost" in result.output
 
 
 class TestActionAssets:
@@ -365,11 +361,15 @@ class TestActionAssets:
 
         action = Path(".github/actions/infra-check/action.yml")
         assert action.exists()
-        data = yaml.safe_load(action.read_text(encoding="utf-8"))
+        text = action.read_text(encoding="utf-8")
+        data = yaml.safe_load(text)
         inputs = data["inputs"]
         for name in ("files", "base-ref", "max-monthly-cost", "fail-on-security"):
             assert name in inputs
         assert data["runs"]["using"] == "composite"
+        # The PR comment is posted via github-script (update-in-place marker).
+        assert re.search(r"actions/github-script@v\d+", text)
+        assert re.search(re.escape(COMMENT_MARKER), text)
 
     def test_ci_integration_doc_exists(self):
         from pathlib import Path
