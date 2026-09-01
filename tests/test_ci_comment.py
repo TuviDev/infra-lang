@@ -1,4 +1,5 @@
 import re
+
 """Tests for `infra ci-comment` — PR report generator (v0.7.0)."""
 
 from __future__ import annotations
