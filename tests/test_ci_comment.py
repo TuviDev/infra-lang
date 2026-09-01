@@ -1,3 +1,4 @@
+import re
 """Tests for `infra ci-comment` — PR report generator (v0.7.0)."""
 
 from __future__ import annotations
@@ -350,7 +351,7 @@ class TestCiCommentCLI:
     def test_help_mentions_gates(self):
         result = runner.invoke(app, ["ci-comment", "--help"])
         assert result.exit_code == 0
-        assert "max-monthly-cost" in result.output
+        clean_out = re.sub(r"\x1b\[[0-9;]*m", "", result.output)`n        assert "max-monthly-cost" in clean_out
 
 
 class TestActionAssets:
