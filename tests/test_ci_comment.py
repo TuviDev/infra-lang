@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import re
 
-"""Tests for `infra ci-comment` — PR report generator (v0.7.0)."""
+"""Tests for `infra ci-comment` â€” PR report generator (v0.7.0)."""
 
-from __future__ import annotations
 
 import json
 
@@ -155,20 +156,20 @@ class TestRender:
             )
         )
         assert md.startswith(COMMENT_MARKER)
-        assert "## 🚀 Infra Lang" in md
-        assert "### 💰 Monthly cost" in md
-        assert "🔺" in md  # positive delta arrow
-        assert "➕" in md  # added cache
-        assert "✏️" in md  # changed api
-        assert "### 🚦 Gates" in md
-        assert "❌ **cost gate:**" in md
-        assert "✅ **security gate:**" in md
+        assert "## đźš€ Infra Lang" in md
+        assert "### đź’° Monthly cost" in md
+        assert "đź”ş" in md  # positive delta arrow
+        assert "âž•" in md  # added cache
+        assert "âśŹď¸Ź" in md  # changed api
+        assert "### đźš¦ Gates" in md
+        assert "âťŚ **cost gate:**" in md
+        assert "âś… **security gate:**" in md
 
     def test_markdown_no_base_no_changes_section(self):
         md = render_markdown(self._report())
         assert "**base:**" not in md
-        assert "### 📦 Changes" not in md
-        assert "—" not in md.split("Monthly cost")[1].split("###")[0]
+        assert "### đź“¦ Changes" not in md
+        assert "â€”" not in md.split("Monthly cost")[1].split("###")[0]
 
     def test_markdown_no_resource_changes(self):
         md = render_markdown(
@@ -185,23 +186,23 @@ class TestRender:
                 base_source="b",
             )
         )
-        assert "🟢" in md
-        assert "➖" in md
+        assert "đźź˘" in md
+        assert "âž–" in md
 
     def test_markdown_security_section_with_icons(self):
         md = render_markdown(build_report(parse(INSECURE), source="a"))
-        assert "### 🔒 Security findings" in md
-        assert "❌ `SEC001`" in md
+        assert "### đź”’ Security findings" in md
+        assert "âťŚ `SEC001`" in md
 
     def test_markdown_reliability_section(self):
         md = render_markdown(self._report())
-        assert "### 🛡️ Reliability hints" in md
+        assert "### đź›ˇď¸Ź Reliability hints" in md
 
     def test_markdown_gates_within_limits(self):
         md = render_markdown(
             self._report(max_monthly_cost=10**9, fail_on_security=True)
         )
-        assert "✅ **cost gate:**" in md
+        assert "âś… **cost gate:**" in md
 
     def test_json_roundtrip(self):
         payload = json.loads(
@@ -251,7 +252,7 @@ class TestCiCommentCLI:
         result = runner.invoke(app, ["ci-comment", str(head), "-b", str(base)])
         assert result.exit_code == 0
         assert "base.infra" in result.output
-        assert "➕" in result.output
+        assert "âž•" in result.output
 
     def test_max_monthly_cost_exceeded_exits_1(self, tmp_path):
         f = _write(tmp_path, "app.infra", BASE)
