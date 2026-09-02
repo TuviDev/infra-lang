@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 from typer.testing import CliRunner
@@ -21,6 +22,16 @@ from infra.explain.renderer import parse_sections, render_explain
 from infra.parser import parse
 
 runner = CliRunner()
+
+
+def _flat(text: str) -> str:
+    """Terminal-proof CLI output: strip ANSI escapes, collapse whitespace.
+
+    Rich injects color codes and wraps lines depending on COLUMNS / TERM /
+    *_COLOR env — substring asserts must never see that (v0.9.0-ci-hotfix).
+    """
+    clean = re.sub(r"\x1b\[[0-9;]*[mGKH]", "", text)
+    return re.sub(r"\s+", " ", clean)
 
 # --------------------------------------------------------------------------- #
 # Fixtures: three architecture sizes
@@ -121,17 +132,39 @@ def _write(tmp_path, name: str, source: str):
 
 
 class TestCliBasics:
-    def test_help_lists_command(self):
+    def test_help_lists_command(self, monkeypatch):
+        # Rich renders --help against the live COLUMNS: too narrow a terminal
+        # (CI runners) ellipsizes content and no post-processing can recover
+        # it. Pin a wide, colorless render via the process env (proven to
+        # govern Rich at format time — CliRunner(env=...) is not).
+        monkeypatch.setenv("COLUMNS", "120")
+        monkeypatch.setenv("NO_COLOR", "1")
+        monkeypatch.setenv("FORCE_COLOR", "0")
         result = runner.invoke(app, ["--help"])
         assert result.exit_code == 0
-        assert "explain" in result.output
+        # Defence in depth: match on flattened output (tolerates residual
+        # ANSI codes and hyphen-wraps on odd terminals).
+        assert re.search(r"explain", _flat(result.output))
 
-    def test_explain_help(self):
+    def test_explain_help(self, monkeypatch):
+        # Same terminal-robustness pinning as test_help_lists_command:
+        # headless CI (narrow COLUMNS, no TTY) made Rich ellipsize long
+        # options into e.g. "--for…", breaking plain substring asserts.
+        monkeypatch.setenv("COLUMNS", "120")
+        monkeypatch.setenv("NO_COLOR", "1")
+        monkeypatch.setenv("FORCE_COLOR", "0")
         result = runner.invoke(app, ["explain", "--help"])
         assert result.exit_code == 0
-        assert "--format" in result.output
-        assert "--for" in result.output
-        assert "--sections" in result.output
+        flat = _flat(result.output)
+        for option in (
+            "--format",
+            "--for",
+            "--sections",
+            "--output",
+            "--environment",
+            "--var",
+        ):
+            assert re.search(re.escape(option), flat), option
 
     @pytest.mark.parametrize("fmt", ["markdown", "text", "json"])
     @pytest.mark.parametrize("src_name", ["small", "medium", "complex"])
@@ -150,25 +183,25 @@ class TestCliBasics:
     def test_missing_file_exits_1(self, tmp_path):
         result = runner.invoke(app, ["explain", str(tmp_path / "nope.infra")])
         assert result.exit_code == 1
-        assert "not found" in result.output
+        assert "not found" in _flat(result.output)
 
     def test_parse_error_exits_1(self, tmp_path):
         f = _write(tmp_path, "broken", "service {{{\n")
         result = runner.invoke(app, ["explain", str(f)])
         assert result.exit_code == 1
-        assert "Cannot parse" in result.output
+        assert "Cannot parse" in _flat(result.output)
 
     def test_unknown_format_exits_1(self, tmp_path):
         f = _write(tmp_path, "app", SMALL)
         result = runner.invoke(app, ["explain", str(f), "--format", "yaml"])
         assert result.exit_code == 1
-        assert "Unknown format" in result.output
+        assert "Unknown format" in _flat(result.output)
 
     def test_unknown_audience_exits_1(self, tmp_path):
         f = _write(tmp_path, "app", SMALL)
         result = runner.invoke(app, ["explain", str(f), "--for", "robot"])
         assert result.exit_code == 1
-        assert "Unknown audience" in result.output
+        assert "Unknown audience" in _flat(result.output)
 
     def test_unknown_section_exits_1(self, tmp_path):
         f = _write(tmp_path, "app", SMALL)
@@ -176,13 +209,13 @@ class TestCliBasics:
             app, ["explain", str(f), "--sections", "overview,wat"]
         )
         assert result.exit_code == 1
-        assert "Unknown section" in result.output
+        assert "Unknown section" in _flat(result.output)
 
     def test_invalid_var_exits_1(self, tmp_path):
         f = _write(tmp_path, "app", SMALL)
         result = runner.invoke(app, ["explain", str(f), "--var", "noequals"])
         assert result.exit_code == 1
-        assert "Invalid --var" in result.output
+        assert "Invalid --var" in _flat(result.output)
 
     def test_valid_var_accepted(self, tmp_path):
         f = _write(tmp_path, "app", SMALL)
