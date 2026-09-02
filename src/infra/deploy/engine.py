@@ -22,7 +22,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 TARGETS = ("compose", "kubernetes", "helm", "terraform")
@@ -323,6 +323,17 @@ def snapshot_dir(state_root: Path, project: str, revision: str) -> Path:
     return project_dir(state_root, project) / "snapshots" / revision
 
 
+def _posix_key(name: str) -> str:
+    """Normalize a manifest-relative key to forward slashes on every OS.
+
+    Keys stored in snapshot dictionaries and history JSON must be
+    byte-identical on Windows, macOS and Linux (FILAR 2) — otherwise
+    ``load_snapshot`` round-trips ``a\\b.tf`` on Windows but ``a/b.tf``
+    elsewhere.
+    """
+    return PureWindowsPath(name).as_posix()
+
+
 def _read_history_files(state_root: Path, project: str) -> List[Path]:
     directory = history_dir(state_root, project)
     if not directory.is_dir():
@@ -356,7 +367,7 @@ def save_record(
     snapshot = snapshot_dir(state_root, record.project, record.revision)
     history.mkdir(parents=True, exist_ok=True)
     for name, content in files.items():
-        dest = snapshot / name
+        dest = snapshot / _posix_key(name)
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(content.lstrip("\ufeff"), encoding="utf-8")
     path = history / f"{record.revision}.json"
@@ -374,7 +385,9 @@ def load_snapshot(
     if not directory.is_dir():
         return None
     return {
-        str(path.relative_to(directory)): path.read_text(encoding="utf-8")
+        str(path.relative_to(directory).as_posix()): path.read_text(
+            encoding="utf-8"
+        )
         for path in sorted(directory.rglob("*"))
         if path.is_file()
     }
@@ -468,7 +481,7 @@ def execute_deploy(
             compile_hash=digest,
             environment=environment,
             service_names=tuple(service_names),
-            files=tuple(sorted(files)),
+            files=tuple(sorted(_posix_key(k) for k in files)),
             steps=tuple(steps),
             message=message,
         )

@@ -358,6 +358,25 @@ class TestHistory:
         assert snap == {"a/main.tf": "x", "nested/b.tf": "y"}
         assert load_snapshot(tmp_path, "demo", "r9999") is None
 
+    def test_snapshot_keys_are_normalized_to_posix(self, tmp_path):
+        # defensive: backslash keys are normalized on write, so history
+        # JSON and snapshot dicts are byte-identical on every OS
+        save_record(
+            tmp_path, _record(), {"a\\main.tf": "x", "nested/b.tf": "y"}
+        )
+        snap = load_snapshot(tmp_path, "demo", "r0001")
+        assert sorted(snap) == ["a/main.tf", "nested/b.tf"]
+
+    def test_record_files_tuple_is_posix(self, tmp_path):
+        # plan-only deploy — no subprocess; the recorded files tuple must
+        # hold normalized posix keys on every OS
+        record = execute_deploy(
+            project="demo", target="compose",
+            files={"demo\\Chart.yaml": "x", "demo/values.yaml": "y"},
+            state_root=tmp_path, apply=False,
+        )
+        assert record.files == ("demo/Chart.yaml", "demo/values.yaml")
+
     def test_find_record_exact_and_prefix(self, tmp_path):
         save_record(tmp_path, _record("r0001"), {})
         save_record(
@@ -454,7 +473,7 @@ class TestExecuteDeploy:
         assert record.status == ROLLED_BACK
         assert "restored previous state" in record.message
         rollback_step = record.steps[-1]
-        assert "snapshots/r0001" in rollback_step.label
+        assert "snapshots/r0001" in rollback_step.label.replace("\\", "/")
 
     def test_compose_rollout_command_failure_no_previous_fails(self, tmp_path):
         # apply ok → `docker compose ps` itself fails (rc != 0)
@@ -540,7 +559,7 @@ class TestExecuteDeploy:
                 state_root=tmp_path,
             )
         assert record.status == ROLLED_BACK
-        assert "snapshots/r0001" in record.steps[-1].label
+        assert "snapshots/r0001" in record.steps[-1].label.replace("\\", "/")
 
     def test_terraform_success_without_rollout(self, tmp_path):
         with _run_with([_proc(0)]) as run_mock:
