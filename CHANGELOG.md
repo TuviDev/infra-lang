@@ -2,6 +2,85 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [1.0.0] - Production & Enterprise — 2026-09-02
+
+**The Production & Enterprise Block** — the first major release: deploy and
+roll back safely, operate multi-project workspaces, audit against SOC 2 / CIS
+and guard every state mutation with an atomic lock. All of it local-first:
+zero new heavy runtime dependencies, 100% offline, 100% DSL backward
+compatibility, and zero real cluster calls in tests (every external tool
+invocation is mocked at `subprocess.run`).
+
+### Added — `infra deploy` / `infra rollback`
+- **Dry-run by default** — `infra deploy app.infra` prints a structured plan
+  (resources, estimated monthly cost from `cost.py`, risk indicators from
+  `security.py` and the exact tool commands) without touching anything.
+  `--apply`/`--force` executes; `--dry-run` stays the default.
+- **Four targets** — `compose` (`docker compose up -d`), `kubernetes`
+  (`kubectl apply -f`), `helm` (`helm upgrade --install`), `terraform`
+  (`terraform apply -auto-approve`), with aliases `k8s`/`docker`/`tf`.
+- **Rollout checks** — compose inspects `ps --format json` for
+  dead/exited/unhealthy containers; kubernetes waits on
+  `kubectl rollout status` per service (configurable `--timeout`); helm
+  verifies `helm status`; terraform takes the apply exit code.
+- **Auto-rollback** — on apply/rollout failure the previous good snapshot is
+  re-applied automatically (default `--auto-rollback`), falling back to the
+  tool-native undo (`kubectl rollout undo` / `helm rollback`).
+- **Local history** — every revision keeps metadata + manifest snapshots
+  under `.infra-state/<project>/history/` and `snapshots/`.
+  `infra rollback` renders the history table; `--to-revision r000N` restores
+  any recorded revision (unique prefixes accepted).
+
+### Added — `infra workspace` (multi-project inheritance)
+- **New command group** with `init --template basic|micro|full`, `list`
+  (name/path/target/validation-status table), `check` (batch validation,
+  `[PASS]`/`[FAIL]`, exit 1 on any error) and
+  `compile [--project NAME] [-o DIR]`.
+- **`infra-workspace.yaml`** manifest (`version: "1.0"`) declaring projects
+  with per-project targets, global `policies:` and global `environments:`.
+- **Global policies take precedence** — every workspace policy is evaluated
+  for every sub-project; nobody can opt out.
+- **Overlay inheritance** — workspace `environments:` files are merged onto
+  each project when `-e/--env` is selected and win over file-local blocks
+  of the same name.
+
+### Added — `infra compliance` (SOC 2 & CIS audits)
+- **Audit-readable reports** — `infra compliance <file> [--standard
+  soc2|cis|all] [--format text|markdown|json] [-o FILE]` lists every control
+  as passed/violated with norm IDs, triggering SEC*/REL* codes, file
+  locations and fix recommendations.
+- **SOC 2 mapping** — CC6.1 (SEC001+SEC004), CC6.3 (SEC003),
+  CC7.1 (SEC003+SEC006), CC7.2 (REL004), A1.1 (REL001+REL002+REL003).
+- **CIS Kubernetes v1.8 mapping** — 5.1.1 (SEC005), 5.2.1 (SEC004),
+  5.2.4 (direct read-only-root-filesystem check), 5.2.5 (SEC004),
+  5.7.3 (direct NetworkPolicy-for-public-services check).
+- **Compliance Score** — `(passed controls / total) × 100`, printed in every
+  report and exposed in the JSON output; exit code 1 when anything fails.
+
+### Added — atomic state locking
+- **`infra.workspace.lock`** — `WorkspaceLock("project", operation="deploy")`
+  context manager guarding `.infra-state/<project>/` mutations.
+- **Atomic & stdlib-only** — exclusive creation via `open(path, "x")`
+  (`O_EXCL`, atomic on Windows/macOS/Linux); stale-owner detection via
+  `os.kill(pid, 0)` on POSIX and `tasklist` on Windows — no psutil.
+- **Crash-safe** — stale locks (dead owner) are reclaimed automatically;
+  freshly-created corrupt files are never raced (grace window).
+- **`infra workspace unlock <project> [--force]`** — operator helper that
+  refuses to break locks owned by live processes unless forced.
+
+### Changed
+- Version bumped to **1.0.0** across `pyproject.toml`, `infra.version`,
+  the LSP server handshake, Helm chart metadata, the VS Code extension
+  (package.json + package-lock.json) and the Web Playground wheel loader.
+
+### Quality gates (all green)
+- 239 new tests (3855 total passing), all three suites green
+  (dev, Windows-sim `-m "not slow"`, legacy Python simulation).
+- 100% line+branch coverage on every new module; global coverage at
+  LINE ≥ 98.00% / BRANCH ≥ 94.80%.
+- `ruff` = 0 warnings; `mypy --strict` = 0 issues on dev *and* legacy;
+  `python -m build` + `twine check` PASSED (`infra_lang-1.0.0`).
+
 ## [0.9.0] - Insight & Intelligence — 2026-09-01
 
 **The Insight & Intelligence Block** — understand what you wrote, see cost

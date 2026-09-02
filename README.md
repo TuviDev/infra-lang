@@ -212,6 +212,57 @@ web_api.list_examples()                                # hello_world, web_app, �
 `web_api` never touches the disk, processes or a browser API — errors are
 returned as data — so it is safe to embed anywhere.
 
+## Production & Enterprise: deploy, workspace, compliance, locking (since 1.0.0)
+
+### 🚀 Safe deployments with `infra deploy` / `infra rollback`
+
+Dry-run first, always: the default prints a structured plan (resources,
+monthly cost, SEC*/REL* risks, exact commands) and touches nothing.
+`--apply` executes through `docker`/`kubectl`/`helm`/`terraform`, verifies
+the rollout and auto-rolls back to the last good snapshot on failure.
+Every revision is recorded locally with its manifests:
+
+```bash
+infra deploy app.infra -t kubernetes            # dry-run plan (default)
+infra deploy app.infra -t compose --apply       # execute + verify rollout
+infra deploy app.infra -t k8s --apply --timeout 180
+infra rollback app.infra                        # history table
+infra rollback app.infra --to-revision r0001    # restore a revision
+```
+
+### 🗂  Multi-project workspaces
+
+`infra-workspace.yaml` groups projects with per-project targets, **global
+policies** (applied to every sub-project, no opt-out) and **global
+environment overlays** (merged onto each project, workspace wins):
+
+```bash
+infra workspace init --template micro
+infra workspace list          # name / path / target / validation status
+infra workspace check         # batch validation, exit 1 on any error
+infra workspace compile --project api -o dist/
+```
+
+### 🛡  Compliance audits (SOC 2 & CIS)
+
+```bash
+infra compliance app.infra                    # all standards, [PASS]/[FAIL]
+infra compliance app.infra -s soc2 -f markdown -o audit.md
+```
+
+Every control is rendered with norm IDs (CC6.1 … , CIS 5.1.1 …), the
+triggering SEC*/REL* codes, file locations, fix recommendations and a
+**Compliance Score** (`passed/total × 100`); exit 1 on any violation.
+
+### 🔒 Atomic state locking
+
+`WorkspaceLock("my_project", operation="deploy")` guards
+`.infra-state/` mutations with an `O_EXCL`-atomic JSON lock file
+(stdlib only; stale-owner detection via `os.kill(pid, 0)` / Windows
+`tasklist`, auto-reclaim of stale locks). Stuck lock?
+`infra workspace unlock my_project` (refuses live owners; `--force` only
+when you are sure).
+
 ## Insight & Intelligence: explain, CodeLens, auto-fix, SBOM (since 0.9.0)
 
 ### 🧠 Understanding Your Architecture

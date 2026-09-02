@@ -251,6 +251,30 @@ web_api.list_examples()              # embedded hello_world/web_app/microservice
 (checked by dedicated tests), which makes it safe for WASM sandboxes and
 serverless embeddings.
 
+## Production & enterprise: deploy, workspace, compliance, locking (since 1.0.0)
+
+```bash
+# deploy: dry-run plan by default; --apply executes + verifies the rollout,
+# with auto-rollback to the last good snapshot and full local history
+infra deploy app.infra -t kubernetes
+infra deploy app.infra -t compose --apply
+infra rollback app.infra --to-revision r0001
+
+# workspaces: multi-project manifests with global policies + env overlays
+infra workspace init --template micro
+infra workspace check          # [PASS]/[FAIL] per project, exit 1 on error
+infra workspace compile -o dist/
+
+# compliance: SOC 2 / CIS controls mapped from SEC*/REL* findings
+infra compliance app.infra -s all -f markdown -o audit.md
+
+# locking: stdlib-only atomic lock for .infra-state/, auto stale-reclaim
+infra workspace unlock my_project --force
+```
+
+See [deploy.md](deploy.md), [workspace.md](workspace.md),
+[compliance.md](compliance.md) and [locking.md](locking.md).
+
 ## Insight & intelligence: explain, CodeLens, auto-fix, SBOM (since 0.9.0)
 
 ### 🧠 Understanding Your Architecture

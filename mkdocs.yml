@@ -1,54 +1,103 @@
 site_name: Infra Lang
-site_description: Infrastructure-as-Code DSL that compiles to Kubernetes, Docker Compose, Helm, and Terraform.
+site_description: "Write infrastructure once, compile it to Kubernetes, Compose, or GitHub Actions"
 site_url: https://TuviDev.github.io/infra-lang/
 repo_url: https://github.com/TuviDev/infra-lang
 repo_name: TuviDev/infra-lang
+edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 Infra Lang contributors &mdash; MIT License
 
 theme:
   name: material
+  language: en
+  logo: assets/logo.svg
+  favicon: assets/logo.svg
   palette:
-    - scheme: default
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: indigo
       accent: indigo
       toggle:
-        icon: material/brightness-7
+        icon: material/weather-night
         name: Switch to dark mode
-    - scheme: slate
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       primary: indigo
       accent: indigo
       toggle:
-        icon: material/brightness-4
+        icon: material/weather-sunny
         name: Switch to light mode
   features:
-    - navigation.indexes
-    - navigation.sections
+    - navigation.instant
+    - navigation.tracking
     - navigation.top
+    - navigation.indexes
+    - navigation.footer
+    - search.suggest
+    - search.highlight
     - content.code.copy
-    - content.code.annotate
+    - content.tabs.link
+
+exclude_docs: |
+  benchmark_baseline.md
+  performance_budgets.md
+  promotion/*
+
+plugins:
+  - search:
+      lang:
+        - en
 
 markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
-  - admonition
-  - pymdownx.details
-  - tables
+  - attr_list
+  - md_in_html
   - toc:
       permalink: true
 
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/TuviDev/infra-lang
+
 nav:
   - Home: index.md
-  - Quickstart: quickstart.md
-  - Language Spec: language_spec.md
-  - Architecture Decisions: language_decisions.md
-  - Editor Setup:
-      - VS Code: vscode_setup.md
-      - Neovim: editors/neovim.md
+  - Getting Started:
+      - Quickstart: quickstart.md
+      - Tutorial: tutorial.md
+  - Language:
+      - Language Spec: language_spec.md
+      - Design Decisions: language_decisions.md
   - Backends:
       - Helm: backends/helm.md
-  - Quality & Testing: testing_quality.md
-  - Known Limitations: known_limitations.md
-  - Support Matrix: support_matrix.md
-  - Troubleshooting: troubleshooting.md
+      - Support Matrix: support_matrix.md
+  - LSP & Editor:
+      - LSP Server: lsp.md
+      - VS Code Setup: vscode_setup.md
+      - Editors:
+          - Neovim: editors/neovim.md
+  - Insight & Supply Chain:
+      - Insight Reports: insight.md
+      - Auto-Fix: autofix.md
+      - SBOM: sbom.md
+  - Production & Enterprise:
+      - Deploy & Rollback: deploy.md
+      - Workspaces: workspace.md
+      - Compliance: compliance.md
+      - State Locking: locking.md
+  - Reference:
+      - Troubleshooting: troubleshooting.md
+      - Versioning: versioning.md
+      - Feedback Policy: feedback_policy.md
+      - Known Limitations: known_limitations.md
+  - Project:
+      - Roadmap: roadmap_v0.2.0.md
+      - Release Notes: release_notes_v0.1.0.md
+      - Changelog: https://github.com/TuviDev/infra-lang/blob/main/CHANGELOG.md

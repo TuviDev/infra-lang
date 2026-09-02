@@ -50,7 +50,9 @@ def register_commands() -> None:
     from infra.cli import compile as compile_cmd
     from infra.cli.alert_cmd import alert_cmd
     from infra.cli.ci_comment import ci_comment_cmd
+    from infra.cli.compliance_cmd import compliance
     from infra.cli.cost_cmd import cost_cmd
+    from infra.cli.deploy_cmd import deploy, rollback
     from infra.cli.doctor import doctor
     from infra.cli.explain_cmd import explain
     from infra.cli.feedback_cmd import feedback_cmd
@@ -62,6 +64,7 @@ def register_commands() -> None:
     from infra.cli.schema_cmd import schema
     from infra.cli.serve_cmd import serve_cmd
     from infra.cli.up_cmd import down, up
+    from infra.cli.workspace_cmd import workspace_app
 
     app.command(name="up", help="Compile and deploy a .infra file.")(up)
     app.command(name="down", help="Remove resources applied from a .infra file.")(down)
@@ -97,6 +100,10 @@ def register_commands() -> None:
         name="ci-comment",
         help="Generate a PR-ready CI comment (changes, cost delta, SEC*/REL*).",
     )(ci_comment_cmd)
+    app.command(
+        name="compliance",
+        help="Audit a .infra file against SOC 2 / CIS compliance controls.",
+    )(compliance)
     app.command(name="graph", help="Print the dependency graph.")(graph.graph)
     app.command(
         name="schema", help="Export the JSON Schema of the .infra DSL."
@@ -112,6 +119,19 @@ def register_commands() -> None:
         name="sbom",
         help="Generate an SBOM (SPDX / CycloneDX / markdown / text).",
     )(sbom)
+    app.command(
+        name="deploy",
+        help="Deploy a .infra file (dry-run plan; --apply executes).",
+    )(deploy)
+    app.command(
+        name="rollback",
+        help="List deploy history or restore a previous revision.",
+    )(rollback)
+    app.add_typer(
+        workspace_app,
+        name="workspace",
+        help="Manage multi-project workspaces (init / list / check / compile).",
+    )
     app.command(name="docs", help="Generate documentation from .infra files.")(
         docs.docs
     )
