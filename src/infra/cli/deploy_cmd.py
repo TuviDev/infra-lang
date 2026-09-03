@@ -10,13 +10,10 @@ failure — auto-rolls back to the previous good snapshot.
 from __future__ import annotations
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import typer
 
-from infra.analyzer.cost import estimate_cost
-from infra.analyzer.security import SecurityChecker
-from infra.backends import get_backend
 from infra.deploy.engine import (
     PLANNED,
     RESTORED,
@@ -30,16 +27,31 @@ from infra.deploy.engine import (
     list_history,
     target_tool,
 )
-from infra.parser import ast_nodes as n
-from infra.parser import parse_file
 
-if TYPE_CHECKING:
+if TYPE_CHECKING:  # pragma: no cover
     from rich.console import Console
+
+    from infra.backends.base import Backend
+    from infra.parser import ast_nodes as n
+
+
+def get_backend(name: str, **opts: Any) -> Backend:
+    """Lazy proxy for :func:`infra.backends.get_backend`.
+
+    Keeps the CLI startup cost at zero (no analyzer/backend import until a
+    command actually runs) while preserving this module attribute as the
+    single monkey-patch point used by the test-suite.
+    """
+    from infra.backends import get_backend as _real
+
+    return _real(name, **opts)
 
 
 def _prepare_program(file: Path, environment: Optional[str]) -> n.Program:
     """Parse, overlay and semantically validate *file* (exits on error)."""
     from rich.console import Console
+
+    from infra.parser import parse_file
 
     console = Console()
     if not file.exists():
@@ -55,6 +67,7 @@ def _prepare_program(file: Path, environment: Optional[str]) -> n.Program:
     from typing import cast
 
     from infra.cli.compile import _apply_environment
+    from infra.parser import ast_nodes as n
 
     program = cast(n.Program, _apply_environment(program, environment or ""))
 
@@ -71,12 +84,16 @@ def _prepare_program(file: Path, environment: Optional[str]) -> n.Program:
 
 
 def _service_names(program: n.Program) -> List[str]:
+    from infra.parser import ast_nodes as n
+
     return [
         stmt.name for stmt in program.statements if isinstance(stmt, n.ServiceDef)
     ]
 
 
 def _collect_resources(program: n.Program) -> List[Tuple[str, str]]:
+    from infra.parser import ast_nodes as n
+
     kinds = (
         (n.ServiceDef, "service"),
         (n.DatabaseDef, "database"),
@@ -100,6 +117,9 @@ def _print_plan(
     program: n.Program,
     files: Dict[str, str],
 ) -> None:
+    from infra.analyzer.cost import estimate_cost
+    from infra.analyzer.security import SecurityChecker
+
     resources = _collect_resources(program)
     estimate = estimate_cost(program)
     findings = SecurityChecker().check(program)

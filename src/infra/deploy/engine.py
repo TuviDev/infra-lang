@@ -25,6 +25,8 @@ from datetime import datetime, timezone
 from pathlib import Path, PureWindowsPath
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from infra.errors.exceptions import InfraError
+
 TARGETS = ("compose", "kubernetes", "helm", "terraform")
 
 PLANNED = "planned"
@@ -44,12 +46,29 @@ _TARGET_TOOL = {
 _DEFAULT_TIMEOUT = 120
 
 
+class DeployTargetError(InfraError, ValueError):
+    """Unsupported deploy target.
+
+    Inherits :class:`ValueError` so existing ``except ValueError`` callers
+    keep working while the error also belongs to the unified
+    :class:`infra.errors.exceptions.InfraError` family.
+    """
+
+
+class RevisionNotFoundError(InfraError, LookupError):
+    """Requested revision (or its snapshot) is absent from local state.
+
+    Inherits :class:`LookupError` for backwards compatibility with existing
+    callers; it is also an :class:`InfraError`.
+    """
+
+
 def canonical_target(name: str) -> str:
     """Normalise target aliases (``k8s``/``docker``/``tf``) or raise."""
     canonical = _ALIASES.get(name.lower(), name.lower())
     if canonical not in TARGETS:
-        raise ValueError(
-            f"Unsupported target '{name}'. Valid targets: {', '.join(TARGETS)}"
+        raise DeployTargetError(
+            message=f"Unsupported target '{name}'. Valid targets: {', '.join(TARGETS)}"
         )
     return canonical
 
@@ -180,9 +199,7 @@ def apply_command_set(
             )
         ]
     if canonical == "kubernetes":
-        return [
-            (["kubectl", "apply", "-f", str(manifest_dir / "infra.yaml")], None)
-        ]
+        return [(["kubectl", "apply", "-f", str(manifest_dir / "infra.yaml")], None)]
     if canonical == "helm":
         chart = _chart_dir(manifest_dir, release)
         return [(["helm", "upgrade", "--install", release, str(chart)], None)]
@@ -304,9 +321,7 @@ class DeployRecord:
             environment=str(data.get("environment", "")),
             service_names=tuple(str(v) for v in data.get("service_names", [])),
             files=tuple(str(v) for v in data.get("files", [])),
-            steps=tuple(
-                StepResult.from_dict(s) for s in data.get("steps", [])
-            ),
+            steps=tuple(StepResult.from_dict(s) for s in data.get("steps", [])),
             message=str(data.get("message", "")),
         )
 
@@ -342,14 +357,24 @@ def _read_history_files(state_root: Path, project: str) -> List[Path]:
 
 
 def list_history(state_root: Path, project: str) -> List[DeployRecord]:
-    """All records for *project*, oldest first (corrupt files skipped)."""
+    """All records for *project*, oldest first (corrupt files skipped).
+
+    Robustness contract: files that are unreadable, malformed JSON, or valid
+    JSON that does not decode into a :class:`DeployRecord` (wrong shape,
+    missing keys, non-coercible fields) are skipped instead of crashing the
+    listing — a hand-edited or torn ``.infra-state`` file must never break
+    `infra deploy history` / rollback lookups.
+    """
     records: List[DeployRecord] = []
     for path in _read_history_files(state_root, project):
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+            records.append(DeployRecord.from_dict(data))
+        except (OSError, ValueError, TypeError, KeyError):
+            # OSError: unreadable file; ValueError: bad JSON/UnicodeDecode/
+            # non-coercible field; TypeError: JSON shape is not a mapping;
+            # KeyError: required record field missing.
             continue
-        records.append(DeployRecord.from_dict(data))
     records.sort(key=lambda r: (r.timestamp, r.revision))
     return records
 
@@ -359,9 +384,7 @@ def next_revision(state_root: Path, project: str) -> str:
     return f"r{len(_read_history_files(state_root, project)) + 1:04d}"
 
 
-def save_record(
-    state_root: Path, record: DeployRecord, files: Dict[str, str]
-) -> Path:
+def save_record(state_root: Path, record: DeployRecord, files: Dict[str, str]) -> Path:
     """Persist *record* and the compiled *files* snapshot (utf-8)."""
     history = history_dir(state_root, record.project)
     snapshot = snapshot_dir(state_root, record.project, record.revision)
@@ -371,9 +394,7 @@ def save_record(
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(content.lstrip("\ufeff"), encoding="utf-8")
     path = history / f"{record.revision}.json"
-    path.write_text(
-        json.dumps(record.to_dict(), indent=2) + "\n", encoding="utf-8"
-    )
+    path.write_text(json.dumps(record.to_dict(), indent=2) + "\n", encoding="utf-8")
     return path
 
 
@@ -385,9 +406,7 @@ def load_snapshot(
     if not directory.is_dir():
         return None
     return {
-        str(path.relative_to(directory).as_posix()): path.read_text(
-            encoding="utf-8"
-        )
+        str(path.relative_to(directory).as_posix()): path.read_text(encoding="utf-8")
         for path in sorted(directory.rglob("*"))
         if path.is_file()
     }
@@ -405,9 +424,7 @@ def find_record(
     return matches[0] if len(matches) == 1 else None
 
 
-def last_good_revision(
-    state_root: Path, project: str
-) -> Optional[DeployRecord]:
+def last_good_revision(state_root: Path, project: str) -> Optional[DeployRecord]:
     """Most recent record with a re-appliable snapshot (success/restored)."""
     for record in reversed(list_history(state_root, project)):
         if record.status in (SUCCESS, RESTORED):
@@ -425,8 +442,7 @@ def _compose_rollout_ok(step: StepResult) -> bool:
         return False
     lowered = step.stdout.lower()
     return not any(
-        marker in lowered
-        for marker in ('"exited"', '"dead"', '"unhealthy"')
+        marker in lowered for marker in ('"exited"', '"dead"', '"unhealthy"')
     )
 
 
@@ -521,9 +537,7 @@ def execute_deploy(
     if failed is None:
         return finish(SUCCESS, "deployment applied and rollout verified")
 
-    reason = (
-        f"step failed (rc={failed.returncode}): {failed.label}".rstrip()
-    )
+    reason = f"step failed (rc={failed.returncode}): {failed.label}".rstrip()
     if not auto_rollback:
         return finish(FAILED, reason + " (auto-rollback disabled)")
 
@@ -537,9 +551,7 @@ def execute_deploy(
     )
     steps.extend(rollback_steps)
     if rollback_steps and _first_failure(rollback_steps) is None:
-        return finish(
-            ROLLED_BACK, reason + "; auto-rollback restored previous state"
-        )
+        return finish(ROLLED_BACK, reason + "; auto-rollback restored previous state")
     return finish(FAILED, reason + "; auto-rollback could not complete")
 
 
@@ -583,11 +595,13 @@ def execute_rollback(
     canonical = canonical_target(target)
     origin = find_record(state_root, project, revision)
     if origin is None:
-        raise LookupError(f"revision '{revision}' not found in history")
+        raise RevisionNotFoundError(
+            message=f"revision '{revision}' not found in history"
+        )
     snapshot = load_snapshot(state_root, project, origin.revision)
     if snapshot is None:
-        raise LookupError(
-            f"snapshot for revision '{origin.revision}' is missing"
+        raise RevisionNotFoundError(
+            message=f"snapshot for revision '{origin.revision}' is missing"
         )
 
     new_revision = next_revision(state_root, project)

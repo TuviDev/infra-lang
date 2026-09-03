@@ -14,26 +14,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import TYPE_CHECKING, Any, List, Optional
 
 import typer
 
-from infra.alerts.webhooks import (
-    ALL_EVENTS,
-    DEFAULT_TIMEOUT,
-    FORMATS,
-    AlertConfigError,
-    AlertContext,
-    WebhookTarget,
-    build_payload,
-    evaluate_alerts,
-    load_alert_config,
-    mask_url,
-    post_webhook,
-)
-from infra.analyzer.drift import DriftReport
-from infra.parser import ast_nodes as n
-from infra.parser import parse_file
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.alerts.webhooks import AlertContext, WebhookTarget
+    from infra.analyzer.drift import DriftReport
+    from infra.parser import ast_nodes as n
+
 
 
 def _probe_drift_safely(
@@ -45,7 +34,7 @@ def _probe_drift_safely(
     is strictly read-only and alerting must never crash on kubectl/docker
     problems.
     """
-    from infra.analyzer.drift import detect_live_drift_program
+    from infra.analyzer.drift import DriftReport, detect_live_drift_program
 
     try:
         return detect_live_drift_program(
@@ -57,6 +46,8 @@ def _probe_drift_safely(
 
 def _parse_events_option(raw: Optional[str]) -> Optional[List[str]]:
     """Validate a comma-separated --events value (``None`` = all events)."""
+    from infra.alerts.webhooks import ALL_EVENTS, AlertConfigError
+
     if raw is None:
         return None
     events = [part.strip() for part in raw.split(",") if part.strip()]
@@ -78,6 +69,13 @@ def _deliver(
     always: bool,
 ) -> bool:
     """Deliver *ctx* to every subscribed target; return overall success."""
+    from infra.alerts.webhooks import (
+        AlertContext,
+        build_payload,
+        mask_url,
+        post_webhook,
+    )
+
     ok = True
     for target in targets:
         events = [e for e in ctx.events if target.accepts(e)]
@@ -164,8 +162,10 @@ def alert_cmd(
     environment: Optional[str] = typer.Option(
         None, "--environment", "-e", "--env", help="Environment overlay name"
     ),
+    # NOTE: default mirrors webhooks.DEFAULT_TIMEOUT (imported lazily to keep
+    # CLI startup fast) — update both when the constant changes.
     timeout: float = typer.Option(
-        DEFAULT_TIMEOUT, "--timeout", help="HTTP timeout per webhook (seconds)."
+        10.0, "--timeout", help="HTTP timeout per webhook (seconds)."
     ),
     dry_run: bool = typer.Option(
         False, "--dry-run", help="Render payloads without sending anything."
@@ -178,6 +178,15 @@ def alert_cmd(
 ) -> None:
     """Send Slack/Teams/Discord alerts for cost, security and drift."""
     from rich.console import Console
+
+    from infra.alerts.webhooks import (
+        FORMATS,
+        AlertConfigError,
+        WebhookTarget,
+        evaluate_alerts,
+        load_alert_config,
+    )
+    from infra.parser import parse_file
 
     console = Console(stderr=True)
 

@@ -19,12 +19,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import typer
 
-from infra.analyzer.drift import STATUS_MISSING, DriftItem, DriftReport
-from infra.parser import _parser
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.analyzer.drift import DriftItem, DriftReport
 
 
 def _quote(value: str) -> str:
@@ -36,6 +36,8 @@ def _render_live_plan(
     console: Any, report: DriftReport, source: Path, namespace: str
 ) -> None:
     """Print a terraform-plan-style preview of the pending live changes."""
+    from infra.analyzer.drift import STATUS_MISSING
+
     creates: List[DriftItem] = []
     modified: Dict[str, List[DriftItem]] = {}
     for item in report.items:
@@ -113,6 +115,7 @@ def _diff_live(
         raise typer.Exit(code=1)
 
     from infra.cli.compile import _apply_environment
+    from infra.parser import _parser
 
     try:
         program = _parser().parse_file(file)
@@ -189,6 +192,7 @@ def diff_cmd(
         raise typer.Exit(code=2)
 
     from infra.diff.engine import InfraDiff
+    from infra.parser import _parser
 
     parser = _parser()
     p1 = parser.parse(file1.read_text(encoding="utf-8"), filename=file1.name)

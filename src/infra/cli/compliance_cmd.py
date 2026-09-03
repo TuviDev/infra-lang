@@ -17,18 +17,21 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import typer
 
-from infra.compliance.mappings import STANDARD_TITLES, STANDARDS
-from infra.compliance.scanner import ComplianceReport, scan_file
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.compliance.scanner import ComplianceReport
+
 
 #: Values accepted by the ``--format`` option.
 _FORMATS = ("text", "markdown", "json")
 
 
 def _render_text(report: ComplianceReport) -> str:
+    from infra.compliance.mappings import STANDARD_TITLES
+
     lines = [
         f"infra compliance report: {report.file}",
         f"standard: {STANDARD_TITLES[report.standard]}",
@@ -57,6 +60,8 @@ def _render_text(report: ComplianceReport) -> str:
 
 
 def _render_markdown(report: ComplianceReport) -> str:
+    from infra.compliance.mappings import STANDARD_TITLES
+
     lines = [
         "# Compliance Report",
         "",
@@ -105,6 +110,9 @@ def compliance(
 ) -> None:
     """Audit a .infra file against SOC 2 / CIS controls."""
     from rich.console import Console
+
+    from infra.compliance.mappings import STANDARDS
+    from infra.compliance.scanner import scan_file
 
     console = Console(stderr=True)
 

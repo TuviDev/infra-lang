@@ -17,17 +17,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import typer
 
-from infra.parser import parse_file
-from infra.policy.engine import (
-    PolicyError,
-    PolicyResult,
-    evaluate_policy,
-    load_policy,
-)
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.policy.engine import PolicyResult
+
 
 #: Valid values for the ``--format`` option.
 _FORMATS = ("text", "json")
@@ -66,6 +62,14 @@ def policy_check_cmd(
 ) -> None:
     """Check a .infra file against declarative team policy rules."""
     from rich.console import Console
+
+    from infra.parser import parse_file
+    from infra.policy.engine import (
+        PolicyError,
+        PolicyResult,
+        evaluate_policy,
+        load_policy,
+    )
 
     console = Console(stderr=True)
 

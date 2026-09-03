@@ -7,8 +7,6 @@ from typing import Optional
 
 import typer
 
-from infra.importer import import_kubernetes
-
 
 def import_cmd(
     source: Path = typer.Argument(
@@ -23,6 +21,8 @@ def import_cmd(
     ),
 ) -> None:
     """Import existing Kubernetes YAML and print (or save) Infra source."""
+    from infra.importer import import_kubernetes
+
     try:
         text = import_kubernetes(source)
     except Exception as exc:  # InfraImportError and friends

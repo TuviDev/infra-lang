@@ -30,10 +30,15 @@ export function activate(context: vscode.ExtensionContext): void {
         transport: TransportKind.stdio,
     };
 
+    // The watcher must be registered as a disposable too — otherwise it
+    // survives an extension reload and leaks an FS listener per activate().
+    const watcher = vscode.workspace.createFileSystemWatcher('**/*.infra');
+    context.subscriptions.push(watcher);
+
     const clientOptions: LanguageClientOptions = {
         documentSelector: [{ scheme: 'file', language: 'infra' }],
         synchronize: {
-            fileEvents: vscode.workspace.createFileSystemWatcher('**/*.infra'),
+            fileEvents: watcher,
         },
         initializationOptions: codeLensSettings(),
     };

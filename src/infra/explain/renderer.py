@@ -13,7 +13,16 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Optional, Sequence
 
+from infra.errors.exceptions import InfraError
 from infra.explain import SECTION_TITLES, ExplainData
+
+
+class InvalidSectionsError(InfraError, ValueError):
+    """Invalid ``infra explain --sections`` selection.
+
+    Inherits :class:`ValueError` for backwards compatibility; it is also an
+    :class:`InfraError`, keeping every module error in one hierarchy.
+    """
 
 #: Formats accepted by the CLI.
 FORMATS = ("markdown", "text", "json")
@@ -515,11 +524,13 @@ def parse_sections(raw: str) -> List[str]:
     chosen = [s.strip().lower() for s in raw.split(",") if s.strip()]
     unknown = [s for s in chosen if s not in SECTION_IDS]
     if unknown:
-        raise ValueError(
-            f"Unknown section(s): {', '.join(unknown)}. "
+        raise InvalidSectionsError(
+            message=f"Unknown section(s): {', '.join(unknown)}. "
             f"Valid: {', '.join(SECTION_IDS)}"
         )
     if not chosen:
-        raise ValueError("--sections produced an empty selection")
+        raise InvalidSectionsError(
+            message="--sections produced an empty selection"
+        )
     # keep canonical order even when the user lists them out of order
     return [s for s in SECTION_IDS if s in set(chosen)]

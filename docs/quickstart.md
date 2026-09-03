@@ -1,5 +1,8 @@
 # Infra Lang — 5-minute quickstart
 
+> Current release: **v1.0.1** — quality, performance & hardening
+> (see [CHANGELOG.md](../CHANGELOG.md)).
+
 ## Install
 ```bash
 pip install infra-lang

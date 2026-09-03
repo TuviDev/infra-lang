@@ -9,19 +9,27 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Dict, Optional, Sequence
 
 import typer
 
-from infra.explain import source_checksum
-from infra.parser import parse_file
-from infra.sbom import FORMATS
-from infra.sbom.generator import (
-    add_transitive,
-    check_availability,
-    collect_components,
-    render_sbom,
-)
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.sbom.generator import Fetcher, SbomComponent
+
+
+def check_availability(
+    components: Sequence[SbomComponent],
+    fetcher: Optional[Fetcher] = None,
+) -> Dict[str, str]:
+    """Lazy proxy for :func:`infra.sbom.generator.check_availability`.
+
+    Keeps the SBOM generator import out of the CLI startup path while
+    preserving this module attribute as the monkey-patch point the
+    test-suite relies on.
+    """
+    from infra.sbom.generator import check_availability as _real
+
+    return _real(components, fetcher)
 
 
 def sbom(
@@ -48,6 +56,15 @@ def sbom(
 ) -> None:
     """Generate a Software Bill of Materials for an .infra file."""
     from rich.console import Console
+
+    from infra.explain import source_checksum
+    from infra.parser import parse_file
+    from infra.sbom import FORMATS
+    from infra.sbom.generator import (
+        add_transitive,
+        collect_components,
+        render_sbom,
+    )
 
     console = Console()
 

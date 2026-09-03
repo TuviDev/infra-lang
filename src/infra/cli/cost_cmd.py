@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import typer
 
-from infra.analyzer.cost import CostEstimate, estimate_cost
-from infra.parser import parse_file
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.analyzer.cost import CostEstimate
+
 
 #: Approximate USD->currency conversion factors (rough, for display only).
 _CURRENCY_FACTORS = {"USD": 1.0, "EUR": 0.92, "PLN": 4.0}
@@ -61,8 +62,10 @@ def _cost_all(
     environment: Optional[str],
 ) -> None:
     """Estimate every .infra file in the workspace and render a summary."""
+    from infra.analyzer.cost import estimate_cost
     from infra.cli import batch as _batch
     from infra.cli.compile import _apply_environment
+    from infra.parser import parse_file
 
     if output_file is not None or output_format.lower() not in ("table", "json"):
         typer.echo(
@@ -169,7 +172,9 @@ def cost_cmd(
         )
         raise typer.Exit(code=1)
 
+    from infra.analyzer.cost import estimate_cost
     from infra.cli.compile import _apply_environment
+    from infra.parser import parse_file
 
     program = _apply_environment(parse_file(file), environment or "")
     est = estimate_cost(program)

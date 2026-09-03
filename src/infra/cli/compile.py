@@ -7,10 +7,6 @@ from typing import Any, Dict, List, Optional, Set
 
 import typer
 
-from infra.analyzer.validator import SemanticValidator
-from infra.backends import get_backend
-from infra.parser import _parser
-
 
 def _parse_var_options(var: List[str]) -> Dict[str, str]:
     out: Dict[str, str] = {}
@@ -49,6 +45,10 @@ def compile_program_to_files(
     ``typer.Exit(1)`` on invalid input.
     """
     from rich.console import Console
+
+    from infra.analyzer.validator import SemanticValidator
+    from infra.backends import get_backend
+    from infra.parser import _parser
 
     program = _parser().parse_file(path)
     program = _apply_environment(program, environment or "")
@@ -100,6 +100,10 @@ def compile(
     ),
 ) -> None:
     """Compile .infra files to the chosen backend."""
+    from infra.analyzer.validator import SemanticValidator
+    from infra.backends import get_backend
+    from infra.parser import _parser
+
     variables = _parse_var_options(var)
     if watch and files:
         run_watch(

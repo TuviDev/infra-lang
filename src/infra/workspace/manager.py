@@ -35,7 +35,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
+
+from infra.errors.exceptions import InfraError
+
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.parser import ast_nodes as n
+    from infra.policy.engine import PolicyViolation
 
 #: Manifest file name discovered in the working directory.
 WORKSPACE_FILE = "infra-workspace.yaml"
@@ -49,8 +55,12 @@ DEFAULT_TARGET = "kubernetes"
 TEMPLATES = ("basic", "micro", "full")
 
 
-class WorkspaceError(Exception):
-    """Raised for any workspace-level problem (manifest, files, config)."""
+class WorkspaceError(InfraError):
+    """Raised for any workspace-level problem (manifest, files, config).
+
+    Part of the unified :class:`infra.errors.exceptions.InfraError`
+    hierarchy — the CLI prints ``str(exc)`` which stays human-readable.
+    """
 
 
 @dataclass(frozen=True)
@@ -100,7 +110,7 @@ class ProjectReport:
     target: str
     ok: bool
     errors: Tuple[str, ...] = ()
-    violations: Tuple[Any, ...] = ()  # PolicyViolation tuples
+    violations: Tuple[PolicyViolation, ...] = ()
 
 
 # --------------------------------------------------------------------------- #
@@ -192,7 +202,7 @@ def find_workspace(directory: Optional[Path] = None) -> Path:
 
 def load_program(
     ws: Workspace, spec: ProjectSpec, environment: Optional[str] = None
-) -> Any:
+) -> n.Program:
     """Parse a project file and apply the *environment* overlay if given.
 
     Raises ``WorkspaceError`` on a missing/unparseable file, a missing
@@ -217,7 +227,9 @@ def load_program(
     return program
 
 
-def _apply_workspace_overlay(ws: Workspace, program: Any, environment: str) -> Any:
+def _apply_workspace_overlay(
+    ws: Workspace, program: n.Program, environment: str
+) -> n.Program:
     """Attach workspace overlay blocks (if declared) and apply *environment*."""
     from infra.analyzer.environments import (
         EnvironmentNotFoundError,
@@ -276,7 +288,7 @@ def check_project(
 
     path = ws.project_file(spec)
     errors: List[str] = []
-    violations: List[Any] = []
+    violations: List[PolicyViolation] = []
     try:
         program = load_program(ws, spec, environment)
     except WorkspaceError as exc:

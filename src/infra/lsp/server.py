@@ -154,7 +154,7 @@ except ImportError:  # pragma: no cover - tied to lsprotocol 2023.x installs
 
 server = LanguageServer(
     name="infra-lang",
-    version="1.0.0",
+    version="1.0.1",
 )
 
 #: Project-wide on-disk symbol index. Scanned after initialization; consulted by
@@ -592,6 +592,12 @@ def did_change(
 ) -> None:
     source = params.content_changes[-1].text
     _publish(ls, params.text_document.uri, source)
+    # Keep the cross-file symbol index fresh on every edit, but ONLY for the
+    # changed document: ``add_file`` reindexes this single file in place and
+    # never rebuilds the whole index (that full scan stays reserved for the
+    # initial workspace scan and explicit saves/closes). The server negotiates
+    # full-text sync, so the change payload carries the complete new source.
+    workspace_index.add_file(params.text_document.uri, source)
 
 
 @server.feature(TEXT_DOCUMENT_DID_SAVE)

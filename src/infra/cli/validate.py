@@ -8,13 +8,6 @@ from typing import Any, List, Optional
 
 import typer
 
-from infra.analyzer.environments import (
-    EnvironmentNotFoundError,
-    apply_environment_overlay,
-)
-from infra.analyzer.validator import SemanticValidator
-from infra.parser import _parser
-
 
 def _error_dict(e: Any, file: str = "?") -> dict[str, Any]:
     """Normalize a ValidationError or a raw parse exception into a dict."""
@@ -58,7 +51,13 @@ def validate(
     ),
 ) -> None:
     """Validate .infra files semantically (no compilation)."""
+    from infra.analyzer.environments import (
+        EnvironmentNotFoundError,
+        apply_environment_overlay,
+    )
+    from infra.analyzer.validator import SemanticValidator
     from infra.cli import batch as _batch
+    from infra.parser import _parser
 
     parser = _parser()
     if all_files:

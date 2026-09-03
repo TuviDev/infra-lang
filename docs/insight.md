@@ -51,7 +51,7 @@ With `--for ai` the report is a single compact JSON document:
 {
   "_meta": {
     "language": "infra",
-    "generator_version": "0.9.0",
+    "generator_version": "1.0.1",
     "checksum": "…",
     "timestamp": "…"
   },

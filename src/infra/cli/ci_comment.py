@@ -18,17 +18,13 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import typer
 
-from infra.analyzer.cost import estimate_cost
-from infra.analyzer.reliability import ReliabilityChecker
-from infra.analyzer.security import SecurityChecker
-from infra.diff.engine import InfraDiff
-from infra.errors.exceptions import ValidationError
-from infra.parser import ast_nodes as n
-from infra.parser import parse_file
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.parser import ast_nodes as n
+
 
 #: Valid values for the ``--format`` option.
 _FORMATS = ("github-comment", "json", "text")
@@ -40,6 +36,8 @@ COMMENT_MARKER = "<!-- infra-lang:ci-comment -->"
 
 def _finding_dict(finding: Any) -> Dict[str, Any]:
     """Normalise a ValidationError/Warning/ReliabilityFinding to a dict."""
+    from infra.errors.exceptions import ValidationError
+
     loc = getattr(finding, "location", None)
     return {
         "code": getattr(finding, "code", "?"),
@@ -136,6 +134,11 @@ def build_report(
     With *base_program* given, resources are diffed base→head and the monthly
     cost delta is included in the report.
     """
+    from infra.analyzer.cost import estimate_cost
+    from infra.analyzer.reliability import ReliabilityChecker
+    from infra.analyzer.security import SecurityChecker
+    from infra.diff.engine import InfraDiff
+
     monthly = estimate_cost(program).total_monthly_usd
     base_monthly: Optional[float] = None
     added: List[str] = []
@@ -366,6 +369,7 @@ def ci_comment_cmd(
         raise typer.Exit(code=1)
 
     from infra.cli.compile import _apply_environment
+    from infra.parser import parse_file
 
     try:
         program = _apply_environment(

@@ -32,7 +32,16 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import infra.parser.ast_nodes as n
 from infra.analyzer.security import MUTABLE_TAGS
+from infra.errors.exceptions import InfraError
 from infra.version import __version__
+
+
+class UnknownSbomFormatError(InfraError, ValueError):
+    """Unknown ``infra sbom --format`` value.
+
+    Inherits :class:`ValueError` for backwards compatibility; it is also an
+    :class:`InfraError`, keeping every module error in one hierarchy.
+    """
 
 FORMATS = ("spdx-json", "cyclonedx-json", "markdown", "text")
 
@@ -574,8 +583,8 @@ def render_sbom(
             timestamp=timestamp,
             availability=availability,
         )
-    raise ValueError(
-        f"Unknown SBOM format '{output_format}'. Valid formats: "
+    raise UnknownSbomFormatError(
+        message=f"Unknown SBOM format '{output_format}'. Valid formats: "
         f"{', '.join(FORMATS)}"
     )
 

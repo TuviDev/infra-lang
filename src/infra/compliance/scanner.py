@@ -31,7 +31,16 @@ from infra.compliance.mappings import (
     Control,
     controls_for,
 )
+from infra.errors.exceptions import InfraError
 from infra.parser import ast_nodes as n
+
+
+class UnknownDetectorError(InfraError, ValueError):
+    """Internal wiring error: a control references an unknown detector.
+
+    Inherits :class:`ValueError` for backwards compatibility; it is also an
+    :class:`InfraError`, keeping every module error in one hierarchy.
+    """
 
 
 @dataclass(frozen=True)
@@ -205,8 +214,8 @@ def _evaluate_control(
             if getattr(finding, "code", None) in control.codes:
                 violations.append(_finding_violation(control, finding))
     else:
-        raise ValueError(
-            f"Unknown detector {control.detector!r} for "
+        raise UnknownDetectorError(
+            message=f"Unknown detector {control.detector!r} for "
             f"{control.control_id}"
         )
     return ControlResult(control=control, violations=tuple(violations))

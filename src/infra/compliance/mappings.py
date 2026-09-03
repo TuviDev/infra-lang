@@ -40,6 +40,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Tuple
 
+from infra.errors.exceptions import InfraError
+
+
+class UnknownStandardError(InfraError, ValueError):
+    """Unknown compliance standard name.
+
+    Inherits :class:`ValueError` for backwards compatibility; it is also an
+    :class:`InfraError`, keeping every module error in one hierarchy.
+    """
+
 #: Detector kinds: ``findings`` maps SEC/REL codes; the other two are
 #: evaluated directly against the AST by the scanner.
 DETECTOR_FINDINGS = "findings"
@@ -187,6 +197,6 @@ def controls_for(standard: str) -> Tuple[Control, ...]:
         return CIS_CONTROLS
     if standard == "all":
         return SOC2_CONTROLS + CIS_CONTROLS
-    raise ValueError(
-        f"Unknown standard '{standard}'. Valid: {list(STANDARDS)}"
+    raise UnknownStandardError(
+        message=f"Unknown standard '{standard}'. Valid: {list(STANDARDS)}"
     )

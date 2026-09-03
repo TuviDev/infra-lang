@@ -8,7 +8,6 @@ from typing import List, Optional
 import typer
 
 from infra.cli import batch as _batch
-from infra.parser import _parser
 
 
 def check(
@@ -32,6 +31,8 @@ def check(
     ),
 ) -> None:
     """Check syntax only (no semantic analysis)."""
+    from infra.parser import _parser
+
     parser = _parser()
 
     if all_files:

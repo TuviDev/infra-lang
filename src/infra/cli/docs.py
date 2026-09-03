@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import typer
 
-from infra.parser import _parser
-from infra.parser import ast_nodes as n
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.parser import ast_nodes as n
 
 
 def docs(
@@ -18,6 +18,8 @@ def docs(
     ),
 ) -> None:
     """Generate a Markdown inventory of the defined resources."""
+    from infra.parser import _parser
+
     parser = _parser()
     lines = ["# Infra Inventory", ""]
     for f in files:
@@ -39,6 +41,8 @@ def docs(
 class _D:
     @staticmethod
     def _describe(stmt: n.ASTNode) -> str:
+        from infra.parser import ast_nodes as n
+
         if isinstance(stmt, n.ServiceDef):
             return f"- **service** `{stmt.name}` (image: {stmt.image})"
         if isinstance(stmt, n.DatabaseDef):

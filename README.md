@@ -8,6 +8,9 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue)](https://www.python.org/)
 
+**Current release: v1.0.1** — quality, performance & hardening
+(see [CHANGELOG.md](CHANGELOG.md)).
+
 Infra Lang is an Infrastructure-as-Code DSL for DevOps engineers, SREs, and
 platform teams. You describe your application — services, databases, queues,
 secrets, and pipelines — in one declarative `.infra` file, and Infra Lang

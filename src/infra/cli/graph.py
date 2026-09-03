@@ -7,9 +7,6 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import typer
 
-from infra.parser import _parser
-from infra.parser import ast_nodes as n
-
 _SHAPES = {
     "service": ("box", "service"),
     "database": ("cylinder", "database"),
@@ -23,6 +20,8 @@ def _collect(
 ) -> Tuple[Dict[str, Dict[str, Any]], List[Tuple[str, str]]]:
     """Return {name: {kind, sub, ingress_host}} nodes and depends edges."""
     from infra.cli.compile import _apply_environment
+    from infra.parser import _parser
+    from infra.parser import ast_nodes as n
 
     parser = _parser()
     nodes: Dict[str, Dict[str, Any]] = {}
@@ -140,6 +139,7 @@ def graph(
 
     if fmt == "png":
         from infra.analyzer.graph_png import render_dag_png_bytes
+        from infra.parser import _parser
 
         if len(files) != 1:
             typer.echo(
@@ -164,6 +164,7 @@ def graph(
 
     if fmt == "svg":
         from infra.analyzer.ui_generator import generate_dag_svg
+        from infra.parser import _parser
 
         if len(files) != 1:
             typer.echo(

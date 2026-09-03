@@ -9,13 +9,24 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 import typer
 
-from infra.explain import collect_explain_data
-from infra.explain.renderer import AUDIENCES, FORMATS, parse_sections, render_explain
-from infra.parser import parse_file
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.parser import ast_nodes as n
+
+
+def parse_file(path: Path) -> n.Program:
+    """Lazy proxy for :func:`infra.parser.parse_file`.
+
+    Keeps the heavy parser import out of the CLI startup path while
+    preserving this module attribute as the monkey-patch point the
+    test-suite relies on.
+    """
+    from infra.parser import parse_file as _real
+
+    return _real(path)
 
 
 def explain(
@@ -46,6 +57,14 @@ def explain(
 ) -> None:
     """Explain the architecture of an .infra file (insight report)."""
     from rich.console import Console
+
+    from infra.explain import collect_explain_data
+    from infra.explain.renderer import (
+        AUDIENCES,
+        FORMATS,
+        parse_sections,
+        render_explain,
+    )
 
     console = Console()
 

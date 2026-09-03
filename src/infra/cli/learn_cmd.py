@@ -18,13 +18,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import TYPE_CHECKING, Callable, List, Optional
 
 import typer
 
-from infra.errors.exceptions import InfraParseError
-from infra.parser import _parser
-from infra.parser import ast_nodes as n
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.parser import ast_nodes as n
+
 
 _RULE = "=" * 72
 _THIN = "-" * 72
@@ -43,7 +43,7 @@ class Lesson:
     pattern: str
 
 
-LessonChecks = Callable[[n.Program], List[str]]
+LessonChecks = Callable[["n.Program"], List[str]]
 
 
 # --------------------------------------------------------------------- #
@@ -272,6 +272,8 @@ LESSONS: List[Lesson] = [_LESSON_1, _LESSON_2, _LESSON_3, _LESSON_4, _LESSON_5]
 
 
 def _services(program: n.Program) -> List[n.ServiceDef]:
+    from infra.parser import ast_nodes as n
+
     return [s for s in program.statements if isinstance(s, n.ServiceDef)]
 
 
@@ -286,6 +288,8 @@ def _failures_l1(program: n.Program) -> List[str]:
 
 
 def _failures_l2(program: n.Program) -> List[str]:
+    from infra.parser import ast_nodes as n
+
     fails = []
     if not any(isinstance(s, n.DatabaseDef) for s in program.statements):
         fails.append("a 'database' block")
@@ -299,6 +303,8 @@ def _failures_l2(program: n.Program) -> List[str]:
 
 
 def _failures_l3(program: n.Program) -> List[str]:
+    from infra.parser import ast_nodes as n
+
     fails = []
     svcs = _services(program)
     if len(svcs) < 2:
@@ -323,6 +329,8 @@ def _failures_l4(program: n.Program) -> List[str]:
 
 
 def _failures_l5(program: n.Program) -> List[str]:
+    from infra.parser import ast_nodes as n
+
     fails = []
     if not any(isinstance(s, n.NetworkPolicyDef) for s in program.statements):
         fails.append("a top-level 'network_policy' block")
@@ -417,6 +425,9 @@ def verify_solution(number: int, path: Path) -> bool:
     if not path.is_file():
         typer.echo(f"[FAIL] File not found: {path}", err=True)
         raise typer.Exit(code=1)
+
+    from infra.errors.exceptions import InfraParseError
+    from infra.parser import _parser
 
     try:
         program = _parser().parse_file(path)

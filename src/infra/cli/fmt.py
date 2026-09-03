@@ -9,7 +9,6 @@ from typing import List, Optional
 import typer
 
 from infra.cli import batch as _batch
-from infra.cli.printer import format_file
 
 
 def fmt(
@@ -29,6 +28,8 @@ def fmt(
     ),
 ) -> None:
     """Format .infra files through the AST pretty-printer."""
+    from infra.cli.printer import format_file
+
     if all_files:
         _fmt_all(check, diff, indent)
         return
@@ -73,6 +74,8 @@ def _udiff(f: Path, formatted: str) -> str:
 
 def _fmt_all(check: bool, diff: bool, indent: int) -> None:
     """Batch-format every .infra file discovered in the workspace."""
+    from infra.cli.printer import format_file
+
     root = Path.cwd()
     rows: list[_batch.BatchRow] = []
     changed = 0

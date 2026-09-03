@@ -96,16 +96,20 @@ class SemanticValidator:
         self.result = ValidationResult()
         self.symbols = SymbolTable()
         self._defined_names = set()
-        self._program_defs = {
-            name
-            for name in (getattr(s, "name", "") for s in program.statements)
-            if name
-        }
-        # v0.5.0: secret stores, collected up-front for STORE_NOT_FOUND
-        store_defs = [
-            s for s in program.statements if isinstance(s, n.SecretStoreDef)
-        ]
-        self._secret_stores = {s.name for s in store_defs}
+        # Single-pass collector: defined names, secret stores (v0.5.0,
+        # STORE_NOT_FOUND) and the service map for the cycle check are all
+        # gathered in one traversal of program.statements.
+        self._program_defs = set()
+        self._secret_stores = set()
+        services: Dict[str, n.ServiceDef] = {}
+        for stmt in program.statements:
+            name = getattr(stmt, "name", "")
+            if name:
+                self._program_defs.add(name)
+            if isinstance(stmt, n.ServiceDef):
+                services[stmt.name] = stmt
+            elif isinstance(stmt, n.SecretStoreDef):
+                self._secret_stores.add(stmt.name)
 
         for imp in program.imports:
             self._check_import(imp)
@@ -113,7 +117,7 @@ class SemanticValidator:
         for stmt in program.statements:
             self._visit(stmt)
 
-        self._check_dependency_cycles(program)
+        self._check_dependency_cycles(program, services)
         self._check_unused()
 
         if reliability:
@@ -140,16 +144,24 @@ class SemanticValidator:
             self._check_max_cost(program, max_cost)
         return self.result
 
-    def _check_dependency_cycles(self, program: n.Program) -> None:
+    def _check_dependency_cycles(
+        self,
+        program: n.Program,
+        services: Optional[Dict[str, n.ServiceDef]] = None,
+    ) -> None:
         """Report a service-dependency cycle (``A -> B -> A``) as an error.
 
         Runs on the merged edge set (``depends`` + ``depends_on``) over
         declared services only — undeclared targets are already reported by
-        DEPENDENCY_NOT_FOUND / W001 and are ignored here.
+        DEPENDENCY_NOT_FOUND / W001 and are ignored here. The *services* map
+        can be pre-collected by the caller to avoid a second traversal.
         """
-        services = {
-            s.name: s for s in program.statements if isinstance(s, n.ServiceDef)
-        }
+        if services is None:
+            services = {
+                s.name: s
+                for s in program.statements
+                if isinstance(s, n.ServiceDef)
+            }
         white, gray, black = 0, 1, 2
         color: Dict[str, int] = {}
         reported: set[tuple[str, ...]] = set()

@@ -2,6 +2,49 @@
 
 All notable changes to Infra Lang are documented here.
 
+## [1.0.1] - Quality, Performance & Hardening — 2026-09-03
+
+**The Quality, Performance & Hardening Block** — a no-new-features polish
+release: faster CLI startup, lower parse-and-validate latency, a unified
+error taxonomy and a hardened edge-case surface. Fully backward compatible
+with every v1.0.0 `.infra` file; zero new runtime dependencies.
+
+### Changed — CLI performance
+- **Lazy command imports** — heavyweight modules (`infra.parser`, backends,
+  `ruamel.yaml`, Pillow, LSP bindings) now load inside the command body
+  instead of at module import time: `import infra.cli.main` is ~2.5× faster
+  and `infra --help` wall time drops from ~480 ms to ~250 ms.
+
+### Changed — unified error taxonomy
+- deploy/workspace/compliance/sbom/explain raise
+  `infra.errors.exceptions.InfraError` subclasses (`DeployTargetError`,
+  `RevisionNotFoundError`, `UnknownStandardError`, `UnknownDetectorError`,
+  `UnknownSbomFormatError`, `InvalidSectionsError`, `WorkspaceError`) while
+  keeping `ValueError`/`LookupError` base-class compatibility.
+
+### Changed — parser & analyzer performance
+- **Grammar singleton** — the Lark grammar and parser instance are cached
+  process-wide (contract now pinned by tests).
+- **Single-pass validation** — `validate()` collects definitions, secret
+  stores and services in one traversal for all downstream checks.
+- **Incremental LSP indexing** — `textDocument/didChange` re-indexes only
+  the changed document; the workspace index purges only that file's symbols.
+
+### Fixed — hardening
+- **Corrupt `.infra-state/` tolerance** — history files that are unreadable,
+  malformed JSON, or valid JSON of the wrong shape are skipped instead of
+  crashing deploy history/rollback lookups.
+- **Concurrent deploys** — racing deployments with auto-rollback never crash
+  and never leave undecodable records on disk (pinned by threaded tests).
+- **VS Code extension** — the `**/*.infra` `FileSystemWatcher` is now
+  registered in `context.subscriptions`, fixing a listener leak on reload.
+
+### Tests & docs
+- 95 new edge-case tests (deploy, workspace, compliance, sbom, explain,
+  backends); coverage floor raised to **98.25% line / 95.00% branch** with
+  all eight v1.0 runtime modules kept at 100%/100%.
+- Documentation staleness audit (examples, flags, versions).
+
 ## [1.0.0] - Production & Enterprise — 2026-09-02
 
 **The Production & Enterprise Block** — the first major release: deploy and

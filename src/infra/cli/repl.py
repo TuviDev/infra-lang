@@ -3,27 +3,44 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import typer
 
-from infra.analyzer.validator import SemanticValidator, ValidationResult
-from infra.backends import get_backend
-from infra.parser import _parser
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.analyzer.validator import ValidationResult
 
-try:
-    from prompt_toolkit import PromptSession
-    from prompt_toolkit.history import FileHistory
+# Lazy prompt_toolkit resolution keeps `infra --help` startup fast: the
+# ~90 ms import cost of prompt_toolkit is only paid when the REPL actually
+# runs. ``_PT`` uses a tri-state: ``None`` = not yet probed, ``True`` /
+# ``False`` = resolved (or forced by tests, which monkeypatch the module
+# attributes directly).
+PromptSession: Any = None
+FileHistory: Any = None
+_PT: Optional[bool] = None
 
-    _PT = True
-except Exception:  # pragma: no cover
-    _PT = False
+
+def _resolve_pt() -> None:
+    """Import prompt_toolkit on first use, setting the module globals."""
+    global _PT, PromptSession, FileHistory
+    if _PT is not None:
+        return
+    try:
+        from prompt_toolkit import PromptSession as _Session
+        from prompt_toolkit.history import FileHistory as _History
+
+        PromptSession, FileHistory = _Session, _History
+        _PT = True
+    except Exception:  # pragma: no cover
+        _PT = False
 
 
 class InfraREPL:
     def __init__(
         self, target: str = "kubernetes", history_file: Optional[Path] = None
     ) -> None:
+        from infra.parser import _parser
+
         self.target = target
         self.parser = _parser()
         self.history_file = history_file or Path.home() / ".infra_history"
@@ -32,6 +49,7 @@ class InfraREPL:
         self.symbols: Optional[ValidationResult] = None
 
     def run(self) -> None:
+        _resolve_pt()
         session: Any = None
         if _PT:
             session = PromptSession(history=FileHistory(str(self.history_file)))
@@ -66,6 +84,9 @@ class InfraREPL:
         return opens > closes
 
     def process_input(self, text: str) -> None:
+        from infra.analyzer.validator import SemanticValidator
+        from infra.backends import get_backend
+
         try:
             program = self.parser.parse(text)
         except Exception as e:

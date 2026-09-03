@@ -2,7 +2,7 @@
   "name": "infra-lang",
   "displayName": "Infra Lang",
   "description": "Syntax highlighting, snippets, and language server for .infra files",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "publisher": "infra-lang",
   "license": "MIT",
   "repository": {

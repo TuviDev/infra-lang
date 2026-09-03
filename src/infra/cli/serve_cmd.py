@@ -25,17 +25,25 @@ from functools import partial
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from socketserver import ThreadingMixIn
-from typing import Any, Callable, ClassVar, Dict, List, Optional, Tuple
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+)
 
 import typer
 
-from infra.analyzer.cost import estimate_cost
-from infra.analyzer.drift import DriftReport
-from infra.analyzer.ui_generator import generate_compare_html, generate_ui_html
 from infra.errors.exceptions import InfraError
-from infra.parser import ast_nodes as n
-from infra.parser import parse_file
 from infra.version import __version__
+
+if TYPE_CHECKING:  # pragma: no cover
+    from infra.analyzer.drift import DriftReport
+    from infra.parser import ast_nodes as n
 
 #: Default HTTP port for the dashboard server.
 DEFAULT_PORT = 8080
@@ -57,7 +65,7 @@ def _probe_drift_safely(
     :attr:`DriftReport.error`, and this wrapper additionally catches engine-
     level exceptions (fail-safe UI, read-only contract preserved).
     """
-    from infra.analyzer.drift import detect_live_drift_program
+    from infra.analyzer.drift import DriftReport, detect_live_drift_program
 
     try:
         return detect_live_drift_program(
@@ -85,7 +93,10 @@ def render_dashboard(
     """
     from dataclasses import replace as _dc_replace
 
+    from infra.analyzer.cost import estimate_cost
+    from infra.analyzer.ui_generator import generate_ui_html
     from infra.cli.compile import _apply_environment
+    from infra.parser import parse_file
 
     base = parse_file(file)
     program = _apply_environment(base, environment or "")
@@ -112,6 +123,9 @@ def render_compare(file: Path, env_a: str, env_b: str) -> str:
     ``EnvironmentNotFoundError`` (itself an ``InfraError``) for unknown
     overlay names — the special name ``base`` selects the unoverlaid file.
     """
+    from infra.analyzer.ui_generator import generate_compare_html
+    from infra.parser import parse_file
+
     return generate_compare_html(parse_file(file), env_a, env_b)
 
 
@@ -168,7 +182,10 @@ def publish_site(
     """
     from dataclasses import replace as _dc_replace
 
+    from infra.analyzer.cost import estimate_cost
+    from infra.analyzer.ui_generator import generate_ui_html
     from infra.cli.compile import _apply_environment
+    from infra.parser import parse_file
 
     base = parse_file(file)
     program = _apply_environment(base, environment or "")
@@ -286,6 +303,7 @@ class _DashboardHTTPServer(ThreadingMixIn, HTTPServer):
 
 class _DashboardHandler(SimpleHTTPRequestHandler):
     """Serves the single-page dashboard, regenerated on every request."""
+
 
     server_version = "InfraDashboard"
     #: HTML producer bound by :func:`make_server` (one server per file).
