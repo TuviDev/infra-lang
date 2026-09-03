@@ -1,7 +1,7 @@
-# Infra Lang — 5-minute quickstart
+﻿# Infra Lang — 5-minute quickstart
 
 > Current release: **v1.0.1** — quality, performance & hardening
-> (see [CHANGELOG.md](../CHANGELOG.md)).
+> (see [CHANGELOG.md](https://github.com/TuviDev/infra-lang/blob/main/CHANGELOG.md)).
 
 ## Install
 ```bash
@@ -572,3 +572,4 @@ comparing the compiled output against on-disk generated files (`--out-dir`).
 ## What's next
 - Read the tutorial: `docs/tutorial.md`
 - See examples: `examples/`
+
