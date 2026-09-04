@@ -68,7 +68,7 @@ def canonical_target(name: str) -> str:
     canonical = _ALIASES.get(name.lower(), name.lower())
     if canonical not in TARGETS:
         raise DeployTargetError(
-            message=f"Unsupported target '{name}'. Valid targets: {', '.join(TARGETS)}"
+            f"Unsupported target '{name}'. Valid targets: {', '.join(TARGETS)}"
         )
     return canonical
 
@@ -596,12 +596,12 @@ def execute_rollback(
     origin = find_record(state_root, project, revision)
     if origin is None:
         raise RevisionNotFoundError(
-            message=f"revision '{revision}' not found in history"
+            f"revision '{revision}' not found in history"
         )
     snapshot = load_snapshot(state_root, project, origin.revision)
     if snapshot is None:
         raise RevisionNotFoundError(
-            message=f"snapshot for revision '{origin.revision}' is missing"
+            f"snapshot for revision '{origin.revision}' is missing"
         )
 
     new_revision = next_revision(state_root, project)

@@ -198,5 +198,5 @@ def controls_for(standard: str) -> Tuple[Control, ...]:
     if standard == "all":
         return SOC2_CONTROLS + CIS_CONTROLS
     raise UnknownStandardError(
-        message=f"Unknown standard '{standard}'. Valid: {list(STANDARDS)}"
+        f"Unknown standard '{standard}'. Valid: {list(STANDARDS)}"
     )

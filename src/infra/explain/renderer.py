@@ -525,12 +525,12 @@ def parse_sections(raw: str) -> List[str]:
     unknown = [s for s in chosen if s not in SECTION_IDS]
     if unknown:
         raise InvalidSectionsError(
-            message=f"Unknown section(s): {', '.join(unknown)}. "
+            f"Unknown section(s): {', '.join(unknown)}. "
             f"Valid: {', '.join(SECTION_IDS)}"
         )
     if not chosen:
         raise InvalidSectionsError(
-            message="--sections produced an empty selection"
+            "--sections produced an empty selection"
         )
     # keep canonical order even when the user lists them out of order
     return [s for s in SECTION_IDS if s in set(chosen)]

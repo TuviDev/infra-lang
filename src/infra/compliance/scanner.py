@@ -215,8 +215,7 @@ def _evaluate_control(
                 violations.append(_finding_violation(control, finding))
     else:
         raise UnknownDetectorError(
-            message=f"Unknown detector {control.detector!r} for "
-            f"{control.control_id}"
+            f"Unknown detector {control.detector!r} for {control.control_id}"
         )
     return ControlResult(control=control, violations=tuple(violations))
 

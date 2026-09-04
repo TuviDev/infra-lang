@@ -584,7 +584,7 @@ def render_sbom(
             availability=availability,
         )
     raise UnknownSbomFormatError(
-        message=f"Unknown SBOM format '{output_format}'. Valid formats: "
+        f"Unknown SBOM format '{output_format}'. Valid formats: "
         f"{', '.join(FORMATS)}"
     )
 
