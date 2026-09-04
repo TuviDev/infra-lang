@@ -357,26 +357,26 @@ class TestConcurrentDeploys:
         def _worker(project: str) -> None:
             try:
                 barrier.wait(timeout=10)
-                with mock.patch(
-                    "infra.deploy.engine.subprocess.run",
-                    _unhealthy_rollout_run,
-                ):
-                    record = execute_deploy(
-                        project=project,
-                        target="compose",
-                        files=FILES_COMPOSE,
-                        state_root=tmp_path,
-                    )
+                record = execute_deploy(
+                    project=project,
+                    target="compose",
+                    files=FILES_COMPOSE,
+                    state_root=tmp_path,
+                )
                 assert record.status == ROLLED_BACK
                 assert "auto-rollback restored" in record.message
             except Exception as exc:  # pragma: no cover - failure path
                 errors.append(exc)
 
-        threads = [threading.Thread(target=_worker, args=(p,)) for p in projects]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join(30)
+        # mock.patch is NOT thread-safe — patch once on the main thread so
+        # every worker shares the single patched module attribute (no leak).
+        with mock.patch("infra.deploy.engine.subprocess.run",
+                        _unhealthy_rollout_run):
+            threads = [threading.Thread(target=_worker, args=(p,)) for p in projects]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(30)
 
         assert errors == []
         for project in projects:
