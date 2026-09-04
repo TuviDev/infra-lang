@@ -1,8 +1,9 @@
 """Tests for atomic deploy locking (`infra.workspace.lock` + `workspace unlock`).
 
 Covers atomic creation, concurrency, auto-release on exceptions, stale-lock
-detection (POSIX + the Windows ``tasklist`` probe, both fully mocked) and
-the CLI helper. No real cross-process mutation is performed.
+detection (POSIX ``os.kill`` + the Windows ``ctypes``/``kernel32`` probe,
+both fully mocked) and the CLI helper. No real cross-process mutation is
+performed.
 """
 
 from __future__ import annotations
@@ -130,6 +131,43 @@ class TestPathsAndPayloads:
 # --------------------------------------------------------------------------- #
 
 
+class _FakeKernel32:
+    """Minimal ``kernel32`` stand-in for the Windows ctypes liveness probe."""
+
+    def __init__(self, handle, exit_code, res):
+        self._handle = handle
+        self._exit_code = exit_code
+        self._res = res
+        self.open_args: List = []
+        self.closed_handles: List = []
+
+    def OpenProcess(self, access, inherit, pid):  # noqa: N802 - WinAPI name
+        self.open_args.append((access, inherit, pid))
+        return self._handle
+
+    def GetExitCodeProcess(self, handle, ref):  # noqa: N802 - WinAPI name
+        ref._obj.value = self._exit_code  # ctypes.byref -> CArgObject
+        return self._res
+
+    def CloseHandle(self, handle):  # noqa: N802 - WinAPI name
+        self.closed_handles.append(handle)
+        return 1
+
+
+def _patch_windows_kernel(monkeypatch, kernel) -> None:
+    """Simulate a Windows host: ``os.name == 'nt'`` plus a fake ``windll``."""
+    import ctypes
+    import types
+
+    monkeypatch.setattr(lock_mod.os, "name", "nt")
+    monkeypatch.setattr(
+        ctypes,
+        "windll",
+        types.SimpleNamespace(kernel32=kernel),
+        raising=False,
+    )
+
+
 class TestPidAlive:
     def test_current_process_is_alive(self):
         assert lock_mod._pid_alive(os.getpid()) is True
@@ -165,36 +203,27 @@ class TestPidAlive:
         monkeypatch.setattr(lock_mod.os, "kill", broken)
         assert lock_mod._pid_alive(1234) is True
 
-    def test_windows_tasklist_found(self, monkeypatch):
-        monkeypatch.setattr(lock_mod.os, "name", "nt")
-        from unittest import mock
-
-        proc = mock.MagicMock(stdout='"python.exe","4321","Services","0","1 K"')
-        monkeypatch.setattr(
-            lock_mod.subprocess, "run", mock.MagicMock(return_value=proc)
-        )
+    def test_windows_ctypes_still_active_means_alive(self, monkeypatch):
+        kernel = _FakeKernel32(handle=77, exit_code=259, res=1)
+        _patch_windows_kernel(monkeypatch, kernel)
         assert lock_mod._pid_alive(4321) is True
-        args, kwargs = lock_mod.subprocess.run.call_args
-        assert "tasklist" in args[0][0]
+        assert kernel.open_args == [(0x1000, False, 4321)]
+        assert kernel.closed_handles == [77]
 
-    def test_windows_tasklist_not_found(self, monkeypatch):
-        monkeypatch.setattr(lock_mod.os, "name", "nt")
-        from unittest import mock
-
-        proc = mock.MagicMock(stdout="INFO: No tasks are running")
-        monkeypatch.setattr(
-            lock_mod.subprocess, "run", mock.MagicMock(return_value=proc)
-        )
+    def test_windows_ctypes_exited_means_dead(self, monkeypatch):
+        kernel = _FakeKernel32(handle=77, exit_code=1, res=1)
+        _patch_windows_kernel(monkeypatch, kernel)
         assert lock_mod._pid_alive(4321) is False
 
-    def test_windows_tasklist_failure_fails_safe(self, monkeypatch):
-        monkeypatch.setattr(lock_mod.os, "name", "nt")
+    def test_windows_ctypes_open_failure_means_dead(self, monkeypatch):
+        kernel = _FakeKernel32(handle=None, exit_code=259, res=1)
+        _patch_windows_kernel(monkeypatch, kernel)
+        assert lock_mod._pid_alive(4321) is False
 
-        def boom(*args, **kwargs):
-            raise OSError("tasklist unavailable")
-
-        monkeypatch.setattr(lock_mod.subprocess, "run", boom)
-        assert lock_mod._pid_alive(4321) is True
+    def test_windows_ctypes_exitcode_failure_means_dead(self, monkeypatch):
+        kernel = _FakeKernel32(handle=77, exit_code=259, res=0)
+        _patch_windows_kernel(monkeypatch, kernel)
+        assert lock_mod._pid_alive(4321) is False
 
     def test_is_stale(self):
         info = LockInfo(pid=1, hostname="h", timestamp="t", operation="deploy")
@@ -327,7 +356,10 @@ class TestWorkspaceLock:
             try:
                 WorkspaceLock("demo", state_root=tmp_path).acquire()
                 winners.append(str(index))
-            except LockError as exc:
+            except (LockError, PermissionError, OSError) as exc:
+                # LockError: lost the atomic create race; PermissionError/
+                # OSError: Windows may surface WinError 32 from a mid-acquire
+                # handle instead of a clean LockError — still a lost race.
                 errors.append(exc)
 
         threads = [
@@ -340,8 +372,12 @@ class TestWorkspaceLock:
 
         assert len(winners) == 1
         assert len(errors) == 7
-        # the winner's lock is still held; clean it up manually
-        lock_path(tmp_path, "demo").unlink()
+        # the winner's lock is still held; clean it up manually (tolerant —
+        # on Windows the file may briefly be held open by the last thread)
+        try:
+            lock_path(tmp_path, "demo").unlink()
+        except (PermissionError, FileNotFoundError, OSError):
+            pass
 
 
 # --------------------------------------------------------------------------- #

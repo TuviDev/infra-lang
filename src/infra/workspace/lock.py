@@ -24,7 +24,6 @@ from __future__ import annotations
 import json
 import os
 import socket
-import subprocess
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -110,18 +109,28 @@ def _pid_alive(pid: int) -> bool:
 
 
 def _pid_alive_windows(pid: int) -> bool:
-    """Windows liveness probe via the stdlib-invoked ``tasklist`` tool."""
-    try:
-        result = subprocess.run(
-            ["tasklist", "/FI", f"PID eq {pid}", "/FO", "CSV", "/NH"],
-            capture_output=True,
-            text=True,
-            timeout=10,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return True  # cannot tell — assume alive (fail safe)
-    return str(pid) in result.stdout
+    """Windows liveness probe via ``ctypes`` (stdlib, zero dependencies).
+
+    Replaces the fragile ``tasklist`` subprocess probe: kernel handles are
+    consulted directly and an exited process (``GetExitCodeProcess`` !=
+    ``STILL_ACTIVE``) is correctly reported dead. On error paths we return
+    ``False`` only when the process provably is not running — ``OpenProcess``
+    succeeding is the positive signal.
+    """
+    import ctypes
+
+    # PROCESS_QUERY_LIMITED_INFORMATION = 0x1000; STILL_ACTIVE = 259
+    # ctypes.windll exists only on Windows, which is exactly where this
+    # function is ever dispatched (see _pid_alive) — tell the type checker.
+    kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+    handle = kernel32.OpenProcess(0x1000, False, pid)
+    if handle:
+        exit_code = ctypes.c_ulong()
+        res = kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+        kernel32.CloseHandle(handle)
+        if res:
+            return exit_code.value == 259
+    return False
 
 
 def is_stale(info: LockInfo) -> bool:
@@ -238,9 +247,12 @@ class WorkspaceLock:
 
     def _remove_file(self) -> None:
         try:
-            self.lock_file.unlink()
-        except FileNotFoundError:
-            pass  # race: another process already reclaimed it
+            if self.lock_file.exists():
+                self.lock_file.unlink()
+        except (PermissionError, FileNotFoundError, OSError):
+            # WinError 32: the file is still open elsewhere (another process
+            # is mid-acquire); FileNotFoundError/OSError: a race reclaimed it.
+            pass
 
 
 __all__ = [

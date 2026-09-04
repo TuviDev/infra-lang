@@ -311,26 +311,26 @@ class TestConcurrentDeploys:
         def _worker(i: int) -> None:
             try:
                 barrier.wait(timeout=10)
-                with mock.patch(
-                    "infra.deploy.engine.subprocess.run",
-                    _unhealthy_rollout_run,
-                ):
-                    records.append(
-                        execute_deploy(
-                            project="web",
-                            target="compose",
-                            files={"docker-compose.yml": f"version: {i}\n"},
-                            state_root=tmp_path,
-                        )
+                records.append(
+                    execute_deploy(
+                        project="web",
+                        target="compose",
+                        files={"docker-compose.yml": f"version: {i}\n"},
+                        state_root=tmp_path,
                     )
+                )
             except Exception as exc:  # pragma: no cover - failure path
                 errors.append(exc)
 
-        threads = [threading.Thread(target=_worker, args=(i,)) for i in range(4)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join(30)
+        # mock.patch is NOT thread-safe — patch once on the main thread so
+        # every worker shares the single patched module attribute (no leak).
+        with mock.patch("infra.deploy.engine.subprocess.run",
+                        _unhealthy_rollout_run):
+            threads = [threading.Thread(target=_worker, args=(i,)) for i in range(4)]
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join(30)
 
         assert errors == []
         assert len(records) == 4
